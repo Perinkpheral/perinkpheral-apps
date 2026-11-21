@@ -58,6 +58,18 @@ static const char *path_refs[PICKERS][PATHS];
 static int32_t count, active_pickers, status, saved_status;
 static bool reading;
 
+/* Buffer initialization is shared rather than expanded at each formatter. */
+__attribute__((noinline)) static void start_text(app_text_t *text, char *buffer, int32_t size)
+{
+    app_text_start(text, buffer, size);
+}
+
+__attribute__((noinline)) static void add_pair(app_text_t *text, const char *first, const char *second)
+{
+    app_text_add(text, first);
+    app_text_add(text, second);
+}
+
 static int32_t currency_count(void)
 {
     int32_t n = app_setting_count("codes");
@@ -66,8 +78,9 @@ static int32_t currency_count(void)
 
 static bool valid_code(const char *code)
 {
-    return app_text_length(code) == 3 && code[0] >= 'A' && code[0] <= 'Z'
-        && code[1] >= 'A' && code[1] <= 'Z' && code[2] >= 'A' && code[2] <= 'Z';
+    for (int32_t index = 0; index < 3; ++index)
+        if (code[index] < 'A' || code[index] > 'Z') return false;
+    return code[3] == 0;
 }
 
 static void begin_reading(void)
@@ -76,11 +89,8 @@ static void begin_reading(void)
     count = currency_count();
     active_pickers = count > 0 ? (count + PER_PICKER - 1) / PER_PICKER : 1;
     for (int32_t group = 0; group < active_pickers; group++) {
-        static const char *const fields[] = { "Value", "Nominal", "Name", "ID" };
-        for (int32_t p = 0; p < PATHS; p++) {
-            paths[group][p][0] = 0;
-            path_refs[group][p] = paths[group][p];
-        }
+        static const char *const fields[] = { ".Value", ".Nominal", ".Name", ".ID" };
+        path_refs[group][0] = paths[group][0];
         app_text_copy(paths[group][0], sizeof paths[group][0], "Date");
         for (int32_t slot = 0; slot < PER_PICKER; slot++) {
             int32_t i = group * PER_PICKER + slot;
@@ -90,15 +100,14 @@ static void begin_reading(void)
             app_text_copy(incoming.rates[i].code, sizeof incoming.rates[i].code, code);
             for (int32_t f = 0; f < FIELDS; f++) {
                 app_text_t text;
-                app_text_start(&text, paths[group][1 + slot * FIELDS + f], 40);
-                app_text_add(&text, "Valute.");
-                app_text_add(&text, valid_code(code) ? code : "INVALID");
-                app_text_add(&text, ".");
+                int32_t p = 1 + slot * FIELDS + f;
+                path_refs[group][p] = paths[group][p];
+                start_text(&text, paths[group][p], 40);
+                add_pair(&text, "Valute.", valid_code(code) ? code : "INVALID");
                 app_text_add(&text, fields[f]);
             }
         }
         int32_t slots = count - group * PER_PICKER;
-        if (slots < 0) { slots = 0; }
         if (slots > PER_PICKER) { slots = PER_PICKER; }
         json_pick_init(&pickers[group], path_refs[group], 1 + slots * FIELDS);
     }
@@ -183,11 +192,17 @@ static bool write_history(int32_t index, const cached_history_t *record)
     return file_write(HISTORY_FILE, HISTORY_FILE_LENGTH, offset, record, sizeof *record) == HOST_OK;
 }
 
+/* Keep the cache identity check shared by loading, fetching and accepting history. */
+__attribute__((noinline)) static bool history_matches(const cached_history_t *record, const rate_t *rate)
+{
+    return rate && app_text_equal(record->code, rate->code) && app_text_equal(record->history.id, rate->id);
+}
+
 static void load_chart(void)
 {
     read_history(navigation.index, &chart);
     const rate_t *rate = rate_for(navigation.index);
-    if (!rate || !app_text_equal(rate->code, chart.code) || !app_text_equal(rate->id, chart.history.id))
+    if (!history_matches(&chart, rate))
         chart = (cached_history_t){0};
 }
 
@@ -211,17 +226,16 @@ static void request_histories(void)
         if (!rate || !rate->nominal || !history_valid_id(rate->id)) continue;
         cached_history_t previous;
         read_history(index, &previous);
-        if (app_text_equal(previous.code, rate->code) && app_text_equal(previous.history.id, rate->id) &&
+        if (history_matches(&previous, rate) &&
             previous.history.count && previous.history.as_of >= day) continue;
         char url[192];
         app_text_t text;
-        app_text_start(&text, url, sizeof url);
+        start_text(&text, url, sizeof url);
         app_text_add(&text, "https://www.cbr.ru/scripts/XML_dynamic.asp?date_req1=");
         append_date(&text, day - HISTORY_DAYS + 1);
         app_text_add(&text, "&date_req2=");
         append_date(&text, day);
-        app_text_add(&text, "&VAL_NM_RQ=");
-        app_text_add(&text, rate->id);
+        add_pair(&text, "&VAL_NM_RQ=", rate->id);
         http_send(HOST_REQUEST_FIRST + index, HOST_HTTP_GET, url, app_text_length(url), "", 0, "", 0);
     }
 }
@@ -230,11 +244,11 @@ static void update_header(void)
 {
     char buffer[32];
     app_text_t text;
-    app_text_start(&text, buffer, sizeof buffer);
+    start_text(&text, buffer, sizeof buffer);
     app_text_add_number(&text, navigation.index + 1);
     app_text_add(&text, "/");
     app_text_add_number(&text, currency_count());
-    if (rotating) { app_text_add(&text, " "); app_text_add(&text, app_string(STR_AUTO)); }
+    if (rotating) { add_pair(&text, " ", app_string(STR_AUTO)); }
     header_set_text(HOST_HEADER_LEFT, buffer, app_text_length(buffer));
 }
 
@@ -242,8 +256,12 @@ static void update_rotation(bool restart)
 {
     char setting[16];
     app_setting("rotate", setting, sizeof setting);
-    int32_t minutes = app_text_equal(setting, "10 min") ? 10 : app_text_equal(setting, "5 min") ? 5 :
-                      app_text_equal(setting, "2 min") ? 2 : 1;
+    static const char *const choices[] = { "10 min", "5 min", "2 min" };
+    static const uint8_t intervals[] = { 10, 5, 2, 1 };
+    int32_t choice;
+    for (choice = 0; choice < 3; ++choice)
+        if (app_text_equal(setting, choices[choice])) break;
+    int32_t minutes = intervals[choice];
     if (!rotating || currency_count() < 2) {
         navigation.next_rotation_ms = 0;
         timer_set(ROTATE_TIMER, 0);
@@ -348,7 +366,7 @@ static void history_answer(const uint8_t *data, int32_t length, int32_t flags, i
             if (!rate || !app_text_equal(rate->id, fresh->id) || fresh->as_of > current_day) continue;
             cached_history_t previous;
             read_history(index, &previous);
-            bool same_currency = app_text_equal(previous.code, rate->code) && app_text_equal(previous.history.id, fresh->id);
+            bool same_currency = history_matches(&previous, rate);
             if (same_currency && previous.history.count &&
                 previous.history.as_of > fresh->as_of) continue;
             cached_history_t record = { .version = HISTORY_VERSION, .history = *fresh };
@@ -407,13 +425,12 @@ void app_on_draw(void)
     char title[96], fitted[96], price[32];
     app_text_t text;
     bool named = app_string(STR_CURRENCY_NAME)[0] && rate->name[0];
-    app_text_start(&text, fitted, sizeof fitted);
-    if (named) { app_text_add(&text, rate->name); app_text_add(&text, " ("); }
-    app_text_add(&text, rate->code);
-    app_text_add(&text, named ? ")" : " / RUB");
+    start_text(&text, fitted, sizeof fitted);
+    if (named) { add_pair(&text, rate->name, " ("); }
+    add_pair(&text, rate->code, named ? ")" : " / RUB");
     int32_t length = gfx_fit_text(HOST_FONT_TEXT, fitted, app_text_length(fitted), width - 2 * HOST_UI_MARGIN, title, sizeof title);
     gfx_draw_text(HOST_UI_MARGIN, HOST_UI_MARGIN, HOST_FONT_TEXT, title, length);
-    app_text_start(&text, price, sizeof price);
+    start_text(&text, price, sizeof price);
     int32_t normalized = (int32_t)(rate->value / rate->nominal);
     app_text_add_number(&text, normalized / 10000);
     char fraction[6] = { '.', 0, 0, 0, 0, 0 };
@@ -436,9 +453,8 @@ void app_on_draw(void)
         ui_draw_chart(&plot, chart.history.values);
     } else draw_centered(width / 2, chart_top + 30, HOST_FONT_SMALL, app_string(STR_NO_HISTORY));
     char caption[64];
-    app_text_start(&text, caption, sizeof caption);
-    app_text_add(&text, app_string(STR_PERIOD));
-    app_text_add(&text, " · ");
+    start_text(&text, caption, sizeof caption);
+    add_pair(&text, app_string(STR_PERIOD), " · ");
     append_date(&text, chart.history.count ? chart.history.days[chart.history.count - 1] : history_day(state.date, true));
     draw_centered(width / 2, height - caption_height - 4, HOST_FONT_SMALL, caption);
 }

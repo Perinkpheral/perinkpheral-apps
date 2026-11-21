@@ -9,25 +9,22 @@ enum { NOMINAL = 1, VALUE, UNIT };
 bool history_amount(const char *text, int32_t decimals, int32_t *value)
 {
     if (decimals < 0 || decimals > 4 || !text || *text < '0' || *text > '9') return false;
-    int32_t number = 0;
-    while (*text >= '0' && *text <= '9') {
-        if (number > (INT32_MAX - (*text - '0')) / 10) return false;
-        number = number * 10 + *text++ - '0';
-    }
-    int32_t fraction = 0;
-    if (*text == '.') {
-        if (!decimals) return false;
-        ++text;
-        if (*text < '0' || *text > '9') return false;
-        while (*text >= '0' && *text <= '9') {
-            if (fraction++ < decimals) {
-                if (number > (INT32_MAX - (*text - '0')) / 10) return false;
-                number = number * 10 + *text - '0';
-            }
+    int32_t number = 0, fraction = 0;
+    bool dotted = false;
+    while (*text) {
+        if (*text == '.' && !dotted && decimals) {
+            dotted = true;
             ++text;
+            if (*text < '0' || *text > '9') return false;
+            continue;
         }
+        if (*text < '0' || *text > '9') return false;
+        if (!dotted || fraction++ < decimals) {
+            if (number > (INT32_MAX - (*text - '0')) / 10) return false;
+            number = number * 10 + (*text - '0');
+        }
+        ++text;
     }
-    if (*text) return false;
     while (fraction++ < decimals) {
         if (number > INT32_MAX / 10) return false;
         number *= 10;
@@ -36,26 +33,36 @@ bool history_amount(const char *text, int32_t decimals, int32_t *value)
     return true;
 }
 
-static bool space(char byte)
+/* Used throughout the XML grammar; keep one whitespace classifier in the module. */
+__attribute__((noinline)) static bool space(char byte)
 {
     return byte == ' ' || byte == '\t' || byte == '\r' || byte == '\n';
+}
+
+__attribute__((noinline)) static char *skip_space(char *text)
+{
+    while (space(*text)) ++text;
+    return text;
+}
+
+__attribute__((noinline)) static int32_t date_part(const char *text, int32_t length)
+{
+    int32_t number = 0;
+    for (int32_t index = 0; index < length; ++index) {
+        if (text[index] < '0' || text[index] > '9') return -1;
+        number = number * 10 + text[index] - '0';
+    }
+    return number;
 }
 
 int32_t history_day(const char *text, bool iso)
 {
     if (app_text_length(text) < 10) return 0;
-    int32_t year = 0, month = 0, day = 0;
-    for (int32_t index = 0; index < 10; ++index) {
-        if (index == (iso ? 4 : 2) || index == (iso ? 7 : 5)) {
-            if (text[index] != (iso ? '-' : '.')) return 0;
-            continue;
-        }
-        if (text[index] < '0' || text[index] > '9') return 0;
-        int32_t digit = text[index] - '0';
-        if (iso ? index < 4 : index >= 6) year = year * 10 + digit;
-        else if (iso ? index < 7 : index >= 3) month = month * 10 + digit;
-        else day = day * 10 + digit;
-    }
+    if (text[iso ? 4 : 2] != (iso ? '-' : '.') ||
+        text[iso ? 7 : 5] != (iso ? '-' : '.')) return 0;
+    int32_t year = date_part(text + (iso ? 0 : 6), 4);
+    int32_t month = date_part(text + (iso ? 5 : 3), 2);
+    int32_t day = date_part(text + (iso ? 8 : 0), 2);
     if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return 0;
     int32_t encoded = app_days_from_date(year, month, day), check_year, check_month, check_day;
     app_date_from_days(encoded, &check_year, &check_month, &check_day);
@@ -69,7 +76,7 @@ static bool attributes(char *tag, bool root, char **id, char **date)
     *id = *date = 0;
     while (*tag && !space(*tag)) ++tag;
     while (*tag) {
-        while (space(*tag)) ++tag;
+        tag = skip_space(tag);
         if (!*tag) break;
         char *name = tag;
         while (*tag && *tag != '=' && !space(*tag)) ++tag;
@@ -77,10 +84,10 @@ static bool attributes(char *tag, bool root, char **id, char **date)
         if (!delimiter) return false;
         *tag++ = 0;
         if (delimiter != '=') {
-            while (space(*tag)) ++tag;
+            tag = skip_space(tag);
             if (*tag++ != '=') return false;
         }
-        while (space(*tag)) ++tag;
+        tag = skip_space(tag);
         char quote = *tag++;
         if (quote != '\"' && quote != '\'') return false;
         char *value = tag;
@@ -98,50 +105,63 @@ static bool attributes(char *tag, bool root, char **id, char **date)
     return *id && *date;
 }
 
-static bool tag_is(const char *tag, const char *name)
+enum { XML, ROOT, RECORD, ROOT_END, RECORD_END, FIELD, FIELD_END = FIELD + 3, UNKNOWN = FIELD_END + 3 };
+
+/* Attribute-bearing tags allow whitespace; field and closing tags are exact. */
+static int32_t tag_kind(const char *tag)
 {
-    int32_t length = app_text_length(name);
-    for (int32_t index = 0; index < length; ++index)
-        if (tag[index] != name[index]) return false;
-    return !tag[length] || space(tag[length]);
+    static const char names[] = "?xml\0ValCurs\0Record\0/ValCurs\0/Record\0"
+                                "Nominal\0Value\0VunitRate\0/Nominal\0/Value\0/VunitRate";
+    const char *name = names;
+    for (int32_t kind = 0; kind < UNKNOWN; ++kind) {
+        const char *at = tag;
+        while (*name && *name == *at) { ++name; ++at; }
+        if (!*name && (!*at || (kind < ROOT_END && space(*at)))) return kind;
+        while (*name) ++name;
+        ++name;
+    }
+    return UNKNOWN;
 }
 
 bool history_valid_id(const char *id)
 {
-    int32_t length = app_text_length(id);
-    if (length < 2 || length >= HISTORY_ID_BYTES || id[0] != 'R') return false;
-    for (int32_t index = 1; index < length; ++index)
+    if (id[0] != 'R') return false;
+    int32_t index = 1;
+    for (; id[index]; ++index) {
+        if (index >= HISTORY_ID_BYTES - 1) return false;
         if ((id[index] < '0' || id[index] > '9') && (id[index] < 'A' || id[index] > 'Z')) return false;
-    return true;
+    }
+    return index >= 2;
 }
 
 static bool finish_tag(history_parser_t *parser)
 {
     char *tag = parser->tag;
-    if (tag_is(tag, "?xml")) {
+    int32_t kind = tag_kind(tag);
+    if (kind == XML) {
         if (parser->started || parser->declaration || !parser->tag_length || tag[parser->tag_length - 1] != '?') return false;
         parser->declaration = true;
         return true;
     }
-    if (tag_is(tag, "ValCurs")) {
+    if (kind == ROOT) {
         char *id, *date;
         if (parser->started || parser->depth || !attributes(tag, true, &id, &date) || !history_valid_id(id)) return false;
         app_text_copy(parser->result.id, sizeof parser->result.id, id);
         if (!(parser->result.as_of = history_day(date, false))) return false;
         parser->started = true;
         parser->depth = 1;
-    } else if (app_text_equal(tag, "/ValCurs")) {
+    } else if (kind == ROOT_END) {
         if (parser->depth != 1) return false;
         parser->depth = 0;
         parser->finished = true;
-    } else if (tag_is(tag, "Record")) {
+    } else if (kind == RECORD) {
         char *id, *date;
         if (parser->depth != 1 || !attributes(tag, false, &id, &date) || !app_text_equal(id, parser->result.id)) return false;
         parser->day = history_day(date, false);
         if (!parser->day || parser->day > parser->result.as_of || parser->day < parser->result.as_of - HISTORY_DAYS + 1 || (parser->result.count && parser->day <= parser->result.days[parser->result.count - 1])) return false;
         parser->fields = 0;
         parser->depth = 2;
-    } else if (app_text_equal(tag, "/Record")) {
+    } else if (kind == RECORD_END) {
         if (parser->depth != 2 || (parser->fields & 3) != 3 || parser->result.count == HISTORY_POINTS ||
             parser->nominal < 1 || parser->value <= 0) return false;
         int32_t normalized = parser->value / parser->nominal;
@@ -150,17 +170,21 @@ static bool finish_tag(history_parser_t *parser)
         parser->result.days[index] = parser->day;
         parser->result.values[index] = (int32_t)normalized;
         parser->depth = 1;
-    } else if (app_text_equal(tag, "Nominal") || app_text_equal(tag, "Value") || app_text_equal(tag, "VunitRate")) {
-        if (parser->depth != 2) return false;
-        parser->element = app_text_equal(tag, "Nominal") ? NOMINAL : app_text_equal(tag, "Value") ? VALUE : UNIT;
-        uint8_t mask = (uint8_t)(1u << (parser->element - 1));
-        if (parser->fields & mask) return false;
-        parser->fields |= mask;
-        parser->text_length = 0;
-        parser->depth = 3;
     } else {
-        const char *closing = parser->element == NOMINAL ? "/Nominal" : parser->element == VALUE ? "/Value" : "/VunitRate";
-        if (parser->depth != 3 || !app_text_equal(tag, closing)) return false;
+        if (kind >= FIELD && kind < FIELD_END) {
+            int32_t element = kind - FIELD + NOMINAL;
+            if (parser->depth != 2) return false;
+            parser->element = (uint8_t)element;
+            uint8_t mask = (uint8_t)(1u << (element - 1));
+            if (parser->fields & mask) return false;
+            parser->fields |= mask;
+            parser->text_length = 0;
+            parser->depth = 3;
+            return true;
+        }
+        /* Depth 3 is entered only after selecting one of the three fields. */
+        int32_t closing = FIELD_END + parser->element - NOMINAL;
+        if (parser->depth != 3 || kind != closing) return false;
         parser->text[parser->text_length] = 0;
         int32_t number;
         if (!history_amount(parser->text, parser->element == NOMINAL ? 0 : 4, &number) || (number <= 0 && parser->element != UNIT)) return false;

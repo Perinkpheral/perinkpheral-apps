@@ -517,13 +517,13 @@
     {
       "name": "rates",
       "title": "Exchange rates",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 15157,
-          "sha256": "d5bf48442d036814b682cfa81034d1d3416060993b8fccf3d57a8e18ec26aa1d"
+          "size": 14635,
+          "sha256": "78b5379f25a0001de362661e25813278ec836b816cc894d210ad4e99a7c552d5"
         },
         {
           "name": "manifest.ru",
@@ -543,7 +543,7 @@
         {
           "name": "manifest.json",
           "size": 1287,
-          "sha256": "e1bea7f1118a6be1c02a21ccba5b7b00d101c20318984b8515fe8a2f465502a1"
+          "sha256": "20ed87ce9e052411e0e471efff0a9c95b178e0f274f0aaa65844706ffa0788ac"
         }
       ],
       "author": "Perinkpheral",
