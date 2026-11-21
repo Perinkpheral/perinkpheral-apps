@@ -20,7 +20,8 @@ static void expected_frame(void)
     }
 }
 
-/* What draw_track() drew is the ink and exactly `strokes` dashes on the equator. */
+/* What draw_track() drew is the ink and exactly `strokes` dashes on the equator: the colour is in
+ * the picture, and only the dashes are calls that draw. */
 static bool drew(int32_t strokes)
 {
     standin_handlers.on_draw = track_frame;
@@ -28,7 +29,7 @@ static bool drew(int32_t strokes)
     int32_t calls = standin()->draw_calls;
     expected_strokes = strokes;
     standin_handlers.on_draw = expected_frame;
-    return calls == strokes + 1 && drawn == standin_draw() && standin()->refused_draws == 0;
+    return calls == strokes && drawn == standin_draw() && standin()->refused_draws == 0;
 }
 
 int main(void)
