@@ -4,13 +4,13 @@
     {
       "name": "air",
       "title": "Air quality",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6892,
-          "sha256": "f0535fbc7ade4183aa9653b995781ddd0d31a8d7480045697343b30a00593b62"
+          "size": 6952,
+          "sha256": "8cc21978469110d06d15693eb5aa879e556fccece7daecc5398fc528f383790c"
         },
         {
           "name": "manifest.ru",
@@ -19,13 +19,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 388,
-          "sha256": "14f85b7e552d7a0a14b6dc6b73f1f8bdc6dde0ae009fac25d67aff46be51d041"
+          "size": 392,
+          "sha256": "affdc50fb9b7caada734d5f0f402def7403947222f65e2abcc45c7220a646cba"
         },
         {
           "name": "manifest.json",
-          "size": 2178,
-          "sha256": "80bed36ad2b8955b4a12d682faca39ef0176f5ef90f106248a5012a2393c5fdc"
+          "size": 2179,
+          "sha256": "3f1082539a82172c74bd043730d4a8826e98431f48167692b7e6de265d9360a0"
         }
       ],
       "author": "Perinkpheral",
@@ -254,13 +254,13 @@
     {
       "name": "iss",
       "title": "ISS",
-      "version": "0.1.13",
+      "version": "0.1.14",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6540,
-          "sha256": "08b2a841b17139653e618c1a6f4b667731e6343bfe69812cdde28231ce0dd8b1"
+          "size": 6554,
+          "sha256": "55781ed2024eb97531ccfc5a15b9ef553ed5775aaf818bc66c201a0850ff12f2"
         },
         {
           "name": "land.bin",
@@ -274,13 +274,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 150,
-          "sha256": "041ff065e0bc340731fc1062cf00b3ef5bd5fc71bf5e7b9ea2afc2ce7e328369"
+          "size": 154,
+          "sha256": "c02a50fe7f4d8e17f0dfe87fa5f0f27fd49383ab86ca8fa645b2d33e23d8081e"
         },
         {
           "name": "manifest.json",
           "size": 718,
-          "sha256": "e9f0959e1399c65c4e7d36ebff45a3eef615538db4ee6af8661872bcb8712773"
+          "sha256": "fd2a0fcb93bc9aeda44f042115facb057f8fb4aa93fd94c8b9c8921dd03f8553"
         }
       ],
       "author": "Perinkpheral",
@@ -309,7 +309,7 @@
     {
       "name": "kit",
       "title": "UI Kit",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "abi": 3,
       "files": [
         {
@@ -324,13 +324,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 1053,
-          "sha256": "f6a01d9875f5aed401a8273b5ec62bf5102f25b132692886da4a5229a1b18ce4"
+          "size": 1056,
+          "sha256": "e1f21e691201d29c473f1b572fad9d7d269c02af5c3def153180205fa450004e"
         },
         {
           "name": "manifest.json",
           "size": 411,
-          "sha256": "3e41e28d62ad862381b866acc54b569de2e20e75818d1ed00e3d0bffa12698bc"
+          "sha256": "153616e1843d47d6db7dc92d23b9dd04f8de59adfffdcefd392ff40cc4f0eb85"
         }
       ],
       "author": "Perinkpheral",
@@ -359,13 +359,13 @@
     {
       "name": "life",
       "title": "Life",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 5919,
-          "sha256": "c9b0811224ba9b0a453b7524af386a4757b74796bda7136a9a10ca6aed93d3e4"
+          "size": 5963,
+          "sha256": "8671ae91bd5c44c7f46c213326550167a73e4173f3f9991363e21b80da9d7616"
         },
         {
           "name": "manifest.ru",
@@ -380,7 +380,7 @@
         {
           "name": "manifest.json",
           "size": 883,
-          "sha256": "2e4facbb60515b4cb2310c44bbcdaac7fd1c2bc5b78f48222afb37d4273b6373"
+          "sha256": "cd8fbc61035af56d86325bffa9aca27e2cb6b9d7264b947a65ffe66b892ba53a"
         }
       ],
       "author": "Perinkpheral",
@@ -517,13 +517,13 @@
     {
       "name": "rates",
       "title": "Exchange rates",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 14635,
-          "sha256": "78b5379f25a0001de362661e25813278ec836b816cc894d210ad4e99a7c552d5"
+          "size": 14707,
+          "sha256": "adbf1642124fae699eb1e078210901c69dcad6badb4f9afb336c5a9628c78681"
         },
         {
           "name": "manifest.ru",
@@ -537,13 +537,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 90,
-          "sha256": "2b42a9f1f4c485863cc1e858f8f49bfc8e0303c98a3493809150cf613974fdbe"
+          "size": 105,
+          "sha256": "bce5307fe9f9487cdf27106f2db1373c8a47a5aaae9e05bb8135eade1d1453cd"
         },
         {
           "name": "manifest.json",
           "size": 1287,
-          "sha256": "20ed87ce9e052411e0e471efff0a9c95b178e0f274f0aaa65844706ffa0788ac"
+          "sha256": "301bb0d15e1b6be35cb6932709f7bf560f8258d6c872596de9784078a943a032"
         }
       ],
       "author": "Perinkpheral",
@@ -626,13 +626,13 @@
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.12",
+      "version": "0.2.13",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 8770,
-          "sha256": "b1b719367c5da4d1a8f841f7f17cc346860b9c49f95d4e219a9b8477fb1ce7bd"
+          "size": 8843,
+          "sha256": "fc52caf4de87b81cbb158bd8e99509f80818fd61b59a597866e2e14587ac598e"
         },
         {
           "name": "manifest.ru",
@@ -641,13 +641,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 59,
-          "sha256": "e683c1dec2cfb024d65479e9a8a14a1aec645321d00b492f57d2949542211aac"
+          "size": 63,
+          "sha256": "f978a1a0a6ef5041396daedee2570e1dcaf6fcc8f2957760a0af65f48077f806"
         },
         {
           "name": "manifest.json",
           "size": 2799,
-          "sha256": "036ae48261bbcb6d859bfb40cca1d395d9722ea393b932813a3e1491c79ebcfb"
+          "sha256": "7ad7b56abde2f7754e8ce2b3bc051c195b36e51904de6b88848d1070fdd5412e"
         }
       ],
       "author": "Perinkpheral",
@@ -677,13 +677,13 @@
     {
       "name": "stopwatch",
       "title": "Stopwatch",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 3281,
-          "sha256": "58d90278be8bbd39bdd29b9bcf56103f4df03dd372351558f720cdceb8cb6627"
+          "size": 3285,
+          "sha256": "628527b2a7f8cb46177a7eb4ac12cf88efeca862c908c429f41b2dcb9e06c1c5"
         },
         {
           "name": "manifest.ru",
@@ -692,13 +692,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 108,
-          "sha256": "bfa1791b62be1255fea472785a198ae98e5952c0980e55cbf11e8dc3b71017cd"
+          "size": 112,
+          "sha256": "96b69f96888a2db2f1308e264958baa1d6ee28a37244d60173fdb2347f9ef06b"
         },
         {
           "name": "manifest.json",
           "size": 446,
-          "sha256": "5831e7572b64001193250c276409b964c87a82c8ab70c0e8aeee57024f1b672a"
+          "sha256": "b21197722be417e4d36f9f061fad8b0858883887bceb1c96100d3bcee976b821"
         }
       ],
       "author": "Perinkpheral",
@@ -777,13 +777,13 @@
     {
       "name": "timer",
       "title": "Timer",
-      "version": "0.3.14",
+      "version": "0.3.15",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 3232,
-          "sha256": "f115588d2c2fc9f40da1e17377a16cf1894ba4c141e22b23baec0119493d7ffc"
+          "size": 3216,
+          "sha256": "275cdf2309a5e5fe9a2a25534fdd0890285a1d724e1ae75b0c8ae16fe8c0ebca"
         },
         {
           "name": "manifest.ru",
@@ -792,13 +792,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 119,
-          "sha256": "1a48a6c4de006bcb6bbcf247e091a47d635e6b7bf5553fe6de17d9d34bea3127"
+          "size": 102,
+          "sha256": "a7aca4ae59aa298e6ce3d819cfede7e0e8d161c267e2206c0a6534eb46d691ca"
         },
         {
           "name": "manifest.json",
           "size": 384,
-          "sha256": "fd5efaaf6dd8c0ccb4e9750a0a1cff94428628fa3c8b69974f28ccad1bd1fdb2"
+          "sha256": "3b306af3f1bd1e4a6c5cd6b4fc2925d76a5295641b1893dd6f90dbff6c72d48d"
         }
       ],
       "author": "Perinkpheral",

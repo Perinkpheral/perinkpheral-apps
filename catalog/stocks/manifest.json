@@ -3,7 +3,7 @@
   "title": "Stocks",
   "author": "Perinkpheral",
   "description": "Stock prices",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "abi": 3,
   "writes_files": true,
   "fullscreen": false,
