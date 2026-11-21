@@ -96,7 +96,8 @@ static void test_cold_boot_then_time_sync(void)
     assert(alarm_waits() && standin()->status_icon[HOST_HEADER_LEFT] == HOST_ICON_PLAY);
     assert(standin_alarm_left(MINUTE_ALARM) == 53); /* 67 s in: the header turns at 2 min */
     assert(next_timer_ms() > 0 && redraw_calls() == 1);
-    assert(strcmp(header_text(), "00:01") == 0 && store_writes() == 0);
+    assert(strcmp(header_text(), "00:01") == 0 && store_writes() == 1);
+    assert(state.boot == time_boot_id());
 }
 
 static void test_background_reload_after_sync(void)
@@ -196,6 +197,53 @@ static void test_stop_after_resume(void)
     assert(!state.is_running && !alarm_waits()); /* stopped: the alarm is not set again */
 }
 
+static void test_clock_correction_and_restart(int32_t correction)
+{
+    standin_reset();
+    standin_clock(1800000000);
+    app_on_load();
+    app_on_button(BTN_OK_PRESSED);
+    standin_pass(600000);
+    standin_clock(time_now() + correction);
+    app_on_intent(HOST_INTENT_TIME_CHANGED);
+    assert(elapsed_ms() == 600000);
+    read_stored();
+    assert(stored.started_at == 1800000000 + correction);
+
+    standin_restart();
+    standin_clock(1800000600 + correction);
+    state = (stopwatch_t){0};
+    app_on_load();
+    assert(state.boot == time_boot_id() && elapsed_ms() == 600000);
+    /* A recovered run follows uptime through further clock changes and reloads. */
+    standin_pass(5000);
+    standin_clock(time_now() - 7200);
+    app_on_intent(HOST_INTENT_TIME_CHANGED);
+    assert(elapsed_ms() == 605000 && next_timer_ms() > 0);
+    state = (stopwatch_t){0};
+    app_on_load();
+    assert(elapsed_ms() == 605000);
+    standin_pass(1000);
+    assert(elapsed_ms() == 606000);
+}
+
+static void test_refused_clock_anchor_is_retried(void)
+{
+    standin_reset();
+    standin_clock(1800000000);
+    app_on_load();
+    app_on_button(BTN_OK_PRESSED);
+    standin_pass(600000);
+    standin_clock(time_now() + 3600);
+    standin()->refuse_writes = HOST_ERR_NO_SPACE;
+    app_on_intent(HOST_INTENT_TIME_CHANGED);
+    assert(elapsed_ms() == 600000 && save_pending);
+    standin()->refuse_writes = 0;
+    app_on_intent(HOST_INTENT_TIME_CHANGED);
+    read_stored();
+    assert(!save_pending && stored.started_at == 1800003600);
+}
+
 int main(void)
 {
     test_cold_boot_then_time_sync();
@@ -204,6 +252,9 @@ int main(void)
     test_same_boot_offline_then_time_sync();
     test_missing_anchor_and_stopped_state();
     test_stop_after_resume();
+    test_clock_correction_and_restart(3600);
+    test_clock_correction_and_restart(-3600);
+    test_refused_clock_anchor_is_retried();
     puts("Stopwatch lifecycle checks passed");
     return 0;
 }

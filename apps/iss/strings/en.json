@@ -6,5 +6,7 @@
   "kmh": "km/h",
   "altitude": "Altitude",
   "velocity": "Speed",
-  "meters": "m"
+  "meters": "m",
+  "update_failed": "Update failed",
+  "last_update": "Last update: {0}"
 }

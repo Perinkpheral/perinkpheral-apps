@@ -253,6 +253,30 @@ static void draw_measure(int32_t center, const measure_t *measure)
                   app_text_length(measure->value), measure->unit, app_text_length(measure->unit));
 }
 
+static void draw_failed_update(void)
+{
+    if (state.status >= 200 && state.status < 300) { return; }
+    char date[32], clock[16], moment[48], line[96];
+    int64_t observed = (int64_t)state.minute * SECONDS_PER_MINUTE + state.second;
+    app_time_text(observed, HOST_TIME_DATE, date, sizeof date);
+    app_time_text(observed, HOST_TIME_CLOCK, clock, sizeof clock);
+    app_text_t text;
+    app_text_start(&text, moment, sizeof moment);
+    app_text_add(&text, date); app_text_add(&text, " "); app_text_add(&text, clock);
+    host_text_argument_t arg = { .text = moment, .length = app_text_length(moment) };
+    const char *pattern = app_string(STR_LAST_UPDATE);
+    int32_t length = text_fill(pattern, app_text_length(pattern), &arg, 1, line, sizeof line - 1);
+    line[length > 0 ? length : 0] = 0;
+    /* Keep the observation visible, but never make an old fix look current. */
+    int32_t height = gfx_font_height(HOST_FONT_SMALL);
+    int32_t top = MAP_HEIGHT - 2 * height - 8;
+    gfx_set_color(HOST_PAPER);
+    gfx_draw_rect(0, top, MAP_WIDTH, MAP_HEIGHT - top, HOST_RECT_FILLED);
+    gfx_set_color(HOST_INK);
+    app_draw_centered(MAP_WIDTH / 2, top + 4, HOST_FONT_SMALL, app_string(STR_UPDATE_FAILED));
+    app_draw_centered(MAP_WIDTH / 2, top + 4 + height, HOST_FONT_SMALL, line);
+}
+
 void app_on_draw(void)
 {
     if (!state.has_data) { ui_draw_reason(state.status); return; }
@@ -260,6 +284,7 @@ void app_on_draw(void)
     draw_track();
     draw_station();
     draw_coordinate_badges();
+    draw_failed_update();
     measure_t altitude, speed;
     measure_init(&altitude, state.altitude, STR_METERS, STR_ALTITUDE);
     measure_init(&speed, state.velocity, STR_KMH, STR_VELOCITY);
