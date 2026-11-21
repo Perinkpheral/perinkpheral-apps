@@ -426,14 +426,17 @@ void app_on_draw(void)
     app_text_t text;
     bool named = app_string(STR_CURRENCY_NAME)[0] && rate->name[0];
     start_text(&text, fitted, sizeof fitted);
-    if (named) { add_pair(&text, rate->name, " ("); }
+    if (named) {
+        const char *name = app_text_equal(rate->code, "JPY") ? app_string(STR_YEN) : rate->name;
+        add_pair(&text, name, " (");
+    }
     add_pair(&text, rate->code, named ? ")" : " / RUB");
     int32_t length = gfx_fit_text(HOST_FONT_TEXT, fitted, app_text_length(fitted), width - 2 * HOST_UI_MARGIN, title, sizeof title);
     gfx_draw_text(HOST_UI_MARGIN, HOST_UI_MARGIN, HOST_FONT_TEXT, title, length);
     start_text(&text, price, sizeof price);
     int32_t normalized = (int32_t)(rate->value / rate->nominal);
     app_text_add_number(&text, normalized / 10000);
-    char fraction[6] = { '.', 0, 0, 0, 0, 0 };
+    char fraction[6] = { app_string(STR_DECIMAL_POINT)[0], 0, 0, 0, 0, 0 };
     for (int32_t index = 4; index > 0; --index) {
         fraction[index] = (char)('0' + normalized % 10);
         normalized /= 10;

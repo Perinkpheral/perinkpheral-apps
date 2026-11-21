@@ -546,6 +546,9 @@ void app_on_draw(void)
     app_text_t text;
     app_text_start(&text, price_buffer, sizeof price_buffer);
     app_text_add_fixed(&text, quote.price, quote.decimals, 0);
+    for (int32_t index = 0; price_buffer[index]; index++) {
+        if (price_buffer[index] == '.') price_buffer[index] = app_string(STR_DECIMAL_POINT)[0];
+    }
     int32_t row = MARGIN + gfx_font_height(HOST_FONT_TEXT) + 4;
     ui_draw_value(MARGIN, row, HOST_FONT_MEDIUM, price_buffer, app_text_length(price_buffer), quote.currency,
              app_text_length(quote.currency));

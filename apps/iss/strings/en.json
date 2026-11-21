@@ -8,5 +8,6 @@
   "velocity": "Speed",
   "meters": "m",
   "update_failed": "Update failed",
-  "last_update": "Last update: {0}"
+  "last_update": "Last update: {0}",
+  "decimal_point": "."
 }

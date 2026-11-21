@@ -57,8 +57,8 @@
   "remove": "Удалить",
   "everything": "всё?",
   "cancel": "Отмена",
-  "loading": "Загрузка",
-  "in_progress": "идёт",
+  "loading": "Идёт загрузка",
+  "in_progress": "",
   "manifest": {
     "title": "Кит UI",
     "description": "Элементы интерфейса для разработчиков"

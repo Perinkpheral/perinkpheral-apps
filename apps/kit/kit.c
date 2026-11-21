@@ -18,6 +18,7 @@
 
 #define COUNT_OF(array) ((int32_t)(sizeof(array) / sizeof(array)[0]))
 #define REDRAW          HOST_REDRAW_NO_BLINK
+#define PRIMITIVE_BUTTON_ROOM 144
 
 /* A text of the strings in the device's language, and its length. */
 #define TEXT(id) app_string(id), app_text_length(app_string(id))
@@ -285,7 +286,8 @@ static void draw_primitives(void)
     app_text_start(&text, number, sizeof number);
     app_text_add_number(&text, bar_value);
     ui_draw_text(120, row - 12, HOST_UI_VALUE, number, app_text_length(number), 0);
-    ui_draw_button(262, row + 14, "UP", 2, TEXT(STR_MORE), false);
+    ui_draw_button(gfx_width() - HOST_UI_MARGIN - PRIMITIVE_BUTTON_ROOM, row + 14,
+                   "UP", 2, TEXT(STR_MORE), false);
     ui_draw_bar(16, row + 58, gfx_width() - 32, bar_value, 10);
     app_draw_actions(NULL, app_string(STR_CLOSE));
 }

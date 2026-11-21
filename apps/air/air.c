@@ -179,6 +179,9 @@ static void number_text(char *buffer, int32_t capacity, int32_t value, int32_t d
     app_text_t text;
     app_text_start(&text, buffer, capacity);
     app_text_add_fixed(&text, value, decimals, 0);
+    for (int32_t index = 0; buffer[index]; index++) {
+        if (buffer[index] == '.') buffer[index] = app_string(STR_DECIMAL_POINT)[0];
+    }
 }
 
 #define HERO_WORD_GAP 10 /* between the index's capitals and its word */

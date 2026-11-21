@@ -1,0 +1,22 @@
+{
+  "app": "apps/stopwatch",
+  "steps": [
+    "press 2",
+    "forward 70",
+    "shot running",
+    "press 2",
+    "shot stopped",
+    "press 2L",
+    "shot reset",
+    "press 2",
+    "forward 360000",
+    "shot hundred-hours",
+    "press 2",
+    "shot hundred-stopped"
+  ],
+  "language": "ru",
+  "font": "jersey",
+  "glyphs": "glyphs",
+  "at": 1794832230,
+  "tz": "Europe/Moscow"
+}

@@ -56,5 +56,6 @@
   "alder": "Ольха",
   "mugwort": "Полынь",
   "ragweed": "Амброзия",
-  "olive": "Олива"
+  "olive": "Олива",
+  "decimal_point": ","
 }
