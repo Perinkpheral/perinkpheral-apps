@@ -414,8 +414,8 @@
       "files": [
         {
           "name": "app.wasm",
-          "size": 9077,
-          "sha256": "ff0948fe6b84dc6821c55e9e5583385382ef0722087c8999b39d85e93571b423"
+          "size": 9206,
+          "sha256": "35e4bb70f3c20e95596c1fe18db460ff0cf970fa5a878620704e97f67d5d02bf"
         },
         {
           "name": "manifest.ru",
