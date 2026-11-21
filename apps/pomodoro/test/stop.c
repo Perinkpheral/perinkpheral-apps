@@ -18,9 +18,11 @@ static void check_host(void)
     int32_t length = 0;
     assert((standin_timers() & ~(1u << MINUTE_TIMER)) == 0);
     assert((standin_alarms() & ~(1u << END_ALARM | 1u << MINUTE_ALARM)) == 0);
-    /* The minutes' alarm is every 60 s, due within the minute, or not at all. */
+    /* The minutes' alarm is every 60 s, its first when the minute in hand is over - never 0, which
+     * is a whole minute later - due within the minute, or not at all. */
     assert(host->alarms[MINUTE_ALARM].kind == STANDIN_ALARM_NONE ||
            (host->alarms[MINUTE_ALARM].kind == STANDIN_ALARM_EVERY && host->alarms[MINUTE_ALARM].every == 60 &&
+            host->alarms[MINUTE_ALARM].first_in > 0 &&
             standin_alarm_left(MINUTE_ALARM) >= 1 && standin_alarm_left(MINUTE_ALARM) <= 60));
     assert(host->status_icon[HOST_HEADER_LEFT] == HOST_ICON_NONE && host->status_text[HOST_HEADER_LEFT][0] == '\0');
     /* The state is saved whole, under "state", in this version. */
