@@ -54,12 +54,14 @@ typedef struct {
 } stored_events_t;
 
 #define STATE_KEY     "state"
-#define STATE_VERSION 3
+#define STATE_VERSION 4
 typedef struct {
     int32_t  version;
     int32_t  status;      /* of the last fetch: 0 none yet, an HTTP one, a HOST_FAILED_*, a STATUS_* */
     int64_t  reminded_to; /* reminders due up to this moment were given */
     uint32_t feed_hash;   /* of the address the stored events came from */
+    int32_t delivered_count;
+    struct { uint32_t uid; int64_t start; } delivered[ICS_EVENTS_MAX];
 } state_t;
 
 static stored_events_t stored;
@@ -119,13 +121,13 @@ static void schedule_reminder(void)
 }
 
 /* The reminder is Perinkpheral OS's to show: when it begins, and what it is. */
-static void remind_of(const ics_event_t *event)
+static bool remind_of(const ics_event_t *event)
 {
     host_notice_t notice = { .icon = HOST_ICON_BELL };
     app_time_text(event->start, HOST_TIME_CLOCK, notice.first, sizeof notice.first);
     app_text_copy(notice.detail, sizeof notice.detail,
                   event->title[0] != '\0' ? event->title : app_string(STR_EVENT));
-    notification_post(&notice);
+    return notification_post(&notice) == HOST_OK;
 }
 
 void app_on_alarm(int32_t id)
@@ -133,16 +135,29 @@ void app_on_alarm(int32_t id)
     (void)id;
     int64_t now = time_now();
     int32_t lead = lead_seconds();
+    bool accepted = true;
     for (int32_t i = 0; i < stored.count && lead >= 0 && now != 0; i++) {
         const ics_event_t *event = &stored.events[i];
         int64_t due = event->start - lead;
         if (!event->is_all_day && due > state.reminded_to && due <= now &&
             event->start + LATE_SECONDS >= now) {
-            remind_of(event);
+            bool delivered = false;
+            for (int32_t j = 0; j < state.delivered_count; j++) {
+                delivered |= state.delivered[j].uid == event->uid && state.delivered[j].start == event->start;
+            }
+            if (delivered) { continue; }
+            if (state.delivered_count == ICS_EVENTS_MAX || !remind_of(event)) {
+                accepted = false;
+                break;
+            }
+            /* Keep accepted notices across retries of a full notification queue. */
+            state.delivered[state.delivered_count].uid = event->uid;
+            state.delivered[state.delivered_count++].start = event->start;
         }
     }
-    if (now != 0) {
+    if (now != 0 && accepted) {
         state.reminded_to = now;
+        state.delivered_count = 0;
     }
     save_state();
     schedule_reminder();
@@ -262,7 +277,12 @@ static void schedule_next_change(void)
 
 void app_on_load(void)
 {
-    if (!app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION)) {
+    int32_t length = kv_get(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state);
+    if (length == offsetof(state_t, delivered) && state.version == 3) {
+        state.version = STATE_VERSION;
+        state.delivered_count = 0;
+    } else if (length != sizeof state || state.version != STATE_VERSION ||
+               state.delivered_count < 0 || state.delivered_count > ICS_EVENTS_MAX) {
         state = (state_t){ .version = STATE_VERSION, .feed_hash = feed_hash() };
     }
     if (file_read(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &stored, sizeof stored) !=
@@ -308,6 +328,8 @@ void app_on_settings(void)
     if (hash != state.feed_hash) {
         state.feed_hash = hash;
         state.status = 0;
+        state.reminded_to = 0;
+        state.delivered_count = 0;
         save_state();
         stored = (stored_events_t){ .version = EVENTS_VERSION };
         save_events();
@@ -329,32 +351,49 @@ static int64_t    read_start;
 /* Where the user is - the row, and the event open on its page - kept while the calendar waits
  * under another scene or is unloaded for another application's answer. */
 typedef struct {
-    int32_t  selected, first, count; /* count: as drawn last, for a press before the next drawing */
+    int32_t  selected, first;
     int32_t  is_reading_one;
     uint32_t read_uid;
     int64_t  read_start;
+    uint32_t selected_uid;
+    int64_t  selected_start;
 } place_t;
 APP_SESSION_FITS(place_t);
 
 void app_on_blur(void)
 {
-    place_t place = { .selected = list.selected, .first = list.first, .count = list.count,
+    place_t place = { .selected = list.selected, .first = list.first,
                       .is_reading_one = is_reading_one,
                       .read_uid = read_uid, .read_start = read_start };
+    if (list.selected >= 0 && list.selected < list.count) {
+        const ics_event_t *event = &stored.events[shown[list.selected]];
+        place.selected_uid = event->uid;
+        place.selected_start = event->start;
+    }
     app_session_save(&place, sizeof place);
 }
 
+static int32_t count_visible_events(int64_t now);
+
 static void restore_place(void)
 {
+    list.count = count_visible_events(time_now());
     place_t place;
     if (app_session_load(&place, sizeof place)) {
         list.selected = place.selected;
         list.first = place.first;
-        list.count = place.count;
+        for (int32_t row = 0; row < list.count; row++) {
+            const ics_event_t *event = &stored.events[shown[row]];
+            if (event->uid == place.selected_uid && event->start == place.selected_start) {
+                list.selected = row;
+                break;
+            }
+        }
         is_reading_one = place.is_reading_one != 0;
         read_uid = place.read_uid;
         read_start = place.read_start;
     }
+    if (list.selected >= list.count) { list.selected = list.count > 0 ? list.count - 1 : 0; }
 }
 
 static int32_t count_visible_events(int64_t now)

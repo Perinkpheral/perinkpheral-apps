@@ -35,6 +35,7 @@ typedef struct {
 #define ICS_ZONES_MAX    6
 #define ICS_EXDATES_MAX  24
 #define ICS_OVERRIDES_MAX 32
+#define ICS_CANDIDATES_MAX (ICS_EVENTS_MAX + ICS_OVERRIDES_MAX)
 
 typedef struct {
     uint32_t name; /* a number made of the TZID */
@@ -43,6 +44,7 @@ typedef struct {
      * `nth` 1.. from its beginning, -1 the last, 0: not known. */
     int8_t standard_month, standard_nth, standard_weekday;
     int8_t daylight_month, daylight_nth, daylight_weekday;
+    int32_t standard_seconds, daylight_seconds;
     bool   has_daylight;
 } ics_zone_t;
 
@@ -93,6 +95,8 @@ typedef struct {
         int64_t  original;
     } overrides[ICS_OVERRIDES_MAX];
     int32_t override_count;
+    /* Each supported override can remove one candidate before the final limit. */
+    ics_event_t candidates[ICS_CANDIDATES_MAX];
 } ics_t;
 
 /* Begins a file. `events` is the caller's, ICS_EVENTS_MAX long. */

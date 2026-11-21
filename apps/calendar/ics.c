@@ -165,8 +165,8 @@ KEPT_ONE static ics_moment_t moment_of(const char *value, const char *parameters
     return moment;
 }
 
-/* Whether the zone keeps summer time on that day of its own calendar. */
-static bool is_in_daylight(const ics_zone_t *zone, int32_t days)
+/* Compare local clock times so the transition does not begin at midnight. */
+static bool is_in_daylight(const ics_zone_t *zone, int32_t days, int32_t seconds)
 {
     if (!zone->has_daylight || zone->daylight_month == 0 || zone->standard_month == 0) {
         return false;
@@ -182,8 +182,12 @@ static bool is_in_daylight(const ics_zone_t *zone, int32_t days)
                           ? nth_weekday_of(year, zone->standard_month, zone->standard_nth,
                                            zone->standard_weekday)
                           : app_days_from_date(year, zone->standard_month, zone->standard_weekday);
-    return begins_at < ends_at ? days >= begins_at && days < ends_at
-                               : days >= begins_at || days < ends_at;
+    int32_t begin_seconds = zone->daylight_seconds;
+    /* A skipped clock time uses the offset before the gap. */
+    if (zone->daylight_s > zone->standard_s) { begin_seconds += zone->daylight_s - zone->standard_s; }
+    bool after_begin = days > begins_at || (days == begins_at && seconds >= begin_seconds);
+    bool before_end = days < ends_at || (days == ends_at && seconds < zone->standard_seconds);
+    return begins_at < ends_at ? after_begin && before_end : after_begin || before_end;
 }
 
 KEPT_ONE static int64_t unix_of(const ics_t *ics, const ics_moment_t *moment)
@@ -197,7 +201,7 @@ KEPT_ONE static int64_t unix_of(const ics_t *ics, const ics_moment_t *moment)
             const ics_zone_t *zone = &ics->zones[i];
             if (zone->name == moment->zone) {
                 return local -
-                       (is_in_daylight(zone, moment->days) ? zone->daylight_s : zone->standard_s);
+                       (is_in_daylight(zone, moment->days, moment->seconds) ? zone->daylight_s : zone->standard_s);
             }
         }
     }
@@ -214,17 +218,17 @@ static void keep(ics_t *ics, int64_t start, int64_t end, int64_t original, bool 
         return;
     }
     int32_t at = ics->count;
-    while (at > 0 && ics->events[at - 1].start > start) {
+    while (at > 0 && ics->candidates[at - 1].start > start) {
         at--;
     }
-    if (at >= ICS_EVENTS_MAX) {
+    if (at >= ICS_CANDIDATES_MAX) {
         return;
     }
-    int32_t last = ics->count < ICS_EVENTS_MAX ? ics->count : ICS_EVENTS_MAX - 1;
+    int32_t last = ics->count < ICS_CANDIDATES_MAX ? ics->count : ICS_CANDIDATES_MAX - 1;
     for (int32_t i = last; i > at; i--) {
-        ics->events[i] = ics->events[i - 1];
+        ics->candidates[i] = ics->candidates[i - 1];
     }
-    ics_event_t *event = &ics->events[at];
+    ics_event_t *event = &ics->candidates[at];
     event->start = start;
     event->end = end;
     event->original = original;
@@ -233,7 +237,7 @@ static void keep(ics_t *ics, int64_t start, int64_t end, int64_t original, bool 
     for (int32_t i = 0; i <= ICS_TITLE_MAX; i++) {
         event->title[i] = ics->title[i];
     }
-    if (ics->count < ICS_EVENTS_MAX) {
+    if (ics->count < ICS_CANDIDATES_MAX) {
         ics->count++;
     }
 }
@@ -346,6 +350,13 @@ static void repeat(ics_t *ics, int64_t duration)
                 int32_t found = nth_weekday_of(its_year, its_month, ics->nth_weekday, weekday);
                 if (found >= 0) {
                     occur(&run, found);
+                }
+            } else if (ics->weekdays != 0 && ics->month_day == 0) {
+                int32_t first_day = app_days_from_date(its_year, its_month, 1);
+                for (int32_t offset = 0; offset < length && !run.is_over; offset++) {
+                    if (ics->weekdays & (1 << weekday_of(first_day + offset))) {
+                        occur(&run, first_day + offset);
+                    }
                 }
             } else {
                 int32_t its_day = wanted_day > 0 ? wanted_day : length + 1 + wanted_day;
@@ -505,6 +516,9 @@ static void zone_line(ics_t *ics, const char *name, const char *value)
             zone->standard_s = offset_of(value);
         }
     } else if (app_text_equal(name, "DTSTART") && (ics->in_daylight || ics->in_standard)) {
+        ics_moment_t transition = moment_of(value, "");
+        if (is_daylight) { zone->daylight_seconds = transition.seconds; }
+        else { zone->standard_seconds = transition.seconds; }
         /* The day it changed, in case no rule says when it changes. */
         int32_t month = digits(value + 4, 2), day = digits(value + 6, 2);
         if (month >= 1 && day >= 1) {
@@ -723,14 +737,14 @@ int32_t ics_end(ics_t *ics)
     }
     /* What somebody moved or cancelled is not where the rule had it. */
     int32_t kept = 0;
-    for (int32_t i = 0; i < ics->count; i++) {
+    for (int32_t i = 0; i < ics->count && kept < ICS_EVENTS_MAX; i++) {
         bool is_replaced = false;
         for (int32_t j = 0; j < ics->override_count && !is_replaced; j++) {
-            is_replaced = ics->events[i].uid == ics->overrides[j].uid &&
-                          ics->events[i].original == ics->overrides[j].original;
+            is_replaced = ics->candidates[i].uid == ics->overrides[j].uid &&
+                          ics->candidates[i].original == ics->overrides[j].original;
         }
         if (!is_replaced) {
-            ics->events[kept++] = ics->events[i];
+            ics->events[kept++] = ics->candidates[i];
         }
     }
     ics->count = kept;

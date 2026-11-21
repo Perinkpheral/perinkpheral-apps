@@ -30,8 +30,38 @@
 #include "host_api.h"
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
-/* What is asked and what comes of it, by its tag. */
-enum { REQUEST_SCREEN = HOST_REQUEST_FIRST };
+/* The request tag follows the pairing even across an unload. */
+static uint32_t pairing(void)
+{
+    static const char *const keys[] = { "server", "token" };
+    uint32_t hash = 2166136261u;
+    char value[256];
+    for (int32_t key = 0; key < 2; key++) {
+        app_setting(keys[key], value, sizeof value);
+        for (int32_t i = 0; value[i] != '\0'; i++) { hash = (hash ^ (uint8_t)value[i]) * 16777619u; }
+        hash = (hash ^ 0xFFu) * 16777619u;
+    }
+    return hash;
+}
+
+typedef struct { uint32_t pairing; int32_t tag; } request_source_t;
+static request_source_t source;
+static bool source_ready;
+
+/* Persist a changed tag before asking, so a late answer retains its old identity. */
+static void follow_pairing(void)
+{
+    uint32_t current = pairing();
+    if (!source_ready || source.pairing != current) {
+        request_source_t next = { .pairing = current,
+            .tag = source.tag >= HOST_REQUEST_FIRST && source.tag < HOST_REQUEST_LAST
+                       ? source.tag + 1 : HOST_REQUEST_FIRST };
+        source_ready = kv_set("source", 6, &next, sizeof next) == HOST_OK;
+        if (source_ready) { source = next; }
+    }
+}
+
+static int32_t request_screen(void) { return source.tag; }
 #define REFRESH_ALARM 0
 
 /* The screen as Home Assistant rendered it, kept as it came. */
@@ -41,6 +71,13 @@ enum { REQUEST_SCREEN = HOST_REQUEST_FIRST };
 #define SCREEN_MAX 512
 static char    screen[SCREEN_MAX + 1];
 static int32_t screen_length;
+#define SCREEN_VERSION 1
+typedef struct {
+    int32_t version;
+    uint32_t pairing;
+    char text[SCREEN_MAX];
+} cached_screen_t;
+static uint32_t screen_pairing;
 
 /* The answer being taken, piece by piece: it becomes the screen only when
  * it has come whole. */
@@ -48,6 +85,14 @@ static char    coming[SCREEN_MAX + 1];
 static int32_t coming_length;
 static int32_t coming_status;
 static bool receiving, screen_dirty;
+
+static void save_screen(void)
+{
+    cached_screen_t cache = { .version = SCREEN_VERSION, .pairing = screen_pairing };
+    for (int32_t i = 0; i < screen_length; i++) { cache.text[i] = screen[i]; }
+    screen_dirty = kv_set(SCREEN_KEY, sizeof SCREEN_KEY - 1, &cache,
+                          offsetof(cached_screen_t, text) + screen_length) != HOST_OK;
+}
 
 /* Why there is nothing to show, when there is nothing: the status of the
  * last answer, an HTTP one or a HOST_FAILED_*. 0: nothing was asked yet. */
@@ -76,14 +121,22 @@ static host_list_t list = { .selected = -1 };
 static bool has_asked;
 
 /* One request: the screen as Home Assistant renders it. The server and the
- * token are Perinkpheral OS's to put in - the application never sees the token. */
+ * token are Perinkpheral OS's to put into the request. */
 static void ask(void)
 {
+    follow_pairing();
+    if (!source_ready) {
+        has_asked = false;
+        last_status = HOST_FAILED_NOT_READY;
+        save_status();
+        screen_redraw(HOST_REDRAW_NORMAL);
+        return;
+    }
     /* The screen is the integration's, which knows the device by the secret it gave it and
      * answers with the screen. */
     static const char URL[] = "{{server}}/api/perinkpheral/screen";
     static const char HEADERS[] = "Authorization: Bearer {{token}}";
-    int32_t result = http_send(REQUEST_SCREEN, HOST_HTTP_GET, URL, sizeof URL - 1,
+    int32_t result = http_send(request_screen(), HOST_HTTP_GET, URL, sizeof URL - 1,
                                HEADERS, sizeof HEADERS - 1, "", 0);
     has_asked = result == HOST_OK;
     if (!has_asked) {
@@ -128,14 +181,15 @@ static void accept_answer(void)
     screen_length = coming_length;
     screen[screen_length] = '\0';
     if (changed || screen_dirty) {
-        screen_dirty = kv_set(SCREEN_KEY, sizeof SCREEN_KEY - 1, screen, screen_length) != HOST_OK;
+        screen_pairing = pairing();
+        save_screen();
     }
 }
 
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
                  int32_t http_status)
 {
-    if (request != REQUEST_SCREEN) {
+    if (!source_ready || source.pairing != pairing() || request != request_screen()) {
         return;
     }
     if (flags & HOST_DATA_FAILED) {
@@ -166,16 +220,22 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 
 void app_on_load(void)
 {
-    int32_t length = kv_get(SCREEN_KEY, sizeof SCREEN_KEY - 1, screen, SCREEN_MAX);
-    screen_length = length > 0 ? length : 0;
+    source_ready = kv_get("source", 6, &source, sizeof source) == sizeof source &&
+                   source.tag >= HOST_REQUEST_FIRST && source.tag <= HOST_REQUEST_LAST;
+    follow_pairing();
+    cached_screen_t cache;
+    int32_t length = kv_get(SCREEN_KEY, sizeof SCREEN_KEY - 1, &cache, sizeof cache);
+    screen_pairing = pairing();
+    screen_length = length > (int32_t)offsetof(cached_screen_t, text) &&
+                    cache.version == SCREEN_VERSION && cache.pairing == screen_pairing
+                        ? length - (int32_t)offsetof(cached_screen_t, text) : 0;
+    for (int32_t i = 0; i < screen_length; i++) { screen[i] = cache.text[i]; }
     screen[screen_length] = '\0';
     bool loaded_status = kv_get(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status) ==
                          sizeof last_status;
     saved_status = loaded_status ? last_status : 0;
     if (!loaded_status) {
-        /* The first run ever: nobody has set the alarm yet. */
         last_status = 0;
-        keep_fresh();
     }
 }
 
@@ -210,19 +270,31 @@ void app_on_blur(void)
 void app_on_focus(void)
 {
     place_t place;
-    if (app_session_load(&place, sizeof place)) {
+    bool restored = app_session_load(&place, sizeof place);
+    if (restored) {
         /* held to the list's end when it is drawn; the count is the last one drawn, for a press
          * that comes before the next drawing */
         list.first = place.first;
         list.count = place.count;
     }
-    if (!has_asked) {
-        ask();
+    if (!restored && !has_asked) {
+        keep_fresh();
     }
 }
 
 void app_on_settings(void)
 {
+    if (screen_pairing != pairing()) {
+        screen_pairing = pairing();
+        screen_length = 0;
+        screen[0] = '\0';
+        receiving = false;
+        last_status = 0;
+        save_screen();
+        save_status();
+        list.first = list.count = 0;
+        screen_redraw(HOST_REDRAW_NORMAL);
+    }
     keep_fresh();
 }
 
@@ -245,7 +317,7 @@ void app_on_button(int32_t event)
 /* ---- the lines of the screen ---- */
 
 #define PARTS_MAX 4
-#define LINE_MAX  95
+#define LINE_MAX  SCREEN_MAX
 
 typedef struct {
     char        text[LINE_MAX + 1];

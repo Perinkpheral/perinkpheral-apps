@@ -270,6 +270,28 @@ static void show_header(void)
     header_set_text(HOST_HEADER_LEFT, text, length);
 }
 
+/* A visible healthy row must turn stale even when no answer arrives. */
+static void schedule_expiry(void)
+{
+    uint32_t now = clock_now(), interval = (uint32_t)app_setting_seconds("pace", 300);
+    uint32_t next = 0;
+    for (int32_t index = 0; index < count; index++) {
+        if (is_fresh(&services[index], now, interval)) {
+            uint32_t expiry = confirmed_at(&services[index]) + 2 * interval + 1;
+            if (next == 0 || expiry < next) { next = expiry; }
+        }
+    }
+    timer_set(0, next > now ? (int32_t)(next - now) * 1000 : 0);
+}
+
+void app_on_timer(int32_t id)
+{
+    (void)id;
+    show_header();
+    schedule_expiry();
+    screen_redraw(HOST_REDRAW_NORMAL);
+}
+
 void app_on_load(void)
 {
     checked_t checked;
@@ -292,6 +314,7 @@ void app_on_focus(void)
     session_t session;
     first_row = app_session_load(&session, sizeof session) ? scrolled(session.first_row, 0, count, shown_rows) : 0;
     show_header();
+    schedule_expiry();
 }
 
 void app_on_blur(void)
@@ -305,6 +328,7 @@ void app_on_settings(void)
     follow_list();
     first_row = scrolled(first_row, 0, count, shown_rows);
     show_header();
+    schedule_expiry();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 
@@ -325,7 +349,13 @@ void app_on_picked(int32_t request, int32_t http_status)
     (void)request;
     follow_list();
     int32_t item = answer_item();
-    if (item < 0 || item >= count) { return; } /* of an item the list no longer has */
+    if (item < 0) {
+        show_header();
+        schedule_expiry();
+        screen_redraw(HOST_REDRAW_NORMAL);
+        return;
+    }
+    if (item >= count) { return; } /* of an item the list no longer has */
     service_t *service = &services[item];
     service_t  before = *service;
     uint32_t   now = clock_now();
@@ -356,6 +386,7 @@ void app_on_picked(int32_t request, int32_t http_status)
         app_state_save(CHECKED, &checked, sizeof checked);
     }
     show_header();
+    schedule_expiry();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 

@@ -3,7 +3,7 @@
   "title": "Weather",
   "author": "Perinkpheral",
   "description": "Weather now and for three days",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "abi": 3,
   "icon": [
     "...#.......",
@@ -80,7 +80,9 @@
         "daily.temperature_2m_min[0]",
         "daily.temperature_2m_min[1]",
         "daily.temperature_2m_min[2]",
-        "daily.precipitation_probability_max[0]"
+        "daily.precipitation_probability_max[0]",
+        "daily.time[0]",
+        "utc_offset_seconds"
       ]
     }
   ]

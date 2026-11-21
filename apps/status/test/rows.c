@@ -216,6 +216,22 @@ int main(void)
     app_on_focus();
     assert(first_row == 0);
 
+    /* No incoming data is needed for the visible header and rows to expire. */
+    clock_s += 1000; standin_clock(clock_s);
+    round_of(2, "none"); app_on_focus();
+    assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], app_string(STR_ALL_GOOD)));
+    assert(standin_timer_left(0) == 3601000);
+    int before_expiry = redraws();
+    standin_pass(3601000); app_on_timer(0);
+    assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], app_string(STR_STALE)));
+    assert(redraws() == before_expiry + 1 && !standin_timer_left(0));
+    clock_s = time_now(); round_of(2, "none");
+    before_expiry = redraws();
+    standin_pass(3601000);
+    standin_picked(0, -1, HOST_FAILED_NO_NETWORK, NULL, 0);
+    assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], app_string(STR_STALE)));
+    assert(redraws() == before_expiry + 1);
+
     /* An update from 0.1.x: the four links are nobody's settings now and
      * leave the store; the old record is not read as rows, and the list is
      * the manifest's default of three. */

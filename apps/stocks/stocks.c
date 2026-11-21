@@ -502,14 +502,19 @@ static void draw_title(int32_t top, int32_t right)
 /* "16:00" today, "Fri 14 Nov 16:00" another day. */
 static int32_t when_text(int64_t moment, char *text, int32_t capacity)
 {
+    if (capacity <= 0) { return 0; }
+    text[0] = '\0';
     host_local_time_t then, now;
     int32_t           length = 0;
     if (time_local_at(moment, &then) != HOST_OK || time_local(&now) != HOST_OK
         || then.year != now.year || then.month != now.month || then.day != now.day) {
         length = time_text(moment, HOST_TIME_DATE, text, capacity - 1);
+        if (length < 0 || length >= capacity - 1) { return 0; }
         text[length++] = ' ';
     }
-    return length + time_text(moment, HOST_TIME_CLOCK, text + length, capacity - length);
+    int32_t clock_length = time_text(moment, HOST_TIME_CLOCK, text + length, capacity - length);
+    if (clock_length < 0) { text[0] = '\0'; return 0; }
+    return length + clock_length;
 }
 
 void app_on_draw(void)

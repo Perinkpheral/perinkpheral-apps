@@ -160,7 +160,8 @@ void app_on_picked(int32_t request, int32_t http_status)
             fresh.updated_at = time_now();
             bool changed = false;
             const uint8_t *saved = (const uint8_t *)&state, *received = (const uint8_t *)&fresh;
-            for (int32_t index = 0; index < (int32_t)sizeof state; index++) {
+            /* Fetch time alone does not change what the cache can show. */
+            for (int32_t index = 0; index < (int32_t)offsetof(state_t, updated_at); index++) {
                 changed |= saved[index] != received[index];
             }
             state = fresh;
