@@ -119,7 +119,7 @@ static void schedule_reminder(void)
             continue;
         }
         if (due <= now) {
-            alarm_set(REMIND_ALARM, SECONDS_PER_MINUTE);
+            alarm_set(REMIND_ALARM, 1);
         } else {
             alarm_set_at(REMIND_ALARM, due);
         }
@@ -154,7 +154,10 @@ void app_on_alarm(int32_t id)
         if (needs_reminder(event, now, lead) && due <= now) {
             bool delivered = false;
             for (int32_t j = 0; j < state.delivered_count; j++) {
-                delivered |= state.delivered[j].uid == event->uid && state.delivered[j].start == event->start;
+                if (state.delivered[j].uid == event->uid && state.delivered[j].start == event->start) {
+                    delivered = true;
+                    break;
+                }
             }
             if (delivered) { continue; }
             if (state.delivered_count == ICS_EVENTS_MAX || !remind_of(event)) {
@@ -175,7 +178,9 @@ void app_on_alarm(int32_t id)
     if (changed) {
         save_state();
     }
-    schedule_reminder();
+    /* Only a refused round needs backoff; newly due reminders should arrive promptly. */
+    if (accepted) { schedule_reminder(); }
+    else { alarm_set(REMIND_ALARM, SECONDS_PER_MINUTE); }
 }
 
 /* ---- the feed ---- */

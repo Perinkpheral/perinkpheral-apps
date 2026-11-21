@@ -54,13 +54,13 @@
     {
       "name": "calendar",
       "title": "Calendar",
-      "version": "0.4.19",
+      "version": "0.4.20",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 14772,
-          "sha256": "d080e76d67b44275129d547aa198117e58a07e2788ac77bedfc1b7586eb018d3"
+          "size": 14769,
+          "sha256": "13b373b945e09c36ab9701f900097245e043225d018b487472acbcc6db7745ae"
         },
         {
           "name": "manifest.ru",
@@ -75,7 +75,7 @@
         {
           "name": "manifest.json",
           "size": 1207,
-          "sha256": "2df8a97b1bcedc28a92d5a19adea77e42514b88812a8a80425f6e742df11c01c"
+          "sha256": "f3a2ae4f158687d253b04a66e116573468bbd5b350de7273c65f0d38a76c20b9"
         }
       ],
       "author": "Perinkpheral",
@@ -205,13 +205,13 @@
     {
       "name": "ha",
       "title": "HA Companion",
-      "version": "0.3.20",
+      "version": "0.3.21",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7615,
-          "sha256": "9a527965da73481c186cfdc04886a56aefe831cadbef818b9140ef2320c252b0"
+          "size": 7679,
+          "sha256": "8602c87066c8cd70eccd7aa99ca7cf0328085490e452d2e3258f45ce89f82e0a"
         },
         {
           "name": "manifest.ru",
@@ -226,7 +226,7 @@
         {
           "name": "manifest.json",
           "size": 910,
-          "sha256": "418131ef09f7192e0f5f0f2d00edd1479f363a5f7b37d7c568a7b2567fcec2b1"
+          "sha256": "e1e2e0fa5e1f328f6e4d9c0840bd71273e42c8502a6315b5ebcd8038d6a90cc4"
         }
       ],
       "author": "Perinkpheral",

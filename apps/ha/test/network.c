@@ -13,6 +13,38 @@ static void answer(const char *payload)
 {
     standin_data(request_screen(), -1, 200, payload, (int32_t)strlen(payload), HOST_DATA_CHUNK_MAX, STANDIN_WHOLE, 0);
 }
+
+static void background_ask(bool refused)
+{
+    app_on_blur();
+    place_t before, after;
+    assert(app_session_load(&before, sizeof before));
+    standin()->is_session_writable = false;
+    standin_pass(300000);
+    last_ask_ms = -1; has_asked = false; list.first = list.count = 0;
+    app_on_load();
+    standin()->refuse_requests = refused ? HOST_ERR_NO_SPACE : HOST_OK;
+    int sends = standin()->sends;
+    app_on_alarm(0);
+    assert(standin()->sends == sends + 1 && has_asked == !refused);
+    assert(app_session_load(&after, sizeof after) && !memcmp(&before, &after, sizeof before));
+    standin()->refuse_requests = HOST_OK;
+
+    /* Background instances are discarded; only the saved ask can prevent a duplicate. */
+    standin_pass(5000);
+    last_ask_ms = -1; has_asked = false; list.first = list.count = 0;
+    app_on_load();
+    standin()->is_session_writable = true;
+    app_on_focus();
+    assert(standin()->sends == sends + 1 && list.first == before.first && list.count == before.count);
+    standin_pass(54000);
+    app_on_focus();
+    assert(standin()->sends == sends + 1);
+    standin_pass(1000);
+    app_on_focus();
+    assert(standin()->sends == sends + 2);
+}
+
 int main(void)
 {
     standin_reset();
@@ -63,6 +95,8 @@ int main(void)
     app_on_load(); app_on_focus();
     assert(standin()->sends == sends + 1);
     app_on_alarm(0); assert(standin()->sends == sends + 2);
+    background_ask(false);
+    background_ask(true);
 
     int32_t old_request = request_screen();
     app_on_data(old_request, (const uint8_t *)"hero|99", 7, HOST_DATA_FIRST, 200);
@@ -109,5 +143,5 @@ int main(void)
     assert(read_items(items) == 1 && !strcmp(items[0].value, "12345.67"));
     assert(items[0].picture != NULL && items[0].picture->icon == HOST_ICON_THERMOMETER);
     assert(strlen(items[0].name) == 46);
-    puts("ha: pairing invalidation and late replies, restored refresh pace, long UTF-8 labels, refused enqueue, focus retry, 288 unchanged answers, interrupted stream and failed save retry passed");
+    puts("ha: background ask pace across unload for accepted and refused requests, pairing invalidation and late replies, restored refresh pace, long UTF-8 labels, refused enqueue, focus retry, 288 unchanged answers, interrupted stream and failed save retry passed");
 }

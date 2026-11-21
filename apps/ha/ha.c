@@ -126,6 +126,8 @@ static int64_t last_ask_ms = -1;
 static void ask(void)
 {
     last_ask_ms = time_uptime_ms();
+    /* Background instances cannot update the session used when returning. */
+    kv_set("last_ask", 8, &last_ask_ms, sizeof last_ask_ms);
     follow_pairing();
     if (!source_ready) {
         has_asked = false;
@@ -222,6 +224,9 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 
 void app_on_load(void)
 {
+    if (kv_get("last_ask", 8, &last_ask_ms, sizeof last_ask_ms) != sizeof last_ask_ms) {
+        last_ask_ms = -1;
+    }
     source_ready = kv_get("source", 6, &source, sizeof source) == sizeof source &&
                    source.tag >= HOST_REQUEST_FIRST && source.tag <= HOST_REQUEST_LAST;
     follow_pairing();

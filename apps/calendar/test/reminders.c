@@ -19,8 +19,49 @@ int32_t queued_notice(const host_notice_t *notice)
     return notification_post(notice);
 }
 
+static void prompt_reminders(void)
+{
+    standin_reset();
+    standin_clock(1768485600); /* 2026-01-15 14:00 UTC */
+    standin()->zone_offset = 0;
+    standin_set("feed", "https://calendar.invalid/feed");
+    standin_set("remind", "At start");
+    app_on_load();
+    stored.count = 1;
+    stored.events[0] = (ics_event_t){ .uid = 1, .start = time_now(), .end = time_now() + 600 };
+    save_events(); save_state();
+
+    /* A restart must not impose the queue's backoff on an untried reminder. */
+    standin_restart();
+    state = (state_t){0}; stored = (stored_events_t){0};
+    app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+    assert(standin_alarm_left(0) == 1);
+    standin_pass(1000); queued = 0; app_on_alarm(0);
+    assert(standin()->notices == 1);
+
+    /* A newly fetched event can already be inside its lead time. */
+    const char feed[] = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:new\r\nDTSTART:20260115T140500Z\r\nDTEND:20260115T150000Z\r\nSUMMARY:Meeting\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    state.reminded_to = time_now() - 600;
+    standin_set("remind", "10 min");
+    app_on_data(0, (const uint8_t *)feed, sizeof feed - 1, HOST_DATA_FIRST | HOST_DATA_LAST, 200);
+    assert(stored.count == 1 && state.status == 200 && standin_alarm_left(0) == 1);
+    standin_pass(1000); app_on_alarm(0);
+    assert(standin()->notices == 2);
+
+    /* Moving the clock past the start must still deliver promptly. */
+    standin_set("remind", "At start");
+    app_on_settings();
+    assert(standin_alarm_left(0) == stored.events[0].start - time_now());
+    standin_clock(stored.events[0].start + 1);
+    app_on_intent(HOST_INTENT_TIME_CHANGED);
+    assert(standin_alarm_left(0) == 1);
+    standin_pass(1000); app_on_alarm(0);
+    assert(standin()->notices == 3 && standin_alarm_left(0) == 0);
+}
+
 int main(void)
 {
+    prompt_reminders();
     standin_reset();
     standin_clock(1794955920);
     standin_set("feed", "https://calendar.invalid/feed");
@@ -72,5 +113,5 @@ int main(void)
     app_on_button(BTN_OK_PRESSED);
     assert(is_reading_one && read_uid == 3 && read_start == stored.events[2].start);
     assert(list.selected == 1 && shown[1] == 2);
-    puts("calendar: full notification queue retries across unload without duplicates; focus restores selection before OK passed");
+    puts("calendar: prompt reminders after restart, fetch and clock change; full queue backoff across unload without duplicates; focus selection passed");
 }
