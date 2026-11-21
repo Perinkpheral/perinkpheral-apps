@@ -53,12 +53,12 @@
   "show_city": "Показывать город",
   "on": "Вкл",
   "not_set_up": "Не настроено",
-  "open_page": "Открыть страницу",
+  "open_page": "Откройте страницу",
   "remove": "Удалить",
   "everything": "всё?",
   "cancel": "Отмена",
-  "loading": "Загрузка",
-  "in_progress": "идёт",
+  "loading": "Идёт загрузка",
+  "in_progress": "",
   "manifest": {
     "title": "Кит UI",
     "description": "Элементы интерфейса для разработчиков"

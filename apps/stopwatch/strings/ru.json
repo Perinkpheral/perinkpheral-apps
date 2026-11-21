@@ -1,8 +1,8 @@
 {
   "start": "Старт",
   "stop": "Стоп",
-  "continue_": "Дальше",
-  "close": "Закрыть",
+  "continue_": "Продолжить",
+  "close": "Назад",
   "hold_to_reset": "УДЕРЖИВАЙТЕ OK ДЛЯ СБРОСА",
   "manifest": {
     "title": "Секундомер",

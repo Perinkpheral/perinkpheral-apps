@@ -1,0 +1,19 @@
+{
+  "app": "apps/stocks",
+  "at": 1794955920,
+  "store": {
+    "tickers": "AAPL",
+    "refresh": "15 min"
+  },
+  "mocks": "../stocks/mocks.json",
+  "steps": [
+    "wait 2",
+    "shot quote",
+    "forward 900",
+    "wait 2",
+    "shot quote"
+  ],
+  "font": "departure",
+  "language": "ru",
+  "glyphs": "glyphs"
+}

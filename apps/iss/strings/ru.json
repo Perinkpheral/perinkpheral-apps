@@ -12,5 +12,6 @@
   },
   "meters": "м",
   "update_failed": "Не удалось обновить",
-  "last_update": "Обновлено: {0}"
+  "last_update": "Обновлено: {0}",
+  "decimal_point": ","
 }

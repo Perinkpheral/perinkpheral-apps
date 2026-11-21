@@ -3,5 +3,7 @@
   "currency_name": "",
   "auto": "Auto",
   "period": "30 days",
-  "no_history": "No history yet"
+  "no_history": "No history yet",
+  "decimal_point": ".",
+  "yen": "Yen"
 }

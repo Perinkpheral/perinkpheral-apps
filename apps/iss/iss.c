@@ -178,7 +178,7 @@ static void coordinate(char line[24], int32_t value, int32_t positive, int32_t n
     int32_t absolute = value < 0 ? -value : value;
     int32_t tenths = (absolute + HUNDREDTHS_PER_TENTH / 2) / HUNDREDTHS_PER_TENTH;
     app_text_add_padded(&text, tenths / TENTHS_PER_DEGREE, 2);
-    app_text_add(&text, ".");
+    app_text_add(&text, app_string(STR_DECIMAL_POINT));
     app_text_add_number(&text, tenths % TENTHS_PER_DEGREE);
     app_text_add(&text, APP_TEXT_DEGREE " ");
     app_text_add(&text, app_string(value < 0 ? negative : positive));

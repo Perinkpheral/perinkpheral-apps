@@ -1,5 +1,6 @@
 {
   "auto": "Auto",
   "not_found": "Not found",
-  "no_data": "No data"
+  "no_data": "No data",
+  "decimal_point": "."
 }

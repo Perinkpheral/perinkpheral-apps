@@ -291,9 +291,14 @@ static void draw_status(void)
     int32_t height = gfx_font_height(font) + 2 * STATUS_PADDING;
     int32_t left = WIDTH - STATUS_MARGIN - width;
     int32_t top = HEIGHT - STATUS_MARGIN - height;
+    int32_t backing_left = (left - 1) / cell * cell;
+    int32_t backing_top = (top - 1) / cell * cell;
+    int32_t backing_right = (left + width + cell) / cell * cell;
 
     gfx_set_color(HOST_PAPER);
-    gfx_draw_rect(left - 1, top - 1, width + 2, height + 2, HOST_RECT_FILLED);
+    /* Cover whole cells around the box so no thin fragments remain at its edges. */
+    gfx_draw_rect(backing_left, backing_top, backing_right - backing_left,
+                  HEIGHT - backing_top, HOST_RECT_FILLED);
     gfx_set_color(HOST_INK);
     gfx_draw_rect(left, top, width, height, 0);
     if (hint_width) {
