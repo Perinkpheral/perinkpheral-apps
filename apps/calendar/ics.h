@@ -37,15 +37,17 @@ typedef struct {
 #define ICS_OVERRIDES_MAX 32
 #define ICS_CANDIDATES_MAX (ICS_EVENTS_MAX + ICS_OVERRIDES_MAX)
 
+/* The same transition fields serve both standard and daylight time. */
+typedef struct {
+    int32_t offset_s; /* east of UTC */
+    int32_t seconds;  /* local clock time of the transition */
+    int8_t month, nth, weekday; /* nth 1.. from the beginning, -1 last, 0: fixed day */
+} ics_transition_t;
+
 typedef struct {
     uint32_t name; /* a number made of the TZID */
-    int32_t  standard_s, daylight_s; /* east of UTC */
-    /* When each begins: the month, and which day of the week of it -
-     * `nth` 1.. from its beginning, -1 the last, 0: not known. */
-    int8_t standard_month, standard_nth, standard_weekday;
-    int8_t daylight_month, daylight_nth, daylight_weekday;
-    int32_t standard_seconds, daylight_seconds;
-    bool   has_daylight;
+    ics_transition_t standard, daylight;
+    bool has_daylight;
 } ics_zone_t;
 
 /* A moment as the file writes it, before it is known what zone means. */

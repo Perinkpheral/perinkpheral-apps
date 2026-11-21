@@ -69,7 +69,7 @@ static state_t         state;
 
 static void save_state(void)
 {
-    app_state_save(STATE_KEY, &state, sizeof state);
+    kv_set(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state);
 }
 
 static bool is_same(const void *one, const void *other, int32_t size)
@@ -96,6 +96,13 @@ static int32_t lead_seconds(void)
 
 /* ---- the reminder ---- */
 
+/* The scheduler and delivery retry use the same eligibility window. */
+__attribute__((noinline)) static bool needs_reminder(const ics_event_t *event, int64_t now, int32_t lead)
+{
+    return !event->is_all_day && event->start - lead > state.reminded_to &&
+           event->start + LATE_SECONDS >= now;
+}
+
 /* The alarm for the reminder that comes next, or none. */
 static void schedule_reminder(void)
 {
@@ -108,7 +115,7 @@ static void schedule_reminder(void)
     for (int32_t i = 0; i < stored.count; i++) {
         const ics_event_t *event = &stored.events[i];
         int64_t due = event->start - lead;
-        if (event->is_all_day || due <= state.reminded_to || event->start + LATE_SECONDS < now) {
+        if (!needs_reminder(event, now, lead)) {
             continue;
         }
         if (due <= now) {
@@ -120,13 +127,17 @@ static void schedule_reminder(void)
     }
 }
 
+__attribute__((noinline)) static const char *event_title(const ics_event_t *event)
+{
+    return event->title[0] != '\0' ? event->title : app_string(STR_EVENT);
+}
+
 /* The reminder is Perinkpheral OS's to show: when it begins, and what it is. */
 static bool remind_of(const ics_event_t *event)
 {
     host_notice_t notice = { .icon = HOST_ICON_BELL };
     app_time_text(event->start, HOST_TIME_CLOCK, notice.first, sizeof notice.first);
-    app_text_copy(notice.detail, sizeof notice.detail,
-                  event->title[0] != '\0' ? event->title : app_string(STR_EVENT));
+    app_text_copy(notice.detail, sizeof notice.detail, event_title(event));
     return notification_post(&notice) == HOST_OK;
 }
 
@@ -139,8 +150,7 @@ void app_on_alarm(int32_t id)
     for (int32_t i = 0; i < stored.count && lead >= 0 && now != 0; i++) {
         const ics_event_t *event = &stored.events[i];
         int64_t due = event->start - lead;
-        if (!event->is_all_day && due > state.reminded_to && due <= now &&
-            event->start + LATE_SECONDS >= now) {
+        if (needs_reminder(event, now, lead) && due <= now) {
             bool delivered = false;
             for (int32_t j = 0; j < state.delivered_count; j++) {
                 delivered |= state.delivered[j].uid == event->uid && state.delivered[j].start == event->start;
@@ -373,6 +383,15 @@ void app_on_blur(void)
     app_session_save(&place, sizeof place);
 }
 
+__attribute__((noinline)) static int32_t find_visible_event(uint32_t uid, int64_t start)
+{
+    for (int32_t row = 0; row < list.count; row++) {
+        const ics_event_t *event = &stored.events[shown[row]];
+        if (event->uid == uid && event->start == start) { return row; }
+    }
+    return -1;
+}
+
 static int32_t count_visible_events(int64_t now);
 
 static void restore_place(void)
@@ -382,13 +401,8 @@ static void restore_place(void)
     if (app_session_load(&place, sizeof place)) {
         list.selected = place.selected;
         list.first = place.first;
-        for (int32_t row = 0; row < list.count; row++) {
-            const ics_event_t *event = &stored.events[shown[row]];
-            if (event->uid == place.selected_uid && event->start == place.selected_start) {
-                list.selected = row;
-                break;
-            }
-        }
+        int32_t row = find_visible_event(place.selected_uid, place.selected_start);
+        if (row >= 0) { list.selected = row; }
         is_reading_one = place.is_reading_one != 0;
         read_uid = place.read_uid;
         read_start = place.read_start;
@@ -463,21 +477,21 @@ static int32_t say_when(const ics_event_t *event, int64_t now, char *line, int32
 static void draw_reason(void)
 {
     host_notice_t notice = { .icon = HOST_ICON_WARNING };
-    app_text_t    first, detail;
-    app_text_start(&first, notice.first, sizeof notice.first);
-    app_text_start(&detail, notice.detail, sizeof notice.detail);
+    const char *first, *detail = "";
     if (state.status == STATUS_NOT_A_CALENDAR) {
-        app_text_add(&first, app_string(STR_NOT_A_CALENDAR));
-        app_text_add(&detail, app_string(STR_CHECK_THE_ADDRESS));
+        first = app_string(STR_NOT_A_CALENDAR);
+        detail = app_string(STR_CHECK_THE_ADDRESS);
     } else if (state.status == STATUS_NO_TIME) {
-        app_text_add(&first, app_string(STR_NO_TIME_YET));
+        first = app_string(STR_NO_TIME_YET);
         notice.icon = HOST_ICON_CLOCK;
     } else if (ui_draw_reason(state.status) == 0) {
-        app_text_add(&first, app_string(STR_NO_EVENTS));
+        first = app_string(STR_NO_EVENTS);
         notice.icon = HOST_ICON_CHECK;
     } else {
         return;
     }
+    app_text_copy(notice.first, sizeof notice.first, first);
+    app_text_copy(notice.detail, sizeof notice.detail, detail);
     ui_draw_notice(&notice);
 }
 
@@ -491,28 +505,34 @@ static bool same_local_day(int64_t first, int64_t second)
            start.year == end.year && start.month == end.month && start.day == end.day;
 }
 
+/* Keep the formatting and append calls shared by both date and clock ranges. */
+__attribute__((noinline)) static void add_moment(app_text_t *line, int64_t at, int32_t style)
+{
+    char moment[MOMENT_MAX + 1];
+    app_time_text(at, style, moment, sizeof moment);
+    app_text_add(line, moment);
+}
+
 /* The event leads; the dates below include overnight and multi-day ranges. */
 static void draw_event(const ics_event_t *event)
 {
-    char       when[2 * MOMENT_MAX + 8], moment[MOMENT_MAX + 1];
+    char       when[2 * MOMENT_MAX + 8];
     app_text_t line;
     int32_t    width = gfx_width() - 2 * HOST_UI_MARGIN;
 
-    const char *name = event->title[0] != '\0' ? event->title : app_string(STR_EVENT);
+    const char *name = event_title(event);
     int32_t top = HOST_UI_MARGIN;
     int32_t lines = ui_draw_text_lines(HOST_UI_MARGIN, top, HOST_UI_TEXT, name,
                                        app_text_length(name), width, TITLE_LINES);
     top += lines * ui_text_height(HOST_UI_TEXT) + HOST_UI_MARGIN;
 
     app_text_start(&line, when, sizeof when);
-    app_time_text(event->start, HOST_TIME_DATE, moment, sizeof moment);
-    app_text_add(&line, moment);
+    add_moment(&line, event->start, HOST_TIME_DATE);
     /* iCalendar's all-day DTEND is the first day outside the event. */
     int64_t last = event->is_all_day && event->end > event->start ? event->end - 1 : event->end;
     if (!same_local_day(event->start, last)) {
         app_text_add(&line, " - ");
-        app_time_text(last, HOST_TIME_DATE, moment, sizeof moment);
-        app_text_add(&line, moment);
+        add_moment(&line, last, HOST_TIME_DATE);
     }
     ui_draw_text(HOST_UI_MARGIN, top, HOST_UI_CAPTION, when, app_text_length(when), width);
     top += ui_text_height(HOST_UI_CAPTION) + HOST_UI_MARGIN / 2;
@@ -521,11 +541,9 @@ static void draw_event(const ics_event_t *event)
     if (event->is_all_day) {
         app_text_add(&line, app_string(STR_ALL_DAY));
     } else {
-        app_time_text(event->start, HOST_TIME_CLOCK, moment, sizeof moment);
-        app_text_add(&line, moment);
+        add_moment(&line, event->start, HOST_TIME_CLOCK);
         app_text_add(&line, " - ");
-        app_time_text(event->end, HOST_TIME_CLOCK, moment, sizeof moment);
-        app_text_add(&line, moment);
+        add_moment(&line, event->end, HOST_TIME_CLOCK);
     }
     ui_draw_text(HOST_UI_MARGIN, top, lines <= 2 ? HOST_UI_TITLE : HOST_UI_TEXT,
                   when, app_text_length(when), width);
@@ -548,13 +566,11 @@ void app_on_draw(void)
     if (is_reading_one) {
         /* The event being read, wherever it is now; one that is over, or
          * gone from the calendar, gives the screen back to the list. */
-        for (int32_t row = 0; row < count; row++) {
-            const ics_event_t *event = &stored.events[shown[row]];
-            if (event->uid == read_uid && event->start == read_start) {
-                list.selected = row;
-                draw_event(event);
-                return;
-            }
+        int32_t row = find_visible_event(read_uid, read_start);
+        if (row >= 0) {
+            list.selected = row;
+            draw_event(&stored.events[shown[row]]);
+            return;
         }
         is_reading_one = false;
     }
@@ -564,7 +580,7 @@ void app_on_draw(void)
         char when[MOMENT_MAX + 1];
         int32_t when_length = say_when(event, now, when, sizeof when);
         /* Perinkpheral OS's row keeps the moment whole and cuts the name. */
-        const char *name = event->title[0] != '\0' ? event->title : app_string(STR_EVENT);
+        const char *name = event_title(event);
         ui_draw_list_row(&list, row, name, app_text_length(name), when, when_length, HOST_ICON_NONE);
     }
 }
