@@ -309,13 +309,13 @@
     {
       "name": "kit",
       "title": "UI Kit",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 8243,
-          "sha256": "721c03d70f53cd22bf8ce15b589892853d5790e73181faf619901148db0f4e7c"
+          "size": 8254,
+          "sha256": "68e4f89f0cd9dbe26a31555b1959ae69bdfaaa5a3d694d8a86db215bf3b82959"
         },
         {
           "name": "manifest.ru",
@@ -324,13 +324,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 1055,
-          "sha256": "693c2677cc5ce7090c6a7ec0d15ceada2e76933d861f76a655721cfd04e280a8"
+          "size": 1053,
+          "sha256": "f6a01d9875f5aed401a8273b5ec62bf5102f25b132692886da4a5229a1b18ce4"
         },
         {
           "name": "manifest.json",
           "size": 411,
-          "sha256": "b8497aec1682619314c4456c0488244a2883bac0b39d0ddc2d92690679bb6db7"
+          "sha256": "3e41e28d62ad862381b866acc54b569de2e20e75818d1ed00e3d0bffa12698bc"
         }
       ],
       "author": "Perinkpheral",

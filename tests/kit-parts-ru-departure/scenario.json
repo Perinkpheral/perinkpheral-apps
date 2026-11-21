@@ -1,0 +1,15 @@
+{
+  "app": "apps/kit",
+  "at": 1794832200,
+  "tz": "Europe/Moscow",
+  "font": "departure",
+  "language": "ru",
+  "glyphs": "glyphs",
+  "steps": [
+    "press 2",
+    "shot primitives",
+    "press 4",
+    "press 3 3 3 3 3 3 3 3 3 3 2",
+    "shot message"
+  ]
+}
