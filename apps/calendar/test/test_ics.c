@@ -185,6 +185,23 @@ static void test_monthly_weekdays(void)
     CHECK(events[0].start == utc(2027, 1, 4, 9, 0) && events[1].start == utc(2027, 1, 11, 9, 0));
 }
 
+/* Unsupported positions must not expand into every matching weekday. */
+static void test_monthly_set_position(void)
+{
+    static const char second[] = "BEGIN:VEVENT\nDTSTART:20261110T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=TU;BYSETPOS=2\nEND:VEVENT\n";
+    static const char first[] = "BEGIN:VEVENT\nDTSTART:20261102T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1\nEND:VEVENT\n";
+    static const char last[] = "BEGIN:VEVENT\nDTSTART:20261130T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1\nEND:VEVENT\n";
+    CHECK(read_file(second, utc(2026, 11, 10, 0, 0), 28, 0, 1) == 1);
+    CHECK(events[0].start == utc(2026, 11, 10, 9, 0));
+    CHECK(read_file(first, utc(2026, 11, 1, 0, 0), 14, 0, 3) == 1);
+    CHECK(events[0].start == utc(2026, 11, 2, 9, 0));
+    CHECK(read_file(last, utc(2026, 11, 1, 0, 0), 31, 0, 7) == 1);
+    CHECK(events[0].start == utc(2026, 11, 30, 9, 0));
+}
+
 static void test_exception_spares(void)
 {
     char text[16000];
@@ -273,6 +290,7 @@ static void test_opening_at_every_split(void)
 int main(void)
 {
     test_monthly_weekdays();
+    test_monthly_set_position();
     test_exception_spares();
     test_transition_hours();
     test_opening_at_every_split();

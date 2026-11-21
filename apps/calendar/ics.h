@@ -85,7 +85,7 @@ typedef struct {
     int32_t      duration_s;
     char         title[ICS_TITLE_MAX + 1];
     uint32_t     uid;
-    bool         is_cancelled, has_rule;
+    bool         is_cancelled, has_rule, has_set_position;
     int32_t      frequency, interval, rule_count;
     uint8_t      weekdays;     /* a bit a day, Monday the lowest */
     int8_t       nth_weekday;  /* of the month: "2TU" is 2 */

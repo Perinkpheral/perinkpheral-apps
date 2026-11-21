@@ -119,7 +119,7 @@ static void schedule_reminder(void)
             continue;
         }
         if (due <= now) {
-            alarm_set(REMIND_ALARM, 1);
+            alarm_set(REMIND_ALARM, SECONDS_PER_MINUTE);
         } else {
             alarm_set_at(REMIND_ALARM, due);
         }
@@ -146,6 +146,7 @@ void app_on_alarm(int32_t id)
     (void)id;
     int64_t now = time_now();
     int32_t lead = lead_seconds();
+    bool changed = false;
     bool accepted = true;
     for (int32_t i = 0; i < stored.count && lead >= 0 && now != 0; i++) {
         const ics_event_t *event = &stored.events[i];
@@ -163,13 +164,17 @@ void app_on_alarm(int32_t id)
             /* Keep accepted notices across retries of a full notification queue. */
             state.delivered[state.delivered_count].uid = event->uid;
             state.delivered[state.delivered_count++].start = event->start;
+            changed = true;
         }
     }
     if (now != 0 && accepted) {
+        changed |= state.reminded_to != now || state.delivered_count != 0;
         state.reminded_to = now;
         state.delivered_count = 0;
     }
-    save_state();
+    if (changed) {
+        save_state();
+    }
     schedule_reminder();
 }
 

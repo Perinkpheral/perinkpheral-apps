@@ -179,6 +179,10 @@ void app_on_updated(void)
 /* Removal keeps the countdown's store but drops its alarms. */
 void app_on_installed(void)
 {
+    if (state.ends_at != 0 && seconds_left() == 0) {
+        state.ends_at = 0;
+        save();
+    }
     app_on_updated();
 }
 

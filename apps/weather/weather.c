@@ -134,7 +134,16 @@ static void load_forecast(void)
         last_status = 0;
     }
     int32_t length = kv_get(FORECAST_KEY, sizeof FORECAST_KEY - 1, &forecast, sizeof forecast);
-    has_forecast = length == sizeof forecast && forecast.version == FORECAST_VERSION && same_place();
+    /* v5 is the same prefix, with dates in the device's zone. Keep that
+     * interpretation until a response supplies the forecast city's zone. */
+    bool migrated = length == offsetof(forecast_t, zone_offset) && forecast.version == 5;
+    if (migrated) {
+        forecast.version = FORECAST_VERSION;
+        forecast.zone_offset = time_zone_offset();
+    }
+    has_forecast = (length == sizeof forecast || migrated) &&
+                   forecast.version == FORECAST_VERSION && same_place();
+    forecast_dirty = migrated && has_forecast && !app_state_save(FORECAST_KEY, &forecast, sizeof forecast);
 }
 
 /* ---- the settings ---- */

@@ -33,21 +33,28 @@ int main(void)
     assert(state.version == STATE_VERSION && state.reminded_to == time_now() - 60 && state.delivered_count == 0);
     stored.count = 5;
     for (int i = 0; i < stored.count; i++) {
-        stored.events[i] = (ics_event_t){ .uid = (uint32_t)i + 1, .start = time_now(), .end = time_now() + 60 };
+        stored.events[i] = (ics_event_t){ .uid = (uint32_t)i + 1, .start = time_now(), .end = time_now() + 600 };
         snprintf(stored.events[i].title, sizeof stored.events[i].title, "Event %d", i + 1);
     }
     save_events();
     queued = 4;
+    int writes = standin()->store_writes;
     app_on_alarm(0);
     assert(standin()->notices == 0 && state.delivered_count == 0 && state.reminded_to < time_now());
+    assert(standin()->store_writes == writes && standin_alarm_left(0) == 60);
+    standin_pass(60000);
     queued = 0;
     app_on_alarm(0);
     assert(standin()->notices == 4 && state.delivered_count == 4 && state.reminded_to < time_now());
-    assert(standin_alarm_left(0) == 1);
+    assert(standin_alarm_left(0) == 60);
+    writes = standin()->store_writes;
     state = (state_t){0}; app_on_load();
+    standin_pass(60000);
     app_on_alarm(0);
+    assert(standin()->store_writes == writes && standin_alarm_left(0) == 60);
     assert(standin()->notices == 4 && state.delivered_count == 4);
     queued = 0;
+    standin_pass(60000);
     app_on_alarm(0);
     assert(standin()->notices == 5 && !strcmp(standin()->last_notice.detail, "Event 5"));
     assert(state.reminded_to == time_now() && state.delivered_count == 0);

@@ -50,7 +50,19 @@ int main(void)
     app_on_load(); app_on_focus();
     assert(standin()->sends == sends && list.first == 3);
     assert(standin()->alarms[0].every == 3600);
-    app_on_alarm(0); assert(standin()->sends == sends + 1);
+    standin_pass(59000);
+    app_on_blur(); last_ask_ms = -1; has_asked = false;
+    app_on_load(); app_on_focus();
+    assert(standin()->sends == sends);
+    standin_pass(1000);
+    app_on_blur(); last_ask_ms = -1; has_asked = false;
+    app_on_load(); app_on_focus();
+    assert(standin()->sends == sends + 1 && list.first == 3);
+    assert(standin()->alarms[0].every == 3600);
+    app_on_blur(); last_ask_ms = -1; has_asked = false;
+    app_on_load(); app_on_focus();
+    assert(standin()->sends == sends + 1);
+    app_on_alarm(0); assert(standin()->sends == sends + 2);
 
     int32_t old_request = request_screen();
     app_on_data(old_request, (const uint8_t *)"hero|99", 7, HOST_DATA_FIRST, 200);
@@ -71,6 +83,22 @@ int main(void)
     standin_set("token", "another-pairing"); app_on_settings();
     assert(screen_length == 0);
     app_on_load(); assert(screen_length == 0);
+
+    /* Re-pairing off screen must discard both the cache and its error. */
+    answer("hero|24|sunny");
+    last_status = 401; save_status();
+    standin_set("server", "https://other.invalid");
+    app_on_load();
+    assert(screen_length == 0 && last_status == 0 && saved_status == 0);
+    int32_t status_bytes;
+    const uint8_t *status_value = standin_value("status", &status_bytes);
+    int32_t stored_status; memcpy(&stored_status, status_value, sizeof stored_status);
+    assert(status_bytes == sizeof stored_status && stored_status == 0);
+    app_on_settings();
+    assert(last_status == 0);
+    app_on_data(request_screen(), NULL, 0, HOST_DATA_FAILED, HOST_FAILED_NO_NETWORK);
+    app_on_load();
+    assert(screen_length == 0 && last_status == HOST_FAILED_NO_NETWORK);
 
     /* A long UTF-8 name must leave the picture and numeric value whole. */
     char payload[512] = "layout|list\nitem|";

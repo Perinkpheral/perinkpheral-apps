@@ -162,7 +162,14 @@ void app_on_load(void)
 void app_on_focus(void) { show_header(); schedule_timer(); }
 void app_on_updated(void) { schedule(); }
 /* Removal keeps the phase's store but drops its alarms. */
-void app_on_installed(void) { schedule(); }
+void app_on_installed(void)
+{
+    if (state.ends_at && seconds_left() == 0) {
+        state.ends_at = 0;
+        save();
+    }
+    schedule();
+}
 void app_on_settings(void)
 {
     /* A stopped preview follows settings; an active or paused phase keeps its length. */

@@ -29,7 +29,7 @@ _Static_assert(sizeof(state_t) <= HOST_KV_VALUE_MAX, "snapshot fits one store va
 static state_t state, incoming;
 static bool    state_unsaved; /* the store refused the last write of it */
 typedef struct {
-    int32_t index, rotating;
+    int32_t index;
     int64_t next_rotation_ms;
 } navigation_t;
 APP_SESSION_FITS(navigation_t);
@@ -40,6 +40,7 @@ typedef struct {
 } cached_history_t;
 _Static_assert(sizeof(cached_history_t) * CURRENCIES_MAX <= 4096, "history fits one storage block");
 static navigation_t navigation;
+static int32_t rotating;
 static history_parser_t history_parser;
 static bool history_reading;
 static cached_history_t chart;
@@ -233,7 +234,7 @@ static void update_header(void)
     app_text_add_number(&text, navigation.index + 1);
     app_text_add(&text, "/");
     app_text_add_number(&text, currency_count());
-    if (navigation.rotating) { app_text_add(&text, " "); app_text_add(&text, app_string(STR_AUTO)); }
+    if (rotating) { app_text_add(&text, " "); app_text_add(&text, app_string(STR_AUTO)); }
     header_set_text(HOST_HEADER_LEFT, buffer, app_text_length(buffer));
 }
 
@@ -243,7 +244,7 @@ static void update_rotation(bool restart)
     app_setting("rotate", setting, sizeof setting);
     int32_t minutes = app_text_equal(setting, "10 min") ? 10 : app_text_equal(setting, "5 min") ? 5 :
                       app_text_equal(setting, "2 min") ? 2 : 1;
-    if (!navigation.rotating || currency_count() < 2) {
+    if (!rotating || currency_count() < 2) {
         navigation.next_rotation_ms = 0;
         timer_set(ROTATE_TIMER, 0);
         return;
@@ -270,6 +271,12 @@ void app_on_load(void)
     if (kv_get("status", 6, &status, sizeof status) != sizeof status) status = 0;
     saved_status = status;
     navigation = (navigation_t){0};
+    if (kv_get("rotating", 8, &rotating, sizeof rotating) != sizeof rotating) rotating = 0;
+}
+
+void app_on_updated(void)
+{
+    kv_set("navigation", 10, NULL, 0);
 }
 
 void app_on_focus(void)
@@ -304,7 +311,8 @@ void app_on_button(int32_t event)
     if (event == BTN_UP_PRESSED) select_currency(-1);
     else if (event == BTN_DOWN_PRESSED) select_currency(1);
     else if (event == BTN_OK_PRESSED) {
-        navigation.rotating = !navigation.rotating;
+        rotating = !rotating;
+        kv_set("rotating", 8, &rotating, sizeof rotating);
         update_header();
     } else return;
     update_rotation(true);
@@ -313,7 +321,7 @@ void app_on_button(int32_t event)
 
 void app_on_timer(int32_t id)
 {
-    if (id != ROTATE_TIMER || !navigation.rotating) return;
+    if (id != ROTATE_TIMER || !rotating) return;
     if (time_uptime_ms() < navigation.next_rotation_ms) {
         update_rotation(false);
         return;

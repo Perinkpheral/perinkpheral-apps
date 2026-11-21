@@ -51,9 +51,25 @@ int main(void)
     assert(!forecast_dirty);
     forecast = (forecast_t){0}; has_forecast = false; app_on_load();
     assert(has_forecast && forecast.temperature == 13);
-    /* Old device-dated caches are ambiguous and wait for a dated response. */
+    /* A real v5 record is the v6 prefix without the city offset. */
     forecast.version = 5;
-    assert(kv_set("forecast", 8, &forecast, sizeof forecast) == HOST_OK);
+    forecast_t legacy = forecast;
+    assert(kv_set("forecast", 8, &legacy, offsetof(forecast_t, zone_offset)) == HOST_OK);
+    standin()->zone_offset = 10800;
+    int before = writes();
+    app_on_load();
+    assert(has_forecast && forecast.version == 6 && forecast.zone_offset == 10800);
+    assert(forecast.day == legacy.day && forecast.temperature == legacy.temperature);
+    assert(!memcmp(forecast.days, legacy.days, sizeof legacy.days));
+    assert(writes() == before + 1 && !forecast_dirty);
+    app_on_load(); assert(has_forecast && writes() == before + 1);
+    assert(kv_set("forecast", 8, &legacy, offsetof(forecast_t, zone_offset)) == HOST_OK);
+    standin()->refuse_writes = HOST_ERR_NO_SPACE;
+    app_on_load(); assert(has_forecast && forecast_dirty);
+    standin()->refuse_writes = HOST_OK;
+    app_on_load(); assert(has_forecast && !forecast_dirty);
+    legacy.version = 4;
+    assert(kv_set("forecast", 8, &legacy, offsetof(forecast_t, zone_offset)) == HOST_OK);
     app_on_load(); assert(!has_forecast);
     picked(200); assert(has_forecast);
     standin_set("lon", "0"); app_on_load(); assert(!has_forecast);

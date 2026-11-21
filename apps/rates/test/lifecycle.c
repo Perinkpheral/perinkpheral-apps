@@ -104,7 +104,7 @@ int main(void)
     app_on_button(BTN_DOWN_PRESSED);
     assert(navigation.index == 1 && !strcmp(chart.code, "USD"));
     app_on_button(BTN_OK_PRESSED);
-    assert(navigation.rotating);
+    assert(rotating);
     standin_pass(60000);
     app_on_timer(ROTATE_TIMER);
     assert(navigation.index == 0 && !strcmp(chart.code, "JPY"));

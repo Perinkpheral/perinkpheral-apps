@@ -381,7 +381,7 @@ static void repeat(ics_t *ics, int64_t duration)
                 if (found >= 0) {
                     occur(&run, found);
                 }
-            } else if (ics->weekdays != 0 && ics->month_day == 0) {
+            } else if (ics->weekdays != 0 && ics->month_day == 0 && !ics->has_set_position) {
                 int32_t first_day = app_days_from_date(its_year, its_month, 1);
                 for (int32_t offset = 0; offset < length && !run.is_over; offset++) {
                     if (ics->weekdays & (1 << weekday_of(first_day + offset))) {
@@ -485,6 +485,8 @@ static void take_rule(ics_t *ics, const char *rule)
     int32_t     length;
     const char *part = part_named(rule, "FREQ=", &length);
     ics->has_rule = true;
+    /* Positional rules retain the plain-frequency fallback. */
+    ics->has_set_position = part_named(rule, "BYSETPOS=", &length) != NULL;
     ics->frequency = frequency_of(part);
     ics->interval = rule_number(rule, "INTERVAL=", ics->interval);
     ics->rule_count = rule_number(rule, "COUNT=", ics->rule_count);
@@ -584,7 +586,7 @@ static void begin_event(ics_t *ics)
     ics->duration_s = 0;
     ics->title[0] = '\0';
     ics->uid = 0;
-    ics->is_cancelled = ics->has_rule = false;
+    ics->is_cancelled = ics->has_rule = ics->has_set_position = false;
     ics->frequency = FREQ_NONE;
     ics->interval = ics->rule_count = 0;
     ics->weekdays = 0;

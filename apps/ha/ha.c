@@ -119,11 +119,13 @@ static host_list_t list = { .selected = -1 };
 
 /* One request is enough for an instance that has just asked. */
 static bool has_asked;
+static int64_t last_ask_ms = -1;
 
 /* One request: the screen as Home Assistant renders it. The server and the
  * token are Perinkpheral OS's to put into the request. */
 static void ask(void)
 {
+    last_ask_ms = time_uptime_ms();
     follow_pairing();
     if (!source_ready) {
         has_asked = false;
@@ -234,8 +236,13 @@ void app_on_load(void)
     bool loaded_status = kv_get(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status) ==
                          sizeof last_status;
     saved_status = loaded_status ? last_status : 0;
-    if (!loaded_status) {
+    bool other_pairing = length >= (int32_t)offsetof(cached_screen_t, text) &&
+                         cache.pairing != screen_pairing;
+    if (!loaded_status || other_pairing) {
         last_status = 0;
+        /* Bind the empty cache too, so later failures belong to this pairing. */
+        if (other_pairing) { save_screen(); }
+        save_status();
     }
 }
 
@@ -258,12 +265,13 @@ void app_on_updated(void)
  * for another application's answer. */
 typedef struct {
     int32_t first, count;
+    int64_t last_ask_ms;
 } place_t;
 APP_SESSION_FITS(place_t);
 
 void app_on_blur(void)
 {
-    place_t place = { .first = list.first, .count = list.count };
+    place_t place = { .first = list.first, .count = list.count, .last_ask_ms = last_ask_ms };
     app_session_save(&place, sizeof place);
 }
 
@@ -276,6 +284,8 @@ void app_on_focus(void)
          * that comes before the next drawing */
         list.first = place.first;
         list.count = place.count;
+        if (last_ask_ms < place.last_ask_ms) { last_ask_ms = place.last_ask_ms; }
+        if (last_ask_ms < 0 || time_uptime_ms() - last_ask_ms >= 60000) { ask(); }
     }
     if (!restored && !has_asked) {
         keep_fresh();

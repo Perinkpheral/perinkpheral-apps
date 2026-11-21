@@ -21,6 +21,10 @@ int main(void)
     standin_reset();
     standin()->is_session_writable = true;
     standin_set("codes", "USD\nEUR\nJPY");
+    navigation_t orphan = { .index = 2 };
+    assert(kv_set("navigation", 10, &orphan, sizeof orphan) == HOST_OK);
+    app_on_updated();
+    assert(standin_value("navigation", NULL) == NULL);
     const char *paces[] = { "2 min", "5 min", "10 min" };
     const int minutes[] = { 2, 5, 10 };
     for (int p = 0; p < 3; ++p) {
@@ -31,12 +35,12 @@ int main(void)
         int writes_before = standin()->store_writes;
         app_on_button(BTN_DOWN_PRESSED);
         app_on_button(BTN_OK_PRESSED);
-        assert(navigation.index == 1 && navigation.rotating);
+        assert(navigation.index == 1 && rotating);
         int64_t due = standin()->timer_due_ms[ROTATE_TIMER];
         for (int minute = 1; minute < minutes[p]; ++minute) {
             standin_pass(60000);
             reload();
-            assert(navigation.index == 1 && navigation.rotating);
+            assert(navigation.index == 1 && rotating);
             assert(standin()->timer_due_ms[ROTATE_TIMER] == due);
         }
         standin_pass(60000);
@@ -49,12 +53,20 @@ int main(void)
         assert(navigation.index == 2);
         for (int toggle = 0; toggle < 20; ++toggle) app_on_button(BTN_OK_PRESSED);
         reload();
-        assert(standin()->store_writes == writes_before);
+        assert(standin()->store_writes == writes_before + 21);
         standin_forget_session();
         app_on_load();
         app_on_focus();
-        assert(navigation.index == 0 && !navigation.rotating && !standin_timers());
+        assert(navigation.index == 0 && rotating && standin_timers());
+        standin_restart();
+        app_on_load(); app_on_focus();
+        assert(navigation.index == 0 && rotating && standin_timers());
+        app_on_button(BTN_OK_PRESSED);
+        assert(!rotating && !standin_timers());
+        standin_forget_session();
+        app_on_load(); app_on_focus();
+        assert(!rotating && !standin_timers());
     }
-    puts("Rates: rotation keeps its deadline through minute-by-minute unloads; navigation uses no flash");
+    puts("Rates: rotation keeps its deadline through minute-by-minute unloads; only rotation toggles write flash and survive reopening/restart");
     return 0;
 }

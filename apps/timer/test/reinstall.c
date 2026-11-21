@@ -43,11 +43,14 @@ int main(void)
     app_on_button(BTN_OK_PRESSED);
     standin_pass(1501000);
     reinstall();
-    assert(standin_alarm_left(COUNTDOWN_ALARM) == 1);
-    standin_pass(1000);
-    standin_alarm(COUNTDOWN_ALARM);
-    assert(standin()->notices == 2 && state.ends_at == 0);
+    assert(state.ends_at == 0 && standin_alarms() == 0);
+    assert(standin()->notices == 1);
+    assert(standin()->status_icon[HOST_HEADER_RIGHT] == HOST_ICON_NONE);
+    int32_t length;
+    const uint8_t *stored = standin_value("state", &length);
+    assert(stored && length == sizeof state);
+    assert(!memcmp(stored, &state, sizeof state));
     reinstall();
-    assert(standin_alarms() == 0 && standin()->notices == 2);
+    assert(standin_alarms() == 0 && standin()->notices == 1 && state.ends_at == 0);
     return 0;
 }
