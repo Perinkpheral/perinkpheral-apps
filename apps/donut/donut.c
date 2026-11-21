@@ -416,8 +416,7 @@ void app_on_load(void)
     make_patterns();
 }
 
-/* An instance unloaded in the background comes back to the frame and the
- * counts it left; the frame's timer is set again when it is drawn. */
+/* Resume promptly even when the ordinary redraw waits for the refresh policy. */
 void app_on_focus(void)
 {
     session_t kept;
@@ -431,6 +430,7 @@ void app_on_focus(void)
     intervals = kept.intervals;
     draw_ms_total = kept.draw_ms_total;
     interval_ms_total = kept.interval_ms_total;
+    if (state == SPINNING) timer_set(FRAME_TIMER, 1);
 }
 
 void app_on_blur(void)
@@ -450,10 +450,10 @@ void app_on_settings(void)
 
 void app_on_timer(int32_t id)
 {
-    if (id != FRAME_TIMER || state != SPINNING || !frame_is_rendered) return;
+    if (id != FRAME_TIMER || state != SPINNING) return;
     /* One frame a timer, however late it came: frames are not skipped.
      * The turns repeat after TURN frames. */
-    frame = (frame + 1) % TURN;
+    if (frame_is_rendered) frame = (frame + 1) % TURN;
     frame_is_rendered = false;
     screen_redraw(HOST_REDRAW_NO_BLINK);
 }

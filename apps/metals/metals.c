@@ -50,6 +50,7 @@ typedef struct {
 typedef struct {
     int32_t metal;
     int32_t configured;
+    int32_t status;
 } session_t;
 APP_SESSION_FITS(session_t);
 _Static_assert(sizeof(month_t) <= HOST_KV_VALUE_MAX, "the month fits one store value");
@@ -322,6 +323,7 @@ void app_on_updated(void) { schedule(); }
 void app_on_intent(int32_t intent)
 {
     if (intent == HOST_INTENT_STARTED) { schedule(); }
+    else if (intent == HOST_INTENT_TIME_CHANGED || intent == HOST_INTENT_NETWORK_UP) { ask(); }
 }
 
 void app_on_alarm(int32_t id)
@@ -333,15 +335,21 @@ void app_on_focus(void)
 {
     int32_t configured = configured_metal();
     bool restored = app_session_load(&session, sizeof session);
+    if (restored) { status = session.status; }
     if (!restored || session.configured != configured ||
         session.metal < 0 || session.metal >= METALS) {
         session = (session_t){ .metal = configured, .configured = configured };
     }
     update_header();
-    if (!restored) { ask(); }
+    /* An unloaded instance has no live parser or pending flag. */
+    if (!restored || (!month.count && !status && !pending)) { ask(); }
 }
 
-void app_on_blur(void) { app_session_save(&session, sizeof session); }
+void app_on_blur(void)
+{
+    session.status = status;
+    app_session_save(&session, sizeof session);
+}
 
 void app_on_settings(void)
 {

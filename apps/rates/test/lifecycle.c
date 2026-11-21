@@ -23,6 +23,7 @@ static void take_requests(void)
     for (int32_t index = 0; index < host->request_count; index++) {
         assert(host->requests[index].tag >= HOST_REQUEST_FIRST && host->requests[index].method == HOST_HTTP_GET);
         assert(strlen(host->requests[index].url) < 192);
+        assert(host->requests[index].headers_length == 0 && host->requests[index].body_length == 0);
     }
     answered_requests += host->request_count;
     host->request_count = 0;
@@ -104,6 +105,7 @@ int main(void)
     assert(navigation.index == 1 && !strcmp(chart.code, "USD"));
     app_on_button(BTN_OK_PRESSED);
     assert(navigation.rotating);
+    standin_pass(60000);
     app_on_timer(ROTATE_TIMER);
     assert(navigation.index == 0 && !strcmp(chart.code, "JPY"));
     size_t daily_length = strlen(daily);

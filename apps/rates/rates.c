@@ -29,8 +29,10 @@ _Static_assert(sizeof(state_t) <= HOST_KV_VALUE_MAX, "snapshot fits one store va
 static state_t state, incoming;
 static bool    state_unsaved; /* the store refused the last write of it */
 typedef struct {
-    int32_t version, index, rotating;
+    int32_t index, rotating;
+    int64_t next_rotation_ms;
 } navigation_t;
+APP_SESSION_FITS(navigation_t);
 typedef struct {
     int32_t version;
     char code[4];
@@ -235,13 +237,22 @@ static void update_header(void)
     header_set_text(HOST_HEADER_LEFT, buffer, app_text_length(buffer));
 }
 
-static void update_rotation(void)
+static void update_rotation(bool restart)
 {
     char setting[16];
     app_setting("rotate", setting, sizeof setting);
     int32_t minutes = app_text_equal(setting, "10 min") ? 10 : app_text_equal(setting, "5 min") ? 5 :
                       app_text_equal(setting, "2 min") ? 2 : 1;
-    timer_set(ROTATE_TIMER, navigation.rotating && currency_count() > 1 ? minutes * 60000 : 0);
+    if (!navigation.rotating || currency_count() < 2) {
+        navigation.next_rotation_ms = 0;
+        timer_set(ROTATE_TIMER, 0);
+        return;
+    }
+    int64_t now = time_uptime_ms();
+    if (restart || !navigation.next_rotation_ms) navigation.next_rotation_ms = now + minutes * 60000;
+    /* Background deliveries must not restart the whole interval. */
+    int64_t remaining = navigation.next_rotation_ms - now;
+    timer_set(ROTATE_TIMER, remaining > 0 ? (int32_t)remaining : 1);
 }
 
 static void select_currency(int32_t step)
@@ -258,23 +269,23 @@ void app_on_load(void)
     if (!app_state_load("state", &state, sizeof state, SNAPSHOT_VERSION)) state = (state_t){ .version = SNAPSHOT_VERSION };
     if (kv_get("status", 6, &status, sizeof status) != sizeof status) status = 0;
     saved_status = status;
-    if (!app_state_load("navigation", &navigation, sizeof navigation, 1)) navigation = (navigation_t){ .version = 1 };
-    if (navigation.index < 0 || navigation.index >= currency_count()) navigation.index = 0;
+    navigation = (navigation_t){0};
 }
 
 void app_on_focus(void)
 {
+    if (!app_session_load(&navigation, sizeof navigation))
+        navigation = (navigation_t){0};
+    if (navigation.index < 0 || navigation.index >= currency_count()) navigation.index = 0;
     if (!state.has_data) poll_run(0);
     load_chart();
     update_header();
-    update_rotation();
+    update_rotation(false);
 }
 
-void app_on_terminate(void)
+void app_on_blur(void)
 {
-    navigation_t stored;
-    if (!app_state_load("navigation", &stored, sizeof stored, 1) || stored.index != navigation.index || stored.rotating != navigation.rotating)
-        app_state_save("navigation", &navigation, sizeof navigation);
+    app_session_save(&navigation, sizeof navigation);
 }
 
 void app_on_settings(void)
@@ -283,7 +294,7 @@ void app_on_settings(void)
     if (navigation.index >= currency_count()) navigation.index = 0;
     load_chart();
     update_header();
-    update_rotation();
+    update_rotation(true);
     request_histories();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
@@ -294,18 +305,21 @@ void app_on_button(int32_t event)
     else if (event == BTN_DOWN_PRESSED) select_currency(1);
     else if (event == BTN_OK_PRESSED) {
         navigation.rotating = !navigation.rotating;
-        app_state_save("navigation", &navigation, sizeof navigation);
         update_header();
     } else return;
-    update_rotation();
+    update_rotation(true);
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 
 void app_on_timer(int32_t id)
 {
     if (id != ROTATE_TIMER || !navigation.rotating) return;
+    if (time_uptime_ms() < navigation.next_rotation_ms) {
+        update_rotation(false);
+        return;
+    }
     select_currency(1);
-    update_rotation();
+    update_rotation(true);
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 

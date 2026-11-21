@@ -3,12 +3,15 @@
   "title": "Exchange rates",
   "author": "Perinkpheral",
   "description": "Exchange rates of the Bank of Russia",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "abi": 3,
   "fullscreen": false,
   "hosts": [
     "www.cbr-xml-daily.ru",
     "www.cbr.ru"
+  ],
+  "certificates": [
+    "russian-root-ca.pem"
   ],
   "polls": [
     {
