@@ -104,6 +104,7 @@ typedef struct {
     app_date_t   when;
     int32_t      bar_value;
 } session_t;
+APP_SESSION_FITS(session_t);
 
 void app_on_blur(void)
 {

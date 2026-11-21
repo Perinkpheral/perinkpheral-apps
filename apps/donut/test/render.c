@@ -356,12 +356,26 @@ static void check_handlers(void)
     app_on_blur();
     load_instance();
     assert(state == SPINNING && frame == 3 && !frame_is_rendered && draws == 3 && intervals == 2);
+    assert(timer_ms() == 1);
     standin_pass(60000);
+    standin()->redraw_flags = HOST_REDRAW_NORMAL;
+    app_on_timer(FRAME_TIMER);
+    assert(frame == 3 && !frame_is_rendered && draws == 3);
+    assert(standin()->redraw_flags == HOST_REDRAW_NO_BLINK);
     draw();
     assert(frame == 3 && draws == 4 && intervals == 2 && timer_ms() == FRAME_INTERVAL_MS - 100);
     memcpy(drawn, bitmap, sizeof drawn);
     render_frame(3);
     assert(memcmp(drawn, bitmap, sizeof drawn) == 0);
+
+    /* A rendered frame also resumes without skipping its saved orientation. */
+    app_on_blur();
+    load_instance();
+    assert(timer_ms() == 1 && frame == 3 && !frame_is_rendered);
+    app_on_timer(FRAME_TIMER);
+    assert(frame == 3 && standin()->redraw_flags == HOST_REDRAW_NO_BLINK);
+    draw();
+    assert(frame == 3 && timer_ms() == FRAME_INTERVAL_MS - 100);
 
     /* A session of another shape is none. */
     app_on_blur();

@@ -42,7 +42,6 @@
 #define SECONDS_PER_HOUR   3600
 #define SECONDS_PER_MINUTE 60
 #define MS_PER_SECOND      1000
-#define DAYS_TO_2000       10957         /* from 1970-01-01 to 2000-01-01 */
 #define J2000_UNIX         946728000LL   /* 2000-01-01 12:00 UTC */
 #define SETTING_DECIMALS   4             /* a latitude as 55.7558 */
 
@@ -150,11 +149,13 @@ typedef struct {
 #define OBLIQUITY         23439700   /* of the ecliptic */
 #define HORIZON           (-833000)  /* refraction and the sun's half-width */
 
-/* The sun on the local date `day` (days since 1970) at the place. */
-static sun_day_t sun_on(int64_t day, int64_t latitude, int64_t longitude)
+/* Select the solar cycle nearest local noon, including across the date line. */
+static sun_day_t sun_on(int64_t local_noon, int64_t latitude, int64_t longitude)
 {
     /* The mean solar noon there, in days after J2000. */
-    int64_t noon = (day - DAYS_TO_2000) * UDAYS_PER_DAY - longitude / 360;
+    int64_t cycle = ((local_noon - J2000_UNIX) * UDAYS_PER_DAY / SECONDS_PER_DAY +
+                     longitude / 360 + UDAYS_PER_DAY / 2) / UDAYS_PER_DAY;
+    int64_t noon = cycle * UDAYS_PER_DAY - longitude / 360;
     int64_t anomaly = angle_after(SUN_ANOMALY_START, SUN_ANOMALY_RATE, noon);
     int64_t sin_anomaly = sine(anomaly);
     int64_t centre =
@@ -390,8 +391,10 @@ void app_on_draw(void)
         ui_draw_reason(HOST_FAILED_NO_NETWORK); /* the time comes with the network */
         return;
     }
-    int64_t   today = (now + time_zone_offset()) / SECONDS_PER_DAY;
-    sun_day_t sun = sun_on(today, place.latitude, place.longitude);
+    int32_t offset = time_zone_offset();
+    int64_t today = (now + offset) / SECONDS_PER_DAY;
+    int64_t local_noon = today * SECONDS_PER_DAY + 12 * SECONDS_PER_HOUR - offset;
+    sun_day_t sun = sun_on(local_noon, place.latitude, place.longitude);
     moon_t    moon = moon_at(now);
     draw_moon_picture(&moon, place.latitude < 0);
 

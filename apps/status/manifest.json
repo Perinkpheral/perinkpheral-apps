@@ -3,7 +3,7 @@
   "title": "Service status",
   "author": "Perinkpheral",
   "description": "Status of popular services",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "abi": 3,
   "fullscreen": false,
   "icon": [

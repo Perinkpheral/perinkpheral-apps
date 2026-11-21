@@ -168,6 +168,83 @@ static void test_repeating(void)
     CHECK(birthdays == 1);
 }
 
+static void test_monthly_weekdays(void)
+{
+    static const char text[] = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:weekly\n"
+        "DTSTART:20261102T090000Z\nRRULE:FREQ=MONTHLY;BYDAY=MO\nEND:VEVENT\nEND:VCALENDAR\n";
+    CHECK(read_file(text, utc(2026, 11, 20, 0, 0), 14, 0, 1) == 2);
+    CHECK(events[0].start == utc(2026, 11, 23, 9, 0));
+    CHECK(events[1].start == utc(2026, 11, 30, 9, 0));
+    static const char counted[] = "BEGIN:VEVENT\nUID:counted\nDTSTART:20261102T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=MO,WE;COUNT=4;INTERVAL=2\nEND:VEVENT\n";
+    CHECK(read_file(counted, utc(2026, 11, 1, 0, 0), 100, 0, 7) == 4);
+    CHECK(events[3].start == utc(2026, 11, 11, 9, 0));
+    static const char interval[] = "BEGIN:VEVENT\nDTSTART:20261102T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=MO;INTERVAL=2;UNTIL=20270112T000000Z\nEND:VEVENT\n";
+    CHECK(read_file(interval, utc(2026, 12, 1, 0, 0), 60, 0, 3) == 2);
+    CHECK(events[0].start == utc(2027, 1, 4, 9, 0) && events[1].start == utc(2027, 1, 11, 9, 0));
+}
+
+/* Unsupported positions must not expand into every matching weekday. */
+static void test_monthly_set_position(void)
+{
+    static const char second[] = "BEGIN:VEVENT\nDTSTART:20261110T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=TU;BYSETPOS=2\nEND:VEVENT\n";
+    static const char first[] = "BEGIN:VEVENT\nDTSTART:20261102T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1\nEND:VEVENT\n";
+    static const char last[] = "BEGIN:VEVENT\nDTSTART:20261130T090000Z\n"
+        "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1\nEND:VEVENT\n";
+    CHECK(read_file(second, utc(2026, 11, 10, 0, 0), 28, 0, 1) == 1);
+    CHECK(events[0].start == utc(2026, 11, 10, 9, 0));
+    CHECK(read_file(first, utc(2026, 11, 1, 0, 0), 14, 0, 3) == 1);
+    CHECK(events[0].start == utc(2026, 11, 2, 9, 0));
+    CHECK(read_file(last, utc(2026, 11, 1, 0, 0), 31, 0, 7) == 1);
+    CHECK(events[0].start == utc(2026, 11, 30, 9, 0));
+}
+
+static void test_exception_spares(void)
+{
+    char text[16000];
+    int length = snprintf(text, sizeof text, "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:daily\n"
+        "DTSTART:20261101T090000Z\nRRULE:FREQ=DAILY\nEND:VEVENT\n");
+    /* The full override budget removes the first 32 of 70 candidates. */
+    int64_t first = utc(2026, 11, 1, 9, 0);
+    for (int i = 0; i < ICS_OVERRIDES_MAX; i++) {
+        int32_t year, month, day;
+        app_date_from_days((int32_t)(first / 86400) + i, &year, &month, &day);
+        length += snprintf(text + length, sizeof text - length,
+            "BEGIN:VEVENT\nUID:daily\nDTSTART:%04d%02d%02dT090000Z\n"
+            "RECURRENCE-ID:%04d%02d%02dT090000Z\nSTATUS:CANCELLED\nEND:VEVENT\n",
+            year, month, day, year, month, day);
+    }
+    snprintf(text + length, sizeof text - length, "END:VCALENDAR\n");
+    CHECK(read_file(text, first - 1, 70, 0, 1) == ICS_EVENTS_MAX);
+    CHECK(events[0].start == first + ICS_OVERRIDES_MAX * 86400LL);
+    CHECK(events[23].start == first + 55 * 86400LL);
+    /* An override before its master must remove the same occurrence. */
+    static const char before[] = "BEGIN:VEVENT\nUID:a\nDTSTART:20261102T090000Z\n"
+        "RECURRENCE-ID:20261101T090000Z\nEND:VEVENT\n"
+        "BEGIN:VEVENT\nUID:a\nDTSTART:20261101T090000Z\nRRULE:FREQ=DAILY\nEND:VEVENT\n";
+    CHECK(read_file(before, first - 1, 40, 0, 7) == ICS_EVENTS_MAX);
+    CHECK(events[0].start == first + 86400);
+}
+
+static void test_transition_hours(void)
+{
+    static const char spring[] = "BEGIN:VCALENDAR\n" ZONES
+        "BEGIN:VEVENT\nDTSTART;TZID=Europe/Berlin:20260329T013000\nEND:VEVENT\n"
+        "BEGIN:VEVENT\nDTSTART;TZID=Europe/Berlin:20260329T033000\nEND:VEVENT\nEND:VCALENDAR\n";
+    CHECK(read_file(spring, utc(2026, 3, 29, 0, 0), 1, 0, 1) == 2);
+    CHECK(events[0].start == utc(2026, 3, 29, 0, 30));
+    CHECK(events[1].start == utc(2026, 3, 29, 1, 30));
+    static const char autumn[] = "BEGIN:VCALENDAR\n" ZONES
+        "BEGIN:VEVENT\nDTSTART;TZID=Europe/Berlin:20261025T023000\nEND:VEVENT\n"
+        "BEGIN:VEVENT\nDTSTART;TZID=Europe/Berlin:20261025T033000\nEND:VEVENT\nEND:VCALENDAR\n";
+    CHECK(read_file(autumn, utc(2026, 10, 25, 0, 0), 1, 0, 7) == 2);
+    CHECK(events[0].start == utc(2026, 10, 25, 0, 30));
+    CHECK(events[1].start == utc(2026, 10, 25, 2, 30));
+}
+
 static void test_rejects_non_calendar(void)
 {
     CHECK(read_file("", 0, 14, 0, 8) == 0);
@@ -212,6 +289,10 @@ static void test_opening_at_every_split(void)
 
 int main(void)
 {
+    test_monthly_weekdays();
+    test_monthly_set_position();
+    test_exception_spares();
+    test_transition_hours();
     test_opening_at_every_split();
     test_single_events();
     test_summer_time();

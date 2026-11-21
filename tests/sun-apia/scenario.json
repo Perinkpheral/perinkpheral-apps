@@ -1,0 +1,13 @@
+{
+  "app": "apps/sun",
+  "at": 1794955920,
+  "tz": "Pacific/Apia",
+  "store": {
+    "city": "Apia",
+    "lat": "-13.833",
+    "lon": "-171.75"
+  },
+  "steps": [
+    "shot today"
+  ]
+}

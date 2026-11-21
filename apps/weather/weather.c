@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "app_days.h"
 #include "app_draw.h"
 #include "app_state.h"
 #include "app_text.h"
@@ -33,6 +34,8 @@ enum {
     VALUE_DAY_HIGH = VALUE_DAY_CODE + 3,
     VALUE_DAY_LOW = VALUE_DAY_HIGH + 3,
     VALUE_RAIN_CHANCE = VALUE_DAY_LOW + 3,
+    VALUE_DAY_DATE,
+    VALUE_ZONE_OFFSET,
 };
 
 #define WEATHER_POLL  0
@@ -42,11 +45,10 @@ enum {
 
 /* What was learned last, as it lies in the store. */
 #define FORECAST_KEY     "forecast"
-#define FORECAST_VERSION 5
-#define PREVIOUS_FORECAST_VERSION 4
+#define FORECAST_VERSION 6
 typedef struct {
     int32_t version;
-    int32_t day;         /* the local day of days[0], in days since 1970; 0 unknown */
+    int32_t day;         /* the forecast city's day of days[0], in days since 1970; 0 unknown */
     int32_t temperature; /* whole degrees */
     int32_t code;        /* WMO weather code */
     int32_t wind;        /* km/h */
@@ -55,15 +57,16 @@ typedef struct {
         int32_t code, high, low;
     } days[DAYS];
     char lat[40], lon[40];
+    int32_t zone_offset; /* of the forecast city, for a cached day turning */
 } forecast_t;
 
 static forecast_t forecast;
 
-/* Today, in the device's time, as days since 1970; 0 while the time is unknown. */
-static int32_t local_day(void)
+/* Today in the forecast city; the response supplies its UTC offset. */
+static int32_t forecast_day(void)
 {
     int64_t now = time_now();
-    return now == 0 ? 0 : (int32_t)((now + time_zone_offset()) / SECONDS_PER_DAY);
+    return now == 0 ? 0 : (int32_t)((now + forecast.zone_offset) / SECONDS_PER_DAY);
 }
 static bool       has_forecast;
 static bool       forecast_dirty;
@@ -131,15 +134,16 @@ static void load_forecast(void)
         last_status = 0;
     }
     int32_t length = kv_get(FORECAST_KEY, sizeof FORECAST_KEY - 1, &forecast, sizeof forecast);
-    bool migrated = length == offsetof(forecast_t, lat) && forecast.version == PREVIOUS_FORECAST_VERSION;
-    forecast_dirty = migrated;
+    /* v5 is the same prefix, with dates in the device's zone. Keep that
+     * interpretation until a response supplies the forecast city's zone. */
+    bool migrated = length == offsetof(forecast_t, zone_offset) && forecast.version == 5;
     if (migrated) {
-        /* The previous version cleared its cache on every settings change. */
         forecast.version = FORECAST_VERSION;
-        forecast_place(&forecast);
+        forecast.zone_offset = time_zone_offset();
     }
     has_forecast = (length == sizeof forecast || migrated) &&
                    forecast.version == FORECAST_VERSION && same_place();
+    forecast_dirty = migrated && has_forecast && !app_state_save(FORECAST_KEY, &forecast, sizeof forecast);
 }
 
 /* ---- the settings ---- */
@@ -192,12 +196,26 @@ void app_on_picked(int32_t request, int32_t http_status)
         kv_set(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status);
         screen_redraw(HOST_REDRAW_NORMAL);
     }
-    forecast_t fresh = { .version = FORECAST_VERSION, .day = local_day() };
+    forecast_t fresh = { .version = FORECAST_VERSION };
     bool is_whole = http_status == HTTP_OK &&
                     app_value_number(VALUE_TEMPERATURE, 0, &fresh.temperature) &&
                     app_value_number(VALUE_CODE, 0, &fresh.code) &&
                     app_value_number(VALUE_WIND, 0, &fresh.wind) &&
-                    app_value_number(VALUE_RAIN_CHANCE, 0, &fresh.rain_chance);
+                    app_value_number(VALUE_RAIN_CHANCE, 0, &fresh.rain_chance) &&
+                    app_value_number(VALUE_ZONE_OFFSET, 0, &fresh.zone_offset);
+    char date[16];
+    is_whole = is_whole && app_value_text(VALUE_DAY_DATE, date, sizeof date) &&
+               app_text_length(date) == 10 && date[4] == '-' && date[7] == '-';
+    int32_t year = 0, month = 0, date_day = 0;
+    for (int32_t i = 0; i < 10 && is_whole; i++) {
+        if (i == 4 || i == 7) { continue; }
+        if (date[i] < '0' || date[i] > '9') { is_whole = false; break; }
+        int32_t *part = i < 4 ? &year : i < 7 ? &month : &date_day;
+        *part = *part * 10 + date[i] - '0';
+    }
+    is_whole = is_whole && year >= 2026 && year <= 2100 && month >= 1 && month <= 12 &&
+               date_day >= 1 && date_day <= 31 && fresh.zone_offset >= -86400 && fresh.zone_offset <= 86400;
+    if (is_whole) { fresh.day = app_days_from_date(year, month, date_day); }
     for (int32_t day = 0; day < DAYS && is_whole; day++) {
         is_whole = app_value_number(VALUE_DAY_CODE + day, 0, &fresh.days[day].code) &&
                    app_value_number(VALUE_DAY_HIGH + day, 0, &fresh.days[day].high) &&
@@ -330,10 +348,9 @@ static void draw_now(void)
 
 static void draw_days(void)
 {
-    int64_t now = time_now();
     /* A forecast of yesterday, kept through a night without an answer: its days move left, and
      * what it does not know is left blank rather than called today's. */
-    int32_t today = local_day();
+    int32_t today = forecast_day();
     int32_t shift = forecast.day != 0 && today > forecast.day ? today - forecast.day : 0;
     int32_t column_width = gfx_width() / DAYS;
     gfx_draw_rect(MARGIN, RULE_TOP, gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
@@ -341,13 +358,17 @@ static void draw_days(void)
         int32_t center = day * column_width + column_width / 2;
         /* "Sat", in the device's language; today is "Today". */
         char name[32];
-        if (day == 0) {
+        int32_t date = forecast.day + shift + day;
+        if (date == today && today != 0) {
             app_text_copy(name, sizeof name, app_string(STR_TODAY));
-        } else if (now != 0) {
-            app_time_text(now + (int64_t)day * SECONDS_PER_DAY, HOST_TIME_WEEKDAY_SHORT, name,
-                          sizeof name);
         } else {
+            host_local_time_t local = { .hour = 12 };
+            app_date_from_days(date, &local.year, &local.month, &local.day);
+            int64_t moment;
             name[0] = '\0';
+            if (time_from_local(&local, &moment) == HOST_OK) {
+                app_time_text(moment, HOST_TIME_WEEKDAY_SHORT, name, sizeof name);
+            }
         }
         app_draw_centered(center, DAY_NAME_TOP, HOST_FONT_SMALL, name);
         if (day + shift >= DAYS) {

@@ -47,10 +47,12 @@ typedef struct {
 } stopwatch_t;
 
 static stopwatch_t state;
+static bool save_pending;
 
 static bool save(void)
 {
-    return app_state_save(STATE_KEY, &state, sizeof state);
+    save_pending = !app_state_save(STATE_KEY, &state, sizeof state);
+    return !save_pending;
 }
 
 /* How long the run in hand has lasted, or -1 when that cannot be known
@@ -64,18 +66,31 @@ static int64_t run_ms(void)
     return state.started_at != 0 && now != 0 ? (now - state.started_at) * MS_PER_SECOND : -1;
 }
 
-/* A run that began before the device knew the time gets its place on the
- * clock as soon as there is one: from then on a restart does not lose it. */
-static void record_start_time(void)
+/* Uptime protects the run from clock corrections; UTC carries it across restarts. */
+static void record_start_time(bool clock_changed)
 {
     int64_t now = time_now();
-    if (!state.is_running || state.started_at != 0 || now == 0 || state.boot != time_boot_id()) {
+    if (!state.is_running || now == 0) {
         return;
     }
+    if (state.boot != time_boot_id()) {
+        if (state.started_at == 0) { return; }
+        int64_t run = run_ms();
+        state.banked_ms += run > 0 ? run : 0;
+        state.started_uptime_ms = time_uptime_ms();
+        state.boot = time_boot_id();
+        state.started_at = now;
+        save();
+        return;
+    }
+    if (!clock_changed && state.started_at != 0 && !save_pending) { return; }
     int64_t by_uptime_ms = time_uptime_ms() - state.started_uptime_ms;
     if (by_uptime_ms >= 0) {
-        state.started_at = now - by_uptime_ms / MS_PER_SECOND;
-        save();
+        int64_t anchor = now - by_uptime_ms / MS_PER_SECOND;
+        if (state.started_at != anchor || save_pending) {
+            state.started_at = anchor;
+            save();
+        }
     }
 }
 
@@ -187,6 +202,7 @@ static void reset(void)
 
 void app_on_load(void)
 {
+    save_pending = false;
     bool is_stored = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
     if (!is_stored) {
         state = (stopwatch_t){ .version = STATE_VERSION };
@@ -197,7 +213,7 @@ void app_on_load(void)
          * long it lasted is not to be had. What was counted before it is. */
         state.is_running = 0;
     }
-    record_start_time();
+    record_start_time(false);
 }
 
 /* The device restarted: the alarm and the header's line went with it, the
@@ -207,7 +223,7 @@ void app_on_intent(int32_t intent)
     if (intent != HOST_INTENT_STARTED && intent != HOST_INTENT_TIME_CHANGED) {
         return;
     }
-    record_start_time();
+    record_start_time(intent == HOST_INTENT_TIME_CHANGED);
     if (state.is_running && run_ms() >= 0) {
         update_header_status();
         schedule_next_change();

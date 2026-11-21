@@ -10,5 +10,7 @@
     "title": "МКС",
     "description": "МКС на мировой карте"
   },
-  "meters": "м"
+  "meters": "м",
+  "update_failed": "Не удалось обновить",
+  "last_update": "Обновлено: {0}"
 }
