@@ -38,7 +38,8 @@ static bool alarm_waits(void)
     if (alarm->kind == STANDIN_ALARM_NONE) {
         return false;
     }
-    assert(alarm->kind == STANDIN_ALARM_EVERY && alarm->every == 60);
+    /* Every minute, the first when the elapsed minute is over: never 0, which is a whole minute later. */
+    assert(alarm->kind == STANDIN_ALARM_EVERY && alarm->every == 60 && alarm->first_in > 0 && alarm->first_in <= 60);
     assert(standin_alarm_left(MINUTE_ALARM) >= 1 && standin_alarm_left(MINUTE_ALARM) <= 60);
     return true;
 }
@@ -93,6 +94,7 @@ static void test_cold_boot_then_time_sync(void)
     app_on_intent(HOST_INTENT_TIME_CHANGED);
     assert(state.is_running && elapsed_ms() == 67000);
     assert(alarm_waits() && standin()->status_icon[HOST_HEADER_LEFT] == HOST_ICON_PLAY);
+    assert(standin_alarm_left(MINUTE_ALARM) == 53); /* 67 s in: the header turns at 2 min */
     assert(next_timer_ms() > 0 && redraw_calls() == 1);
     assert(strcmp(header_text(), "00:01") == 0 && store_writes() == 0);
 }
