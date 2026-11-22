@@ -12,17 +12,25 @@ chooses the layout and entities; this application draws their values on the disp
    perINKpheral**. Enter the display address and the Home Assistant origin reachable
    from the display, such as `http://homeassistant.local:8123`. Do not include a
    dashboard path, query or fragment.
-4. Choose the layout and entities in the integration options.
+4. Add up to four screens in the integration options. Choose each screen's layout and entities.
 5. Open HA Companion on the display.
 
 The integration writes the server address and its own pairing secret to the
 application. These fields are hidden on the device's page; no long-lived Home
 Assistant access token or template sensor is required. The application's visible
 setting is the refresh interval. Opening it or pressing OK refreshes immediately.
+UP and DOWN switch screens and wrap at the ends. The corner shows `2 of 3` (or
+`2 из 3`) when there is more than one screen. In a list, hold UP or DOWN to scroll.
+Returning from another scene keeps the selected screen; opening from the menu or
+restarting begins with screen 1. The previous picture stays until the reply arrives.
 
 ## Screen format
 
-The integration serves the rendered screen at `/api/perinkpheral/screen`.
+The integration serves one rendered screen at
+`/api/perinkpheral/screen?page=<n>`, with a 1-based page number. An absent page means
+screen 1; a page past the end returns the last screen. The first response line is
+`page|<n>|<count>` with the actual page and a count from 1 to 4. Older integrations
+without this line keep their existing single-screen behavior.
 The application sends the pairing secret in `Authorization: Bearer <secret>`.
 This is the integration's endpoint, not Home Assistant's template-sensor API.
 
@@ -39,6 +47,7 @@ column|CO2|co2|650
 
 | Place | Parts | What it is |
 |---|---|---|
+| `page` | page, count | the selected screen and the number of screens |
 | `hero` | value, picture | the main value; up to two UTF-8 bytes before an optional degree sign use the larger hero font |
 | `detail` | value, unit, picture | up to two, beside the hero |
 | `column` | name, picture, value | up to four, below the rule |
@@ -52,7 +61,7 @@ The default layout uses the places above. Other layouts begin with
 |---|---|
 | `tiles` | up to four items; one fills the screen, two use halves, three or four use quarters |
 | `single` | the first item, as large as it fits |
-| `list` | up to twelve rows; UP and DOWN scroll |
+| `list` | up to twelve rows; hold UP and DOWN to scroll (short presses also scroll with one screen) |
 
 ```text
 layout|tiles

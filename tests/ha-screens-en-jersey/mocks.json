@@ -1,0 +1,11 @@
+{
+  "http://homeassistant.example.test:8123/api/perinkpheral/screen?page=1": {
+    "body": "page|1|3\nhero|21°|cloudy\ndetail|54|%|drop\ncolumn|Room|thermometer|22.5°"
+  },
+  "http://homeassistant.example.test:8123/api/perinkpheral/screen?page=2": {
+    "body": "page|2|3\nlayout|tiles\nitem|Room|thermometer|22.5°\nitem|Humidity|drop|54%\nitem|CO2|co2|650\nitem|Door|door|Closed"
+  },
+  "http://homeassistant.example.test:8123/api/perinkpheral/screen?page=3": {
+    "body": "page|3|3\nlayout|list\nitem|Room||22.5°\nitem|Humidity||54%\nitem|CO2||650"
+  }
+}

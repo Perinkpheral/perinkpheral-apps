@@ -10,7 +10,7 @@
     "token": "test"
   },
   "mocks": {
-    "http://homeassistant.example.test:8123/api/perinkpheral/screen": {
+    "http://homeassistant.example.test:8123/api/perinkpheral/screen?page=1": {
       "body": "layout|single\nitem|Living room|thermometer|22.5°"
     }
   },

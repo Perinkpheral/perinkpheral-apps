@@ -44,16 +44,19 @@ static uint32_t pairing(void)
     return hash;
 }
 
-typedef struct { uint32_t pairing; int32_t tag; } request_source_t;
+typedef struct { uint32_t pairing; int32_t tag, page; } request_source_t;
 static request_source_t source;
-static bool source_ready;
+static bool source_ready, focused;
+static int32_t current_page = 1, page_count = 1, shown_page = 1;
+static void restore_page(void);
+static void read_page(void);
 
 /* Persist a changed tag before asking, so a late answer retains its old identity. */
 static void follow_pairing(void)
 {
     uint32_t current = pairing();
-    if (!source_ready || source.pairing != current) {
-        request_source_t next = { .pairing = current,
+    if (!source_ready || source.pairing != current || source.page != current_page) {
+        request_source_t next = { .pairing = current, .page = current_page,
             .tag = source.tag >= HOST_REQUEST_FIRST && source.tag < HOST_REQUEST_LAST
                        ? source.tag + 1 : HOST_REQUEST_FIRST };
         source_ready = kv_set("source", 6, &next, sizeof next) == HOST_OK;
@@ -125,6 +128,7 @@ static int64_t last_ask_ms = -1;
  * token are Perinkpheral OS's to put into the request. */
 static void ask(void)
 {
+    if (!focused) { restore_page(); }
     last_ask_ms = time_uptime_ms();
     /* Background instances cannot update the session used when returning. */
     kv_set("last_ask", 8, &last_ask_ms, sizeof last_ask_ms);
@@ -138,9 +142,10 @@ static void ask(void)
     }
     /* The screen is the integration's, which knows the device by the secret it gave it and
      * answers with the screen. */
-    static const char URL[] = "{{server}}/api/perinkpheral/screen";
+    char url[] = "{{server}}/api/perinkpheral/screen?page=1";
+    url[sizeof url - 2] = (char)('0' + current_page);
     static const char HEADERS[] = "Authorization: Bearer {{token}}";
-    int32_t result = http_send(request_screen(), HOST_HTTP_GET, URL, sizeof URL - 1,
+    int32_t result = http_send(request_screen(), HOST_HTTP_GET, url, sizeof url - 1,
                                HEADERS, sizeof HEADERS - 1, "", 0);
     has_asked = result == HOST_OK;
     if (!has_asked) {
@@ -175,7 +180,8 @@ static void accept_answer(void)
     /* A sensor that is not there renders as "None": not a screen. */
     bool is_screen_payload = coming_status == HTTP_OK && coming_length > 0 && coming[0] != 'N';
     if (!is_screen_payload) {
-        return; /* what was shown before stays */
+        current_page = shown_page; /* what was shown before stays, and so does its number */
+        return;
     }
     bool changed = coming_length != screen_length;
     for (int32_t i = 0; i < coming_length; i++) {
@@ -184,6 +190,10 @@ static void accept_answer(void)
     }
     screen_length = coming_length;
     screen[screen_length] = '\0';
+    int32_t previous_page = shown_page;
+    read_page();
+    if (previous_page != shown_page) { list.first = list.count = 0; }
+    current_page = shown_page;
     if (changed || screen_dirty) {
         screen_pairing = pairing();
         save_screen();
@@ -224,12 +234,14 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 
 void app_on_load(void)
 {
+    focused = false;
+    current_page = page_count = shown_page = 1;
     if (kv_get("last_ask", 8, &last_ask_ms, sizeof last_ask_ms) != sizeof last_ask_ms) {
         last_ask_ms = -1;
     }
     source_ready = kv_get("source", 6, &source, sizeof source) == sizeof source &&
                    source.tag >= HOST_REQUEST_FIRST && source.tag <= HOST_REQUEST_LAST;
-    follow_pairing();
+    if (!source_ready || source.pairing != pairing()) { follow_pairing(); }
     cached_screen_t cache;
     int32_t length = kv_get(SCREEN_KEY, sizeof SCREEN_KEY - 1, &cache, sizeof cache);
     screen_pairing = pairing();
@@ -238,6 +250,7 @@ void app_on_load(void)
                         ? length - (int32_t)offsetof(cached_screen_t, text) : 0;
     for (int32_t i = 0; i < screen_length; i++) { screen[i] = cache.text[i]; }
     screen[screen_length] = '\0';
+    read_page();
     bool loaded_status = kv_get(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status) ==
                          sizeof last_status;
     saved_status = loaded_status ? last_status : 0;
@@ -269,26 +282,38 @@ void app_on_updated(void)
 /* How far down the list the user was, kept while HA waits under another scene or is unloaded
  * for another application's answer. */
 typedef struct {
-    int32_t first, count;
+    int32_t first, count, page, shown;
     int64_t last_ask_ms;
 } place_t;
 APP_SESSION_FITS(place_t);
 
+static void restore_page(void)
+{
+    place_t place;
+    current_page = app_session_load(&place, sizeof place) && place.page >= 1 && place.page <= 4
+                       ? place.page : 1;
+    if (current_page > page_count) { current_page = page_count; }
+}
+
 void app_on_blur(void)
 {
-    place_t place = { .first = list.first, .count = list.count, .last_ask_ms = last_ask_ms };
+    place_t place = { .first = list.first, .count = list.count, .page = current_page, .shown = shown_page,
+                      .last_ask_ms = last_ask_ms };
     app_session_save(&place, sizeof place);
+    focused = false;
 }
 
 void app_on_focus(void)
 {
+    restore_page();
+    focused = true;
     place_t place;
     bool restored = app_session_load(&place, sizeof place);
     if (restored) {
         /* held to the list's end when it is drawn; the count is the last one drawn, for a press
          * that comes before the next drawing */
-        list.first = place.first;
-        list.count = place.count;
+        list.first = place.shown == shown_page ? place.first : 0;
+        list.count = place.shown == shown_page ? place.count : 0;
         if (last_ask_ms < place.last_ask_ms) { last_ask_ms = place.last_ask_ms; }
         if (last_ask_ms < 0 || time_uptime_ms() - last_ask_ms >= 60000) { ask(); }
     }
@@ -308,6 +333,7 @@ void app_on_settings(void)
         save_screen();
         save_status();
         list.first = list.count = 0;
+        current_page = page_count = shown_page = 1;
         screen_redraw(HOST_REDRAW_NORMAL);
     }
     keep_fresh();
@@ -323,7 +349,19 @@ void app_on_button(int32_t event)
 {
     if (event == BTN_OK_PRESSED) {
         ask(); /* "refresh" */
-    } else if (event != BTN_BACK_PRESSED && app_list_button(&list, event) == APP_UI_CHANGED) {
+    } else if (page_count > 1 && list.count > 0 &&
+               (event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
+        if (app_list_button(&list, event) == APP_UI_CHANGED) {
+            screen_redraw(HOST_REDRAW_NO_BLINK);
+        }
+    } else if (page_count > 1 &&
+               (event == BTN_UP_PRESSED || event == BTN_DOWN_PRESSED ||
+                event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
+        int32_t step = event == BTN_UP_PRESSED || event == BTN_UP_LONG_PRESSED ? -1 : 1;
+        current_page = (current_page - 1 + step + page_count) % page_count + 1;
+        receiving = false;
+        ask();
+    } else if (page_count == 1 && event != BTN_BACK_PRESSED && app_list_button(&list, event) == APP_UI_CHANGED) {
         /* UP and DOWN a row, held a page; held to the list's end when it is drawn */
         screen_redraw(HOST_REDRAW_NO_BLINK);
     }
@@ -368,6 +406,29 @@ static bool next_line(int32_t *at, line_t *line)
         line->parts[i] = "";
     }
     return true;
+}
+
+/* Only a complete, bounded first line enables navigation. Unknown lines remain harmless. */
+static void read_page(void)
+{
+    shown_page = page_count = 1;
+    if (screen_length >= 9 && app_text_starts(screen, "page|") &&
+        screen[5] >= '1' && screen[5] <= '4' && screen[6] == '|' &&
+        screen[7] >= screen[5] && screen[7] <= '4' &&
+        (screen[8] == '\n' || screen[8] == '\r')) {
+        shown_page = screen[5] - '0';
+        page_count = screen[7] - '0';
+    }
+}
+
+typedef enum { LAYOUT_HERO, LAYOUT_TILES, LAYOUT_SINGLE, LAYOUT_LIST } layout_t;
+static layout_t layout_asked(void);
+
+/* The screen's number stands in the corner over the layout, as Keenetic's does; only a
+ * list, whose first row reaches the corner, starts under it. */
+static int32_t content_top(void)
+{
+    return page_count > 1 && layout_asked() == LAYOUT_LIST ? HOST_UI_MARGIN + ui_text_height(HOST_UI_CAPTION) : 0;
 }
 
 /* ---- text ----
@@ -489,7 +550,7 @@ static void draw_hero(const line_t *line)
     const picture_t *picture = picture_named(line->parts[1]);
     int32_t text_left = HERO_LEFT;
     if (picture != NULL) {
-        draw_picture(picture, HERO_LEFT, MARGIN, HERO_PICTURE);
+        draw_picture(picture, HERO_LEFT, MARGIN + content_top(), HERO_PICTURE);
         text_left += HERO_PICTURE + HERO_TEXT_GAP;
     }
     int32_t degree = degree_at(value);
@@ -498,7 +559,7 @@ static void draw_hero(const line_t *line)
                    HOST_FONT_TABULAR;
     /* The value stands in the middle of the picture's height. */
     int32_t cap_height = gfx_font_cap_height(font);
-    int32_t cap_top = MARGIN + (HERO_PICTURE - cap_height) / 2;
+    int32_t cap_top = content_top() + MARGIN + (HERO_PICTURE - cap_height) / 2;
     app_draw_text(text_left, cap_top - (gfx_font_ascent(font) - cap_height), font, value);
 }
 
@@ -519,7 +580,7 @@ static void draw_detail(int32_t left, int32_t number, int32_t count, const detai
                         bool has_pictures)
 {
     /* One alone stands where the middle of two would be. */
-    int32_t top = DETAIL_TOP + number * DETAIL_LINE + (count == 1 ? DETAIL_LINE / 2 : 0);
+    int32_t top = content_top() + DETAIL_TOP + number * DETAIL_LINE + (count == 1 ? DETAIL_LINE / 2 : 0);
     int32_t baseline = top + gfx_font_ascent(HOST_FONT_TEXT);
     if (detail->picture != NULL) {
         /* The picture stands on the text's baseline. */
@@ -536,11 +597,11 @@ static void draw_column(int32_t number, int32_t count, const line_t *line)
     int32_t width = gfx_width() / count;
     int32_t center = number * width + width / 2;
     const picture_t *picture = picture_named(line->parts[1]);
-    app_draw_centered(center, COLUMN_NAME_TOP, HOST_FONT_SMALL, line->parts[0]);
+    app_draw_centered(center, COLUMN_NAME_TOP + content_top(), HOST_FONT_SMALL, line->parts[0]);
     if (picture != NULL) {
-        draw_picture(picture, center - COLUMN_PICTURE / 2, COLUMN_PICTURE_TOP, COLUMN_PICTURE);
+        draw_picture(picture, center - COLUMN_PICTURE / 2, COLUMN_PICTURE_TOP + content_top(), COLUMN_PICTURE);
     }
-    app_draw_centered(center, COLUMN_VALUE_TOP, HOST_FONT_TEXT, line->parts[2]);
+    app_draw_centered(center, COLUMN_VALUE_TOP + content_top(), HOST_FONT_TEXT, line->parts[2]);
 }
 
 /* ---- the other layouts: items in cells, one large, or in a list ----
@@ -589,19 +650,19 @@ static int32_t cell_of(host_cell_t *cell, int32_t left, int32_t top, int32_t wid
 static void draw_cells_of(const item_t *items, int32_t count)
 {
     int32_t columns = count > 1 ? 2 : 1, rows = count > 2 ? 2 : 1;
-    int32_t width = gfx_width() / columns, height = gfx_height() / rows;
+    int32_t width = gfx_width() / columns, height = (gfx_height() - content_top()) / rows;
     int32_t shown = count < columns * rows ? count : columns * rows;
     host_cell_t cells[4];
     int32_t     icons[4];
     for (int32_t i = 0; i < shown; i++) {
-        icons[i] = cell_of(&cells[i], i % columns * width, i / columns * height, width, height, &items[i]);
+        icons[i] = cell_of(&cells[i], i % columns * width, content_top() + i / columns * height, width, height, &items[i]);
     }
     app_draw_cells(cells, 0, icons, shown); /* one size for all of them */
     if (columns > 1) {
-        gfx_draw_rect(width, MARGIN, 1, gfx_height() - 2 * MARGIN, HOST_RECT_FILLED);
+        gfx_draw_rect(width, content_top() + MARGIN, 1, gfx_height() - content_top() - 2 * MARGIN, HOST_RECT_FILLED);
     }
     if (rows > 1) {
-        gfx_draw_rect(MARGIN, height, gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
+        gfx_draw_rect(MARGIN, content_top() + height, gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
     }
 }
 
@@ -610,6 +671,7 @@ static void draw_cells_of(const item_t *items, int32_t count)
  * than the screen. */
 static void draw_list_of(const item_t *items, int32_t count)
 {
+    list.top = content_top();
     list.count = count;
     int32_t first = app_list_first(&list), shown = ui_list_visible(&list);
     for (int32_t i = first; i < first + shown && i < count; i++) {
@@ -618,7 +680,6 @@ static void draw_list_of(const item_t *items, int32_t count)
     }
 }
 
-typedef enum { LAYOUT_HERO, LAYOUT_TILES, LAYOUT_SINGLE, LAYOUT_LIST } layout_t;
 
 static layout_t layout_asked(void)
 {
@@ -669,7 +730,7 @@ static void draw_hero_layout(void)
                     has_detail_pictures);
     }
 
-    gfx_draw_rect(MARGIN, RULE_TOP, gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
+    gfx_draw_rect(MARGIN, RULE_TOP + content_top(), gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
     int32_t column = 0;
     at = 0;
     while (next_line(&at, &line)) {
@@ -699,6 +760,7 @@ void app_on_draw(void)
         static item_t items[ITEMS_MAX]; /* too large for the stack */
         layout_t      layout = layout_asked();
         int32_t       count = layout == LAYOUT_HERO ? 0 : read_items(items);
+        if (layout != LAYOUT_LIST) { list.count = 0; }
         if (layout == LAYOUT_HERO) {
             draw_hero_layout();
         } else if (layout == LAYOUT_LIST) {
@@ -708,5 +770,13 @@ void app_on_draw(void)
         }
     } else {
         draw_reason();
+    }
+    if (screen_length > 0 && page_count > 1) {
+        char caption[] = "1/1";
+        caption[0] = (char)('0' + shown_page);
+        caption[2] = (char)('0' + page_count);
+        int32_t width = app_text_width(HOST_FONT_SMALL, caption);
+        ui_draw_text(gfx_width() - HOST_UI_MARGIN - width, HOST_UI_MARGIN,
+                     HOST_UI_CAPTION, caption, 3, width);
     }
 }
