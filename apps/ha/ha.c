@@ -497,6 +497,10 @@ static const picture_t PICTURES[] = {
     { "play", HOST_ICON_PLAY },
     { "sunrise", HOST_ICON_SUNRISE },
     { "sunset", HOST_ICON_SUNSET },
+    /* Firmware 0.1.84: an older one draws nothing in their place. */
+    { "layers", HOST_ICON_LAYERS },
+    { "progress", HOST_ICON_PROGRESS },
+    { "cube", HOST_ICON_CUBE },
 };
 
 static const picture_t *picture_named(const char *name)
