@@ -123,6 +123,8 @@ static host_list_t list = { .selected = -1 };
 /* One request is enough for an instance that has just asked. */
 static bool has_asked;
 static int64_t last_ask_ms = -1;
+/* The answer awaited was asked for by a press: it is shown at once, not at the data's pace. */
+static bool asked_by_press;
 
 /* One request: the screen as Home Assistant renders it. The server and the
  * token are Perinkpheral OS's to put into the request. */
@@ -134,6 +136,7 @@ static void ask(void)
     kv_set("last_ask", 8, &last_ask_ms, sizeof last_ask_ms);
     follow_pairing();
     if (!source_ready) {
+        asked_by_press = false;
         has_asked = false;
         last_status = HOST_FAILED_NOT_READY;
         save_status();
@@ -149,6 +152,7 @@ static void ask(void)
                                HEADERS, sizeof HEADERS - 1, "", 0);
     has_asked = result == HOST_OK;
     if (!has_asked) {
+        asked_by_press = false;
         last_status = result == HOST_ERR_NO_SPACE ? HOST_FAILED_NO_MEMORY : HOST_FAILED_NOT_READY;
         save_status();
         screen_redraw(HOST_REDRAW_NORMAL);
@@ -211,7 +215,8 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
         coming_status = http_status;
         coming_length = 0;
         accept_answer();
-        screen_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(asked_by_press ? HOST_REDRAW_SOON : HOST_REDRAW_NORMAL);
+        asked_by_press = false;
         return;
     }
     if (flags & HOST_DATA_FIRST) {
@@ -226,7 +231,8 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
     if (flags & HOST_DATA_LAST) {
         receiving = false;
         accept_answer();
-        screen_redraw(HOST_REDRAW_NORMAL);
+        screen_redraw(asked_by_press ? HOST_REDRAW_SOON : HOST_REDRAW_NORMAL);
+        asked_by_press = false;
     }
 }
 
@@ -348,6 +354,7 @@ void app_on_alarm(int32_t id)
 void app_on_button(int32_t event)
 {
     if (event == BTN_OK_PRESSED) {
+        asked_by_press = true;
         ask(); /* "refresh" */
     } else if (page_count > 1 && list.count > 0 &&
                (event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
@@ -360,6 +367,7 @@ void app_on_button(int32_t event)
         int32_t step = event == BTN_UP_PRESSED || event == BTN_UP_LONG_PRESSED ? -1 : 1;
         current_page = (current_page - 1 + step + page_count) % page_count + 1;
         receiving = false;
+        asked_by_press = true;
         ask();
     } else if (page_count == 1 && event != BTN_BACK_PRESSED && app_list_button(&list, event) == APP_UI_CHANGED) {
         /* UP and DOWN a row, held a page; held to the list's end when it is drawn */
