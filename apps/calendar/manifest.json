@@ -1,13 +1,19 @@
 {
   "name": "calendar",
-  "version": "0.4.20",
+  "version": "0.5.0",
   "title": "Calendar",
   "author": "Perinkpheral",
   "description": "Calendar events",
   "abi": 3,
   "writes_files": true,
   "settings": [
-    { "key": "feed", "type": "link", "title": "Calendar address",
+    { "key": "feed", "type": "link", "title": "Calendar 1",
+      "help": "The secret iCal address of the calendar." },
+    { "key": "feed_2", "type": "link", "title": "Calendar 2",
+      "help": "The secret iCal address of the calendar." },
+    { "key": "feed_3", "type": "link", "title": "Calendar 3",
+      "help": "The secret iCal address of the calendar." },
+    { "key": "feed_4", "type": "link", "title": "Calendar 4",
       "help": "The secret iCal address of the calendar." },
     { "key": "every", "type": "choice", "title": "Refresh",
       "options": ["15 min", "30 min", "1 h", "3 h"], "default": "15 min" },
@@ -15,9 +21,12 @@
       "options": ["Off", "At start", "5 min", "10 min", "15 min", "30 min"], "default": "10 min" }
   ],
   "polls": [
-    { "url": "{{feed}}", "every": "{{every}}" }
+    { "url": "{{feed}}", "every": "{{every}}" },
+    { "url": "{{feed_2}}", "every": "{{every}}" },
+    { "url": "{{feed_3}}", "every": "{{every}}" },
+    { "url": "{{feed_4}}", "every": "{{every}}" }
   ],
-  "hosts": ["{{feed}}"],
+  "hosts": ["{{feed}}", "{{feed_2}}", "{{feed_3}}", "{{feed_4}}"],
   "intents": ["started", "time_changed"],
   "icon": [
     "..#.....#..",

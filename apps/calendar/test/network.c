@@ -15,7 +15,7 @@ static const stored_events_t *event_file(void)
 {
     int32_t size = 0;
     const uint8_t *bytes = standin_file(EVENTS_FILE, &size);
-    assert(bytes != NULL && size == sizeof(stored_events_t) && standin()->refused_what[0] == '\0');
+    assert(bytes != NULL && size == sizeof cache && standin()->refused_what[0] == '\0');
     return (const stored_events_t *)bytes;
 }
 static void answer(const char *payload, int32_t length, int chunk)
@@ -32,16 +32,17 @@ int main(void)
     standin_set("feed", "https://calendar.invalid/feed"); standin_set("remind", "Off");
     app_on_load();
     answer(valid, sizeof valid - 1, 1);
-    assert(stored.count == 1 && state.status == 200 && file_writes() == 1);
+    assert(stored.count == 1 && state.status == 200 && file_writes() == 2);
     assert(event_file()->count == 1);
     int written = file_writes();
     for (int poll = 0; poll < 96; poll++) answer(valid, sizeof valid - 1, 17);
     assert(file_writes() == written);
     const char partial[] = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n";
     answer(partial, sizeof partial - 1, 2);
-    assert(stored.count == 1 && state.status == STATUS_NOT_A_CALENDAR && file_writes() == written);
+    assert(stored.count == 1 && state.status == HTTP_OK && file_writes() == written + 1);
+    written++; /* source failure is persisted once, alongside the snapshot */
     answer(valid, (int32_t)(strstr(valid, "END:VCALENDAR") - valid), 1);
-    assert(stored.count == 1 && state.status == STATUS_NOT_A_CALENDAR && file_writes() == written);
+    assert(stored.count == 1 && state.status == HTTP_OK && file_writes() == written);
     const char empty[] = "BEGIN:VCALENDAR\r\nEND:VCALENDAR";
     standin()->refuse_writes = HOST_ERR_NO_SPACE; answer(empty, sizeof empty - 1, 3);
     assert(stored.count == 0 && events_dirty);

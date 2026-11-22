@@ -51,17 +51,22 @@ KEPT_ONE static int32_t nth_weekday_of(int32_t year, int32_t month, int32_t nth,
 
 /* ---- text ---- */
 
-KEPT_ONE static bool is_digit(char c)
+static bool is_digit(char c)
 {
     return c >= '0' && c <= '9';
 }
 
+KEPT_ONE uint32_t ics_hash(uint32_t hash, const char *text, int32_t length)
+{
+    while (length-- > 0) {
+        hash = (hash ^ (uint8_t)*text++) * 16777619u;
+    }
+    return hash;
+}
+
 KEPT_ONE static uint32_t number_of(const char *text, int32_t length)
 {
-    uint32_t hash = 2166136261u;
-    for (int32_t i = 0; i < length; i++) {
-        hash = (hash ^ (uint8_t)text[i]) * 16777619u;
-    }
+    uint32_t hash = ics_hash(2166136261u, text, length);
     return hash != 0 ? hash : 1;
 }
 
@@ -93,18 +98,6 @@ KEPT_ONE static int32_t signed_number(const char **text)
     return is_negative ? -value : value;
 }
 
-/* "MO".."SU" as 0..6, or -1. */
-KEPT_ONE static int32_t weekday_named(const char *two)
-{
-    static const char NAMES[] = "MOTUWETHFRSASU";
-    for (int32_t i = 0; i < DAYS_PER_WEEK; i++) {
-        if (two[0] == NAMES[i * 2] && two[1] == NAMES[i * 2 + 1]) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 /* The value of `name=` among parameters or rule parts separated by ';',
  * up to the next ';' or the text's end; NULL when it is not there. */
 static const char *part_named(const char *text, const char *name, int32_t *length)
@@ -117,11 +110,7 @@ static const char *part_named(const char *text, const char *name, int32_t *lengt
             end++;
         }
         if (app_text_starts(text, name)) {
-            const char *value = text;
-            while (*name != '\0') {
-                value++;
-                name++;
-            }
+            const char *value = text + app_text_length(name);
             if (*value == '"') {
                 value++;
                 *length = (int32_t)(end - value) - (end[-1] == '"' ? 1 : 0);
@@ -136,60 +125,69 @@ static const char *part_named(const char *text, const char *name, int32_t *lengt
 }
 
 /* Packed name tables keep one lookup loop instead of separate call sites. */
-KEPT_ONE static int32_t name_index(const char *text, const char *names, bool prefix)
+KEPT_ONE int32_t ics_name_index(const char *text, const char *names, bool prefix)
 {
     if (text == NULL) { return -1; }
     int32_t index = 0;
-    for (const char *at = names; *at != '\0'; at += app_text_length(at) + 1) {
-        if (prefix ? app_text_starts(text, at) : app_text_equal(text, at)) { return index; }
+    while (*names != '\0') {
+        const char *at = text, *name = names;
+        while (*name != '\0' && *name == *at) { name++; at++; }
+        if (*name == '\0' && (prefix || *at == '\0')) { return index; }
+        while (*names++ != '\0') { }
         index++;
     }
     return -1;
+}
+
+/* Weekday prefixes share the property/frequency lookup. */
+static int32_t weekday_named(const char *two)
+{
+    static const char NAMES[] = "MO\0TU\0WE\0TH\0FR\0SA\0SU\0";
+    return ics_name_index(two, NAMES, true);
 }
 
 /* Classify each property once; event and zone readers share the names. */
 enum {
     PROP_BEGIN, PROP_END, PROP_DTSTART, PROP_DTEND, PROP_DURATION, PROP_SUMMARY,
     PROP_UID, PROP_RRULE, PROP_RECURRENCE_ID, PROP_STATUS, PROP_EXDATE,
-    PROP_TZID, PROP_TZOFFSETTO
+    PROP_TZID, PROP_TZOFFSETTO, PROP_CALNAME
 };
 
 static int32_t property_of(const char *name)
 {
     static const char NAMES[] =
         "BEGIN\0END\0DTSTART\0DTEND\0DURATION\0SUMMARY\0"
-        "UID\0RRULE\0RECURRENCE-ID\0STATUS\0EXDATE\0TZID\0TZOFFSETTO\0";
-    return name_index(name, NAMES, false);
+        "UID\0RRULE\0RECURRENCE-ID\0STATUS\0EXDATE\0TZID\0TZOFFSETTO\0X-WR-CALNAME\0";
+    return ics_name_index(name, NAMES, false);
 }
 
 /* ---- moments ---- */
 
 /* "20261113", "20261113T150000" or "20261113T150000Z". */
-KEPT_ONE static ics_moment_t moment_of(const char *value, const char *parameters)
+KEPT_ONE static void moment_of(ics_moment_t *moment, const char *value, const char *parameters)
 {
-    ics_moment_t moment = { 0 };
+    *moment = (ics_moment_t){ 0 };
     int32_t      year = digits(value, 4), month = digits(value + 4, 2), day = digits(value + 6, 2);
     if (year < 0 || month < 1 || month > 12 || day < 1 || day > 31) {
-        return moment;
+        return;
     }
-    moment.days = app_days_from_date(year, month, day);
-    moment.is_date = value[8] != 'T';
-    if (!moment.is_date) {
+    moment->days = app_days_from_date(year, month, day);
+    moment->is_date = value[8] != 'T';
+    if (!moment->is_date) {
         int32_t hour = digits(value + 9, 2), minute = digits(value + 11, 2);
         int32_t second = digits(value + 13, 2);
         if (hour < 0 || minute < 0) {
-            return moment;
+            return;
         }
-        moment.seconds = hour * 3600 + minute * 60 + (second > 0 ? second : 0);
-        moment.is_utc = value[15] == 'Z';
+        moment->seconds = hour * 3600 + minute * 60 + (second > 0 ? second : 0);
+        moment->is_utc = value[15] == 'Z';
     }
     int32_t     length;
     const char *zone = part_named(parameters, "TZID=", &length);
-    if (zone != NULL && !moment.is_utc) {
-        moment.zone = number_of(zone, length);
+    if (zone != NULL && !moment->is_utc) {
+        moment->zone = number_of(zone, length);
     }
-    moment.is_set = true;
-    return moment;
+    moment->is_set = true;
 }
 
 KEPT_ONE static int32_t transition_day(const ics_transition_t *transition, int32_t year)
@@ -242,34 +240,25 @@ KEPT_ONE static int64_t unix_of(const ics_t *ics, const ics_moment_t *moment)
 
 /* ---- the events kept ---- */
 
+KEPT_ONE int32_t ics_insert(ics_event_t *events, int32_t count, int32_t capacity, const ics_event_t *event, uint8_t source)
+{
+    uint32_t length = (uint32_t)count, at = 0;
+    while (at < length && events[at].start <= event->start) { at++; }
+    if (at >= (uint32_t)capacity) { return count; }
+    if (length < (uint32_t)capacity) { length++; }
+    for (uint32_t i = length - 1; i > at; i--) { events[i] = events[i - 1]; }
+    events[at] = *event;
+    events[at].source = source;
+    return (int32_t)length;
+}
+
 static void keep(ics_t *ics, int64_t start, int64_t end, int64_t original, bool is_all_day)
 {
-    if (end <= ics->from || start >= ics->until) {
-        return;
-    }
-    int32_t at = ics->count;
-    while (at > 0 && ics->candidates[at - 1].start > start) {
-        at--;
-    }
-    if (at >= ICS_CANDIDATES_MAX) {
-        return;
-    }
-    int32_t last = ics->count < ICS_CANDIDATES_MAX ? ics->count : ICS_CANDIDATES_MAX - 1;
-    for (int32_t i = last; i > at; i--) {
-        ics->candidates[i] = ics->candidates[i - 1];
-    }
-    ics_event_t *event = &ics->candidates[at];
-    event->start = start;
-    event->end = end;
-    event->original = original;
-    event->uid = ics->uid;
-    event->is_all_day = is_all_day;
-    for (int32_t i = 0; i <= ICS_TITLE_MAX; i++) {
-        event->title[i] = ics->title[i];
-    }
-    if (ics->count < ICS_CANDIDATES_MAX) {
-        ics->count++;
-    }
+    if (end <= ics->from || start >= ics->until) { return; }
+    ics_event_t event = { .start = start, .end = end, .original = original,
+                          .uid = ics->uid, .is_all_day = is_all_day };
+    app_text_copy(event.title, sizeof event.title, ics->title);
+    ics->count = ics_insert(ics->candidates, ics->count, ICS_CANDIDATES_MAX, &event, 0);
 }
 
 static bool is_taken_out(const ics_t *ics, int64_t start)
@@ -330,35 +319,24 @@ static void repeat(ics_t *ics, int64_t duration)
     /* With nothing to count, the days long before the window are stepped
      * over at once: a meeting every day for ten years is still one event. */
     int32_t window_day = (int32_t)((ics->from - duration) / SECONDS_PER_DAY) - 2;
-    int32_t year, month, day;
-    app_date_from_days(first, &year, &month, &day);
-
     switch (ics->frequency) {
-    case FREQ_DAILY: {
-        int32_t step = 0;
-        if (ics->rule_count == 0 && window_day > first) {
-            step = (window_day - first) / interval;
-        }
-        for (int32_t i = 0; i < STEPS_MAX && !run.is_over; i++, step++) {
-            int32_t days = first + step * interval;
-            /* "BYDAY=MO,TU,WE,TH,FR": only those days are the event's, and only they count. */
-            if (ics->weekdays == 0 || (ics->weekdays & (1 << weekday_of(days))) != 0) {
-                occur(&run, days);
-            }
-        }
-        break;
-    }
+    case FREQ_DAILY:
     case FREQ_WEEKLY: {
-        uint8_t weekdays = ics->weekdays != 0 ? ics->weekdays : (uint8_t)(1 << weekday_of(first));
-        int32_t week_start = first - weekday_of(first);
-        int32_t step = 0;
-        if (ics->rule_count == 0 && window_day > first) {
-            step = (window_day - week_start) / (interval * DAYS_PER_WEEK);
+        bool weekly = ics->frequency == FREQ_WEEKLY;
+        int32_t span = weekly ? DAYS_PER_WEEK : 1;
+        int32_t origin = weekly ? first - weekday_of(first) : first;
+        int32_t step = interval * span;
+        int32_t start = origin;
+        if (ics->rule_count == 0 && window_day > origin) {
+            start += (window_day - origin) / step * step;
         }
-        for (int32_t i = 0; i < STEPS_MAX && !run.is_over; i++, step++) {
-            for (int32_t weekday = 0; weekday < DAYS_PER_WEEK; weekday++) {
-                if (weekdays & (1 << weekday)) {
-                    occur(&run, week_start + step * interval * DAYS_PER_WEEK + weekday);
+        uint8_t weekdays = ics->weekdays;
+        if (weekly && weekdays == 0) { weekdays = (uint8_t)(1 << weekday_of(first)); }
+        for (int32_t i = 0; i < STEPS_MAX && !run.is_over; i++) {
+            for (int32_t day = 0; day < span; day++) {
+                int32_t days = start + i * step + day;
+                if (weekdays == 0 || (weekdays & (1 << weekday_of(days)))) {
+                    occur(&run, days);
                 }
             }
         }
@@ -366,33 +344,34 @@ static void repeat(ics_t *ics, int64_t duration)
     }
     case FREQ_MONTHLY:
     case FREQ_YEARLY: {
+        int32_t year, month, day;
+        app_date_from_days(first, &year, &month, &day);
         int32_t months = ics->frequency == FREQ_YEARLY ? 12 * interval : interval;
         int32_t wanted_day = ics->month_day != 0 ? ics->month_day : day;
         for (int32_t i = 0; i < STEPS_MAX / 10 && !run.is_over; i++) {
             int32_t month_index = (month - 1) + i * months;
             int32_t its_year = year + month_index / 12, its_month = month_index % 12 + 1;
             int32_t length = days_in_month(its_year, its_month);
+            int32_t first_day = app_days_from_date(its_year, its_month, 1);
+            int32_t its_day = wanted_day > 0 ? wanted_day : length + 1 + wanted_day;
             if (ics->nth_weekday != 0 && ics->weekdays != 0) {
                 int32_t weekday = 0;
                 while (!(ics->weekdays & (1 << weekday))) {
                     weekday++;
                 }
                 int32_t found = nth_weekday_of(its_year, its_month, ics->nth_weekday, weekday);
-                if (found >= 0) {
-                    occur(&run, found);
-                }
+                if (found < 0) { continue; }
+                its_day = found - first_day + 1;
             } else if (ics->weekdays != 0 && ics->month_day == 0 && !ics->has_set_position) {
-                int32_t first_day = app_days_from_date(its_year, its_month, 1);
                 for (int32_t offset = 0; offset < length && !run.is_over; offset++) {
                     if (ics->weekdays & (1 << weekday_of(first_day + offset))) {
                         occur(&run, first_day + offset);
                     }
                 }
-            } else {
-                int32_t its_day = wanted_day > 0 ? wanted_day : length + 1 + wanted_day;
-                if (its_day >= 1 && its_day <= length) { /* no 31st in a month of thirty */
-                    occur(&run, app_days_from_date(its_year, its_month, its_day));
-                }
+                continue;
+            }
+            if (its_day >= 1 && its_day <= length) { /* no 31st in a month of thirty */
+                occur(&run, first_day + its_day - 1);
             }
         }
         break;
@@ -443,27 +422,23 @@ static void finish_event(ics_t *ics)
 
 /* ---- lines ---- */
 
-/* SUMMARY's value with its escapes undone, as it came: Perinkpheral OS draws what
+/* SUMMARY and X-WR-CALNAME with escapes undone: Perinkpheral OS draws what
  * is not ASCII as best it can. Cut between characters, never inside one. */
-static void take_title(ics_t *ics, const char *value)
+KEPT_ONE static void take_text(char *text, int32_t capacity, char *value)
 {
-    int32_t length = 0;
-    while (*value != '\0' && length < ICS_TITLE_MAX) {
-        char c = *value++;
-        if (c == '\\' && *value != '\0') {
-            c = *value == 'n' || *value == 'N' ? ' ' : *value;
-            value++;
+    /* Unescape the mutable input line in place; the shared copy handles UTF-8
+     * truncation after escapes have been removed. The result never grows. */
+    char *out = value;
+    for (const char *at = value; *at != '\0';) {
+        char c = *at++;
+        if (c == '\\' && *at != '\0') {
+            c = *at == 'n' || *at == 'N' ? ' ' : *at;
+            at++;
         }
-        ics->title[length++] = (uint8_t)c < ' ' ? ' ' : c;
+        *out++ = (uint8_t)c < ' ' ? ' ' : c;
     }
-    /* A character of several bytes that did not fit whole goes whole. */
-    if (*value != '\0') {
-        while (length > 0 && ((uint8_t)*value & 0xC0) == 0x80) {
-            value--;
-            length--;
-        }
-    }
-    ics->title[length] = '\0';
+    *out = '\0';
+    app_text_copy(text, capacity, value);
 }
 
 KEPT_ONE static int32_t rule_number(const char *rule, const char *name, int32_t otherwise)
@@ -476,7 +451,7 @@ KEPT_ONE static int32_t rule_number(const char *rule, const char *name, int32_t 
 static int32_t frequency_of(const char *part)
 {
     static const char NAMES[] = "DAILY\0WEEKLY\0MONTHLY\0YEARLY\0";
-    return name_index(part, NAMES, true) + FREQ_DAILY;
+    return ics_name_index(part, NAMES, true) + FREQ_DAILY;
 }
 
 /* "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T000000Z" */
@@ -491,7 +466,7 @@ static void take_rule(ics_t *ics, const char *rule)
     ics->interval = rule_number(rule, "INTERVAL=", ics->interval);
     ics->rule_count = rule_number(rule, "COUNT=", ics->rule_count);
     if ((part = part_named(rule, "UNTIL=", &length)) != NULL) {
-        ics->rule_until = moment_of(part, "");
+        moment_of(&ics->rule_until, part, "");
         /* An end written without a zone is in the event's own. */
         ics->rule_until.zone = ics->start.zone;
     }
@@ -526,7 +501,9 @@ static int32_t offset_of(const char *value)
     return hours < 0 || minutes < 0 ? 0 : sign * (hours * 3600 + minutes * 60);
 }
 
-static void zone_line(ics_t *ics, int32_t property, const char *value)
+enum { COMPONENT_CALENDAR, COMPONENT_EVENT, COMPONENT_ZONE, COMPONENT_DAYLIGHT, COMPONENT_STANDARD };
+
+static void zone_line(ics_t *ics, int32_t property, const char *value, int32_t component)
 {
     if (ics->zone_count >= ICS_ZONES_MAX && property != PROP_END) {
         return;
@@ -536,20 +513,35 @@ static void zone_line(ics_t *ics, int32_t property, const char *value)
     if (property == PROP_TZID) {
         zone->name = number_of(value, app_text_length(value));
     } else if (property == PROP_BEGIN) {
-        ics->in_daylight = app_text_equal(value, "DAYLIGHT");
-        ics->in_standard = app_text_equal(value, "STANDARD");
-    } else if (property == PROP_TZOFFSETTO && (ics->in_daylight || ics->in_standard)) {
+        ics->in_daylight = component == COMPONENT_DAYLIGHT;
+        ics->in_standard = component == COMPONENT_STANDARD;
+    } else if (property == PROP_END) {
+        if (component == COMPONENT_ZONE) {
+            ics->in_zone = false;
+            if (ics->zone_count < ICS_ZONES_MAX) {
+                if (!zone->has_daylight) {
+                    zone->daylight.offset_s = zone->standard.offset_s;
+                }
+                ics->zone_count++;
+            }
+        }
+        ics->in_daylight = ics->in_standard = false;
+    } else if (!ics->in_daylight && !ics->in_standard) {
+        return;
+    } else if (property == PROP_TZOFFSETTO) {
         transition->offset_s = offset_of(value);
         if (ics->in_daylight) { zone->has_daylight = true; }
-    } else if (property == PROP_DTSTART && (ics->in_daylight || ics->in_standard)) {
-        transition->seconds = moment_of(value, "").seconds;
+    } else if (property == PROP_DTSTART) {
+        ics_moment_t moment;
+        moment_of(&moment, value, "");
+        transition->seconds = moment.seconds;
         /* The day it changed, in case no rule says when it changes. */
         int32_t month = digits(value + 4, 2), day = digits(value + 6, 2);
         if (month >= 1 && day >= 1 && transition->nth == 0) {
             transition->month = (int8_t)month;
             transition->weekday = (int8_t)day;
         }
-    } else if (property == PROP_RRULE && (ics->in_daylight || ics->in_standard)) {
+    } else if (property == PROP_RRULE) {
         int32_t     length;
         const char *month = part_named(value, "BYMONTH=", &length);
         const char *day = part_named(value, "BYDAY=", &length);
@@ -563,17 +555,6 @@ static void zone_line(ics_t *ics, int32_t property, const char *value)
                 transition->weekday = (int8_t)weekday;
             }
         }
-    } else if (property == PROP_END) {
-        if (app_text_equal(value, "VTIMEZONE")) {
-            ics->in_zone = false;
-            if (ics->zone_count < ICS_ZONES_MAX) {
-                if (!zone->has_daylight) {
-                    zone->daylight.offset_s = zone->standard.offset_s;
-                }
-                ics->zone_count++;
-            }
-        }
-        ics->in_daylight = ics->in_standard = false;
     }
 }
 
@@ -581,16 +562,10 @@ static void begin_event(ics_t *ics)
 {
     ics->in_event = true;
     ics->nested = 0;
-    ics->start = ics->end = ics->recurrence_id = ics->rule_until = (ics_moment_t){ 0 };
-    ics->exdate_count = 0;
-    ics->duration_s = 0;
-    ics->title[0] = '\0';
-    ics->uid = 0;
-    ics->is_cancelled = ics->has_rule = ics->has_set_position = false;
-    ics->frequency = FREQ_NONE;
-    ics->interval = ics->rule_count = 0;
-    ics->weekdays = 0;
-    ics->nth_weekday = ics->month_day = 0;
+    /* Reset the contiguous event fields together; zones and candidates survive. */
+    for (size_t i = offsetof(ics_t, start); i < offsetof(ics_t, overrides); i++) {
+        ((uint8_t *)ics)[i] = 0;
+    }
 }
 
 /* "P1D", "PT1H30M", "P1W": what an event lasts when it has no end. */
@@ -604,12 +579,11 @@ static int32_t duration_of(const char *value)
             at++;
         } else if (is_digit(*at)) {
             int32_t amount = signed_number(&at);
-            seconds += amount * (*at == 'W'             ? 7 * SECONDS_PER_DAY
-                                 : *at == 'D'           ? SECONDS_PER_DAY
-                                 : *at == 'H'           ? 3600
-                                 : *at == 'M' && in_time ? 60
-                                 : *at == 'S'           ? 1
-                                                        : 0);
+            static const char UNITS[] = "WDHMS";
+            static const int32_t FACTORS[] = { 7 * SECONDS_PER_DAY, SECONDS_PER_DAY, 3600, 60, 1 };
+            for (int32_t i = 0; i < 5; i++) {
+                if (*at == UNITS[i] && (*at != 'M' || in_time)) { seconds += amount * FACTORS[i]; }
+            }
         } else {
             at++;
         }
@@ -617,7 +591,7 @@ static int32_t duration_of(const char *value)
     return seconds;
 }
 
-static void event_line(ics_t *ics, int32_t property, const char *parameters, const char *value)
+static void event_line(ics_t *ics, int32_t property, const char *parameters, char *value)
 {
     if (property == PROP_BEGIN) {
         ics->nested++;
@@ -639,11 +613,11 @@ static void event_line(ics_t *ics, int32_t property, const char *parameters, con
                            : property == PROP_DTEND ? &ics->end
                            : property == PROP_RECURRENCE_ID ? &ics->recurrence_id : NULL;
     if (moment != NULL) {
-        *moment = moment_of(value, parameters);
+        moment_of(moment, value, parameters);
     } else if (property == PROP_DURATION) {
         ics->duration_s = duration_of(value);
     } else if (property == PROP_SUMMARY) {
-        take_title(ics, value);
+        take_text(ics->title, sizeof ics->title, value);
     } else if (property == PROP_UID) {
         ics->uid = number_of(value, app_text_length(value));
     } else if (property == PROP_RRULE) {
@@ -653,7 +627,8 @@ static void event_line(ics_t *ics, int32_t property, const char *parameters, con
     } else if (property == PROP_EXDATE) {
         /* One or several, separated by commas. */
         for (const char *at = value; *at != '\0' && ics->exdate_count < ICS_EXDATES_MAX;) {
-            ics_moment_t moment = moment_of(at, parameters);
+            ics_moment_t moment;
+            moment_of(&moment, at, parameters);
             /* Only the ones that could matter: a meeting of some years has
              * many, nearly all of them long past. */
             int64_t taken_out = moment.is_set ? unix_of(ics, &moment) : 0;
@@ -696,16 +671,21 @@ static void take_line(ics_t *ics)
     const char *parameter_text = has_parameters ? parameters + 1 : "";
 
     int32_t property = property_of(line);
+    static const char COMPONENTS[] = "VCALENDAR\0VEVENT\0VTIMEZONE\0DAYLIGHT\0STANDARD\0";
+    int32_t component = property == PROP_BEGIN || property == PROP_END
+                            ? ics_name_index(value, COMPONENTS, false) : -1;
     if (!ics->in_event && !ics->in_zone && property == PROP_END &&
-        app_text_equal(value, "VCALENDAR")) {
+        component == COMPONENT_CALENDAR) {
         ics->complete = true;
     } else if (ics->in_event) {
         event_line(ics, property, parameter_text, value);
     } else if (ics->in_zone) {
-        zone_line(ics, property, value);
-    } else if (property == PROP_BEGIN && app_text_equal(value, "VEVENT")) {
+        zone_line(ics, property, value, component);
+    } else if (property == PROP_CALNAME) {
+        take_text(ics->name, sizeof ics->name, value);
+    } else if (property == PROP_BEGIN && component == COMPONENT_EVENT) {
         begin_event(ics);
-    } else if (property == PROP_BEGIN && app_text_equal(value, "VTIMEZONE")) {
+    } else if (property == PROP_BEGIN && component == COMPONENT_ZONE) {
         ics->in_zone = true;
         if (ics->zone_count < ICS_ZONES_MAX) {
             ics->zones[ics->zone_count] = (ics_zone_t){ 0 };
@@ -748,9 +728,12 @@ int32_t ics_end(ics_t *ics)
     int32_t kept = 0;
     for (int32_t i = 0; i < ics->count && kept < ICS_EVENTS_MAX; i++) {
         bool is_replaced = false;
-        for (int32_t j = 0; j < ics->override_count && !is_replaced; j++) {
-            is_replaced = ics->candidates[i].uid == ics->overrides[j].uid &&
-                          ics->candidates[i].original == ics->overrides[j].original;
+        for (int32_t j = 0; j < ics->override_count; j++) {
+            if (ics->candidates[i].uid == ics->overrides[j].uid &&
+                ics->candidates[i].original == ics->overrides[j].original) {
+                is_replaced = true;
+                break;
+            }
         }
         if (!is_replaced) {
             ics->events[kept++] = ics->candidates[i];
@@ -764,22 +747,13 @@ int32_t ics_end(ics_t *ics)
  * The stream may split even a UTF-8 encoding mark between pieces. */
 int ics_opening_feed(ics_opening_t *opening, const uint8_t *data, int32_t length)
 {
-    static const char CALENDAR_OPENING[] = "BEGIN:VCALENDAR";
-    int32_t wanted = sizeof CALENDAR_OPENING - 1;
-    for (int32_t i = 0; i < length && opening->length < (int32_t)sizeof opening->bytes; i++) {
-        opening->bytes[opening->length++] = data[i];
+    static const uint8_t MARKER[] = "\xEF\xBB\xBF" "BEGIN:VCALENDAR";
+    /* Skip the optional encoding mark when the very first byte is ordinary text. */
+    if (opening->length == 0 && length > 0 && data[0] != MARKER[0]) {
+        opening->length = ICS_ENCODING_MARK_BYTES;
     }
-    int32_t offset = opening->length > 0 && opening->bytes[0] == 0xEF ? ICS_ENCODING_MARK_BYTES : 0;
-    static const uint8_t ENCODING_MARK[] = { 0xEF, 0xBB, 0xBF };
-    for (int32_t i = 0; i < opening->length && i < offset; i++) {
-        if (opening->bytes[i] != ENCODING_MARK[i]) {
-            return -1;
-        }
+    for (int32_t i = 0; i < length && opening->length < (int32_t)sizeof MARKER - 1; i++) {
+        if (data[i] != MARKER[opening->length++]) { return -1; }
     }
-    for (int32_t i = offset; i < opening->length && i < offset + wanted; i++) {
-        if (opening->bytes[i] != (uint8_t)CALENDAR_OPENING[i - offset]) {
-            return -1;
-        }
-    }
-    return opening->length >= offset + wanted ? 1 : 0;
+    return opening->length == sizeof MARKER - 1 ? 1 : 0;
 }

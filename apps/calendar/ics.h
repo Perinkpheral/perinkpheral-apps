@@ -19,6 +19,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define ICS_NAME_MAX   127
 #define ICS_TITLE_MAX  127
 #define ICS_EVENTS_MAX 24
 
@@ -29,7 +30,12 @@ typedef struct {
     uint32_t uid;      /* a number made of the event's UID */
     uint8_t  is_all_day;
     char     title[ICS_TITLE_MAX + 1]; /* as it came, UTF-8, cut between characters */
+    uint8_t source; /* caller-owned source index; the parser leaves it zero */
 } ics_event_t;
+
+/* Insert in start order, keeping the earliest `capacity` events; return the new count.
+ * count must be 0..capacity. The inserted event gets the caller's source index. */
+int32_t ics_insert(ics_event_t *events, int32_t count, int32_t capacity, const ics_event_t *event, uint8_t source);
 
 #define ICS_LINE_MAX     200
 #define ICS_ZONES_MAX    6
@@ -64,6 +70,7 @@ typedef struct {
     int32_t      device_offset_s; /* the device's zone, east of UTC */
     ics_event_t *events;       /* ICS_EVENTS_MAX of them, the earliest kept, in order */
     int32_t      count;
+    char         name[ICS_NAME_MAX + 1]; /* X-WR-CALNAME, before or after events */
 
     /* The line being put together. */
     char    line[ICS_LINE_MAX + 1];
@@ -112,10 +119,15 @@ int32_t ics_end(ics_t *ics);
 #define ICS_ENCODING_MARK_BYTES 3
 
 typedef struct {
-    uint8_t bytes[ICS_CALENDAR_MARKER_BYTES + ICS_ENCODING_MARK_BYTES];
     int32_t length;
 } ics_opening_t;
 
 /* Feed from a zeroed state: 0 until complete, 1 for BEGIN:VCALENDAR with
  * an optional UTF-8 encoding mark, -1 for another document. */
 int ics_opening_feed(ics_opening_t *opening, const uint8_t *data, int32_t length);
+
+/* Shared FNV-1a identity for event IDs, time zones and source links. */
+uint32_t ics_hash(uint32_t seed, const char *text, int32_t length);
+
+/* Index in a double-NUL-terminated name table, or -1; shared with settings. */
+int32_t ics_name_index(const char *text, const char *names, bool prefix);

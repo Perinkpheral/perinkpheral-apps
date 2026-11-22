@@ -29,7 +29,7 @@ static void prompt_reminders(void)
     app_on_load();
     stored.count = 1;
     stored.events[0] = (ics_event_t){ .uid = 1, .start = time_now(), .end = time_now() + 600 };
-    save_events(); save_state();
+    sources[0].data = stored; sources[0].data.version = EVENTS_VERSION; save_events(); save_state();
 
     /* A restart must not impose the queue's backoff on an untried reminder. */
     standin_restart();
@@ -41,7 +41,7 @@ static void prompt_reminders(void)
 
     /* A newly fetched event can already be inside its lead time. */
     const char feed[] = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:new\r\nDTSTART:20260115T140500Z\r\nDTEND:20260115T150000Z\r\nSUMMARY:Meeting\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-    state.reminded_to = time_now() - 600;
+    state.reminded[0] = time_now() - 600;
     standin_set("remind", "10 min");
     app_on_data(0, (const uint8_t *)feed, sizeof feed - 1, HOST_DATA_FIRST | HOST_DATA_LAST, 200);
     assert(stored.count == 1 && state.status == 200 && standin_alarm_left(0) == 1);
@@ -67,26 +67,29 @@ int main(void)
     standin_set("feed", "https://calendar.invalid/feed");
     standin_set("remind", "At start");
     app_on_load();
+    uint32_t hashes[SOURCES_MAX];
+    state.feed_hash = feed_hash(hashes);
     state.version = 3;
     state.reminded_to = time_now() - 60;
     assert(kv_set(STATE_KEY, sizeof STATE_KEY - 1, &state, offsetof(state_t, delivered)) == HOST_OK);
     state = (state_t){0}; app_on_load();
-    assert(state.version == STATE_VERSION && state.reminded_to == time_now() - 60 && state.delivered_count == 0);
+    assert(state.version == STATE_VERSION && state.reminded[0] == time_now() - 60 && state.delivered_count == 0);
     stored.count = 5;
     for (int i = 0; i < stored.count; i++) {
         stored.events[i] = (ics_event_t){ .uid = (uint32_t)i + 1, .start = time_now(), .end = time_now() + 600 };
-        snprintf(stored.events[i].title, sizeof stored.events[i].title, "Event %d", i + 1);
+        int length = snprintf(stored.events[i].title, sizeof stored.events[i].title, "Event %d", i + 1);
+        assert(length > 0 && length < (int)sizeof stored.events[i].title);
     }
-    save_events();
+    sources[0].data = stored; sources[0].data.version = EVENTS_VERSION; save_events(); combine_status();
     queued = 4;
     int writes = standin()->store_writes;
     app_on_alarm(0);
-    assert(standin()->notices == 0 && state.delivered_count == 0 && state.reminded_to < time_now());
+    assert(standin()->notices == 0 && state.delivered_count == 0 && state.reminded[0] < time_now());
     assert(standin()->store_writes == writes && standin_alarm_left(0) == 60);
     standin_pass(60000);
     queued = 0;
     app_on_alarm(0);
-    assert(standin()->notices == 4 && state.delivered_count == 4 && state.reminded_to < time_now());
+    assert(standin()->notices == 4 && state.delivered_count == 4 && state.reminded[0] < time_now());
     assert(standin_alarm_left(0) == 60);
     writes = standin()->store_writes;
     state = (state_t){0}; app_on_load();
@@ -98,7 +101,7 @@ int main(void)
     standin_pass(60000);
     app_on_alarm(0);
     assert(standin()->notices == 5 && !strcmp(standin()->last_notice.detail, "Event 5"));
-    assert(state.reminded_to == time_now() && state.delivered_count == 0);
+    assert(state.reminded[0] == time_now() && state.delivered_count == 0);
     app_on_alarm(0);
     assert(standin()->notices == 5);
 
@@ -107,11 +110,11 @@ int main(void)
     app_on_focus(); list.selected = 2;
     app_on_blur();
     stored.events[0].end = time_now() - 1;
-    save_events();
+    sources[0].data = stored; sources[0].data.version = EVENTS_VERSION; save_events();
     memset(shown, 0, sizeof shown); list = (app_list_t){0};
     app_on_load(); app_on_focus();
     app_on_button(BTN_OK_PRESSED);
     assert(is_reading_one && read_uid == 3 && read_start == stored.events[2].start);
-    assert(list.selected == 1 && shown[1] == 2);
+    assert(list.selected == 1 && stored.events[shown[1]].uid == 3);
     puts("calendar: prompt reminders after restart, fetch and clock change; full queue backoff across unload without duplicates; focus selection passed");
 }

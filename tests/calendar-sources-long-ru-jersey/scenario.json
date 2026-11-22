@@ -1,0 +1,23 @@
+{
+  "app": "apps/calendar",
+  "at": 1794992400,
+  "tz": "Europe/Moscow",
+  "language": "ru",
+  "font": "jersey",
+  "glyphs": "glyphs",
+  "store": {
+    "feed": "https://calendar.example.test/work.ics",
+    "feed_2": "https://calendar.example.test/home.ics",
+    "remind": "Off"
+  },
+  "mocks": "../calendar-sources-long-en-departure/mocks.json",
+  "steps": [
+    "wait 2",
+    "press 2",
+    "shot four-line-title",
+    "press 4",
+    "press 3",
+    "press 2",
+    "shot other-source"
+  ]
+}

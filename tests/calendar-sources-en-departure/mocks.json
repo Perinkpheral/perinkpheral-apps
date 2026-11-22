@@ -1,0 +1,10 @@
+{
+  "https://calendar.example.test/work.ics": {
+    "status": 200,
+    "file": "work.ics"
+  },
+  "https://calendar.example.test/home.ics": {
+    "status": 200,
+    "file": "home.ics"
+  }
+}

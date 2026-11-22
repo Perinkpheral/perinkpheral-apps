@@ -209,15 +209,19 @@ static void test_exception_spares(void)
         "DTSTART:20261101T090000Z\nRRULE:FREQ=DAILY\nEND:VEVENT\n");
     /* The full override budget removes the first 32 of 70 candidates. */
     int64_t first = utc(2026, 11, 1, 9, 0);
+    CHECK(length > 0 && length < (int)sizeof text);
     for (int i = 0; i < ICS_OVERRIDES_MAX; i++) {
         int32_t year, month, day;
         app_date_from_days((int32_t)(first / 86400) + i, &year, &month, &day);
-        length += snprintf(text + length, sizeof text - length,
+        int added = snprintf(text + length, sizeof text - length,
             "BEGIN:VEVENT\nUID:daily\nDTSTART:%04d%02d%02dT090000Z\n"
             "RECURRENCE-ID:%04d%02d%02dT090000Z\nSTATUS:CANCELLED\nEND:VEVENT\n",
             year, month, day, year, month, day);
+        CHECK(added > 0 && added < (int)sizeof text - length);
+        length += added;
     }
-    snprintf(text + length, sizeof text - length, "END:VCALENDAR\n");
+    int added = snprintf(text + length, sizeof text - length, "END:VCALENDAR\n");
+    CHECK(added > 0 && added < (int)sizeof text - length);
     CHECK(read_file(text, first - 1, 70, 0, 1) == ICS_EVENTS_MAX);
     CHECK(events[0].start == first + ICS_OVERRIDES_MAX * 86400LL);
     CHECK(events[23].start == first + 55 * 86400LL);
@@ -255,8 +259,10 @@ static void test_rejects_non_calendar(void)
     /* a line far longer than is kept, and an event that never ends */
     static char huge[5000];
     int at = snprintf(huge, sizeof huge, "BEGIN:VEVENT\nDTSTART:20261114T100000Z\nDESCRIPTION:");
+    CHECK(at > 0 && at + 4000 < (int)sizeof huge);
     memset(huge + at, 'x', 4000);
-    snprintf(huge + at + 4000, sizeof huge - at - 4000, "\nSUMMARY:After a long line\nEND:VEVENT\n");
+    int added = snprintf(huge + at + 4000, sizeof huge - at - 4000, "\nSUMMARY:After a long line\nEND:VEVENT\n");
+    CHECK(added > 0 && added < (int)sizeof huge - at - 4000);
     CHECK(read_file(huge, utc(2026, 11, 13, 0, 0), 14, 0, 100) == 1);
     CHECK(strcmp(events[0].title, "After a long line") == 0);
 }
@@ -287,8 +293,31 @@ static void test_opening_at_every_split(void)
     CHECK(ics_opening_feed(&opening, (const uint8_t *)"X", 1) == -1);
 }
 
+static void test_calendar_names(void)
+{
+    static const char text[] = "BEGIN:VCALENDAR\r\nX-WR-CALNAME;LANGUAGE=ru:Семья\\, дом\r\n"
+        " и друзья\r\nBEGIN:VEVENT\r\nX-WR-CALNAME:Ignore this\r\n"
+        "DTSTART:20261118T120000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    CHECK(read_file(text, utc(2026, 11, 18, 0, 0), 1, 0, 1) == 1);
+    CHECK(strcmp(ics.name, "Семья, доми друзья") == 0);
+    char long_name[512];
+    const char *prefix = "BEGIN:VCALENDAR\nX-WR-CALNAME:";
+    size_t at = strlen(prefix);
+    memcpy(long_name, prefix, at);
+    for (int i = 0; i < 100; i++) {
+        memcpy(long_name + at, "Я", 2); at += 2;
+    }
+    strcpy(long_name + at, "\nEND:VCALENDAR\n");
+    CHECK(read_file(long_name, 0, 1, 0, 1) == 0);
+    CHECK(strlen(ics.name) == 126); /* Never half of a UTF-8 character. */
+    CHECK((unsigned char)ics.name[125] == 0xaf);
+    CHECK(read_file("BEGIN:VCALENDAR\nEND:VCALENDAR\n", 0, 1, 0, 1) == 0);
+    CHECK(ics.name[0] == '\0');
+}
+
 int main(void)
 {
+    test_calendar_names();
     test_monthly_weekdays();
     test_monthly_set_position();
     test_exception_spares();

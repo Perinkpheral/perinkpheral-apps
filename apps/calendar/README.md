@@ -1,13 +1,14 @@
 # Calendar
 
-Shows upcoming events from an iCalendar (ICS) subscription. The device downloads
-the feed directly from its provider. Reminders can appear over another application.
+Shows upcoming events from up to four iCalendar (ICS) subscriptions. The device
+downloads each feed directly from its provider. Reminders can appear over another application.
 
 ## Setting it up
 
 If your calendar provider offers an ICS subscription or publishing URL, paste it
-into **Calendar address** on the device's page (Installed apps, Calendar settings).
-Examples:
+into **Calendar 1** on the device's page (Installed apps, Calendar settings).
+Use **Calendar 2**, **Calendar 3** and **Calendar 4** for additional subscriptions.
+Unused addresses can stay empty. Examples:
 
 - **Google Calendar**: Settings, the calendar, "Secret address in iCal format".
 - **iCloud**: share the calendar as a public calendar and copy its link.
@@ -25,7 +26,9 @@ event to show a notice. All-day events have no reminders. Choose Off to disable 
 The list shows events for the next two weeks, with a name and time on each line.
 Times appear as "15:00" today, "Tmrw 09:30", "Sat 12:00", "21 Nov" beyond a week,
 or "Now" during an event. UP and DOWN select events. OK opens the selected event's
-details; BACK returns to the list. Hold OK to refresh the feed. A reminder shows
+details; BACK returns to the list. With multiple sources, a caption at the bottom
+names the event's calendar (`X-WR-CALNAME`, or Calendar 1-4 when unnamed).
+Hold OK to refresh all configured feeds. A reminder shows
 the event's time and name. OK or BACK dismisses it and restores the previous screen.
 
 ## What it reads
@@ -44,8 +47,10 @@ Recurrence uses `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` and a single `BYMO
 Event rules do not implement `BYMONTH`, `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`, `BYMINUTE`,
 `BYSECOND`, `WKST` or `BYSETPOS`. Most unsupported parts are ignored. The presence of
 `BYSETPOS` disables non-ordinal `BYDAY` expansion in monthly and yearly rules.
-Supported parts may still affect the result. One calendar is read, retaining the
-24 nearest events.
+Supported parts may still affect the result. Each source retains its 24 nearest
+events; the merged list shows the nearest 24 across all sources. Events with the
+same UID and start appear once, using the first configured source in setting order.
+Calendar names are limited to 127 UTF-8 bytes and truncated between characters.
 
 Text uses the font selected in Perinkpheral OS and installed glyph packs. Missing
 glyphs fall back to Perinkpheral OS's spelling rules; install the appropriate pack
