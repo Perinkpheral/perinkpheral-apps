@@ -600,7 +600,8 @@ static void bounds(void)
     memcpy(router, "http://", 7); router[70] = router[134] = router[198] = '.';
     setting("router", router); setting("username", longest); setting("password", longest);
     longest[31] = 0; setting("wan", longest);
-    char links[96]; snprintf(links, sizeof links, "%s\n%s\n%s", longest, longest, longest); setting("links", links);
+    char links[96]; int written = snprintf(links, sizeof links, "%s\n%s\n%s", longest, longest, longest);
+    assert(written > 0 && written < (int)sizeof links); setting("links", links);
     longest[31] = 'a';
     setting("every", "15 min");
     longest[1] = '='; app_text_copy(cookie, sizeof cookie, longest); assert(kv_set("session", 7, cookie, (int32_t)strlen(cookie)) == HOST_OK);

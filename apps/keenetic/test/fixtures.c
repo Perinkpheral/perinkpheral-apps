@@ -59,7 +59,10 @@ static void replay(const fixture_json_t *meta, int response, const char *name, c
         fixture_string(meta, second, value, sizeof value);
         substitute(key, value, sizeof value);
         if (fixture_case_equal(key, "Content-Length")) snprintf(value, sizeof value, "%zu", strlen(body));
-        if (fixture_case_equal(key, "Content-Type")) snprintf(content_type, sizeof content_type, "%s", value);
+        if (fixture_case_equal(key, "Content-Type")) {
+            int written = snprintf(content_type, sizeof content_type, "%s", value);
+            assert(written >= 0 && (size_t)written < sizeof content_type);
+        }
         bytes += strlen(key) + strlen(value) + 2;
         int index = 0;
         while (index < unique && strcmp(names[index], key)) index++;
