@@ -9,17 +9,21 @@ list's 255 bytes; whole addresses would fit 5.
 
 Perinkpheral OS asks the services one at a time, each round at the Refresh pace (1, 5, 15 or
 30 minutes; 5 by default), and an answer updates its own row. OK asks every service again.
-Affected services come first, with their number in the header. Maintenance counts as
-affected. Unknown data has its own state and does not count as a confirmed outage. UP and
-DOWN scroll the rows, held a page at a time; the scroll bar is Perinkpheral OS's.
+Affected and unknown rows precede operational rows. Each group keeps the Services
+list order. The header counts only fresh, confirmed affected services; maintenance
+counts as affected. UP and DOWN scroll the rows, held a page at a time; the scroll
+bar is Perinkpheral OS's.
 
 ## Store
 
-Failed or malformed answers preserve the previous good values. The rows are one store value,
+Failed or malformed answers preserve the previous good values. A failed request or
+data older than two refresh intervals makes the row unknown and removes it from the
+confirmed affected count. Cached values remain stored. The rows are one store value,
 `answers`: 8 bytes, then for every service 2 bytes of its host's hash, 4 of the time, 1 of
 the state and its name. A row follows its host when the list is edited. The name has what
 1016 bytes divided among the services leave after those 7: 47 bytes up to 18 services, 12
-at 51, none at 128, where the row shows the host. A longer name is cut with "...".
+at 51, none at 128, where the row shows the host. Longer names are truncated at a
+UTF-8 boundary. An ellipsis is added only when the name budget is at least six bytes.
 
 The value is written when a row's state or name changes, not at every answer. The time a
 round ended is a value of its own, `checked`, written once a round, and is the time of

@@ -8,9 +8,10 @@ chooses the layout and entities; this application draws their values on the disp
 
 1. Install **HA Companion** from the application catalog on the device's page.
 2. Install the perINKpheral integration through HACS and restart Home Assistant.
-3. In Home Assistant, open **Settings → Devices & services → Add integration →
-   perINKpheral**. Enter the display address and a Home Assistant URL reachable
-   from the display.
+3. In Home Assistant, open **Settings - Devices & services - Add integration -
+   perINKpheral**. Enter the display address and the Home Assistant origin reachable
+   from the display, such as `http://homeassistant.local:8123`. Do not include a
+   dashboard path, query or fragment.
 4. Choose the layout and entities in the integration options.
 5. Open HA Companion on the display.
 
@@ -38,7 +39,7 @@ column|CO2|co2|650
 
 | Place | Parts | What it is |
 |---|---|---|
-| `hero` | value, picture | the main value; two characters use the largest size |
+| `hero` | value, picture | the main value; up to two UTF-8 bytes before an optional degree sign use the larger hero font |
 | `detail` | value, unit, picture | up to two, beside the hero |
 | `column` | name, picture, value | up to four, below the rule |
 
@@ -68,4 +69,5 @@ and `drop`, `co2`, `gauge`, `thermometer`, `battery`, `bulb`, `door`, `home`,
 `clock`, `check`, `warning`, `info`, `play`.
 
 Text is UTF-8. Character coverage depends on the selected font and installed glyph
-packs. The complete response is limited to 512 bytes.
+packs. Responses must fit in 512 UTF-8 bytes. HA Companion discards bytes beyond
+that limit. The integration removes whole trailing lines to fit, avoiding partial values.

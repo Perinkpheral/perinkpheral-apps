@@ -17,15 +17,16 @@ Examples:
 The device page converts `webcal://` and `webcals://` links to `https://`.
 Treat a private subscription URL as a secret: anyone with it can read the feed.
 
-**Refresh** sets the download interval. **Reminder** sets how long before an event
-to show a notice; choose Off to disable reminders.
+**Refresh** sets the download interval. **Reminder** sets how long before a timed
+event to show a notice. All-day events have no reminders. Choose Off to disable reminders.
 
 ## On the device
 
 The list shows events for the next two weeks, with a name and time on each line.
-Times appear as "15:00" today, "Tmrw 9:30", "Sat 12:00", "21 Nov" beyond a week,
-or "Now" during an event. UP and DOWN scroll; OK refreshes the feed. A reminder
-shows the event's time and name. OK or BACK dismisses it and restores the previous screen.
+Times appear as "15:00" today, "Tmrw 09:30", "Sat 12:00", "21 Nov" beyond a week,
+or "Now" during an event. UP and DOWN select events. OK opens the selected event's
+details; BACK returns to the list. Hold OK to refresh the feed. A reminder shows
+the event's time and name. OK or BACK dismisses it and restores the previous screen.
 
 ## What it reads
 
@@ -35,8 +36,17 @@ weekly, monthly and yearly intervals, counts, end dates, weekdays, ordinal weekd
 such as the second Tuesday, exclusions, and moved or cancelled occurrences.
 Responses are parsed incrementally.
 
-Not read: rules by position in a set (BYSETPOS), by week number, by hour; such
-an event repeats by its plain frequency. One calendar, the 24 nearest events.
+Parser limits are six embedded time zones, 24 relevant exclusions per event,
+32 occurrence overrides, 200 bytes per unfolded line and 127 bytes per event title.
+Longer lines and titles are truncated.
+
+Recurrence uses `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` and a single `BYMONTHDAY`.
+Event rules do not implement `BYMONTH`, `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`, `BYMINUTE`,
+`BYSECOND`, `WKST` or `BYSETPOS`. Most unsupported parts are ignored. The presence of
+`BYSETPOS` disables non-ordinal `BYDAY` expansion in monthly and yearly rules.
+Supported parts may still affect the result. One calendar is read, retaining the
+24 nearest events.
+
 Text uses the font selected in Perinkpheral OS and installed glyph packs. Missing
 glyphs fall back to Perinkpheral OS's spelling rules; install the appropriate pack
 for Cyrillic or Greek.

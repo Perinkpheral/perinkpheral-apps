@@ -1,8 +1,8 @@
 # Developing applications
 
-The [firmware repository](https://github.com/perinkpheral/perinkpheral) owns the SDK and
-shared tools. Read its [Perinkpheral OS application contract](https://github.com/perinkpheral/perinkpheral/blob/main/sdk/host_api.h)
-and [application guide](https://github.com/perinkpheral/perinkpheral/releases/latest/download/perinkpheral-app-guide.pdf)
+The [firmware repository](https://github.com/Perinkpheral/perinkpheral-os) owns the SDK and
+shared tools. Read its [Perinkpheral OS application contract](https://github.com/Perinkpheral/perinkpheral-os/blob/main/sdk/host_api.h)
+and [application guide](https://github.com/Perinkpheral/perinkpheral-os/releases/latest/download/perinkpheral-app-guide.pdf)
 before changing an application. ABI 3 requires firmware 0.1.30 or later.
 
 ## Layout
@@ -31,10 +31,13 @@ text too. Follow an existing application with the same interaction model.
 
 Draw only in `app_on_draw()`. Handlers update state and request `screen_redraw()`.
 An instance is unloaded when it leaves the screen or makes room for background work.
-Keep persistent state in the 2 KB store, saving only when it changes; preserve the
-current scene through `app_session_save()` and `app_session_load()`. Timers run only on
-screen. Alarms can run in the background but must be restored after an app update when
-needed. Check the Perinkpheral OS application contract for exact limits and lifecycle semantics.
+Keep persistent state in the 2 KiB store, including settings and per-key storage
+overhead. Save it only when it changes; preserve the current scene through
+`app_session_save()` and `app_session_load()`. Timers run only on
+screen. Alarms can run in the background. Restore required alarms after a device
+restart through the `started` intent and after an application update through
+`app_on_updated()`. Check the Perinkpheral OS application contract for exact limits
+and lifecycle semantics.
 
 ## Build and verify
 
@@ -54,11 +57,10 @@ export WASI_SDK_PATH=/path/to/wasi-sdk
 matching checkout's `tools/perinkpheral`. The tests require no live service: declare mocks
 for network answers. See [the test reference](tests/README.md).
 
-**A new application is checked by doing nothing.** `app-check` runs the SDK's capability
-checks - sessions, store, timers, network, drawing - on every application of `apps/`,
-choosing by what the application imports; there is no list to add it to and no test to
-write for what the contract promises. Two things are the application's own, both in
-`apps/<name>/test/`:
+`app-check` discovers applications from their manifests and selects capability checks
+from their imports, exports and manifest fields. No application list or additional
+capability-test registration is required. Application-specific inputs and tests belong
+in `apps/<name>/test/`:
 
 - `check.json`, when it asks the network for anything or needs settings to show anything:
   the time, the store and the answers it is checked with - a simulator scenario's `at`,

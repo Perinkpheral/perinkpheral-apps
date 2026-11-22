@@ -8,8 +8,8 @@ Official applications and the static catalog for [perINKpheral](https://perinkph
 [Developer documentation](https://perinkpheral.dev/sdk) -
 [Catalog files](https://github.com/perinkpheral/perinkpheral-apps/tree/main/catalog).
 Application guide (PDF):
-[English](https://github.com/perinkpheral/perinkpheral/releases/latest/download/perinkpheral-app-guide.pdf),
-[Russian](https://github.com/perinkpheral/perinkpheral/releases/latest/download/perinkpheral-app-guide.ru.pdf).
+[English](https://github.com/Perinkpheral/perinkpheral-os/releases/latest/download/perinkpheral-app-guide.pdf),
+[Russian](https://github.com/Perinkpheral/perinkpheral-os/releases/latest/download/perinkpheral-app-guide.ru.pdf).
 
 ## Build
 
@@ -45,7 +45,7 @@ Original briefs for shipped applications are retained in [the design archive](do
 
 ## Related repositories
 
-- [Firmware, SDK and tools](https://github.com/perinkpheral/perinkpheral).
+- [Firmware, SDK and tools](https://github.com/Perinkpheral/perinkpheral-os).
 - [CLion plugin](https://github.com/perinkpheral/perinkpheral-clion-plugin).
 - [Home Assistant integration](https://github.com/perinkpheral/perinkpheral-hacs), used with [HA Companion](apps/ha/README.md).
 - [Portal source](https://github.com/perinkpheral/perinkpheral-dev-portal), including the installation guide.
