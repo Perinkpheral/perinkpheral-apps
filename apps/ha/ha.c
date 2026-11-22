@@ -422,14 +422,7 @@ static void read_page(void)
 }
 
 typedef enum { LAYOUT_HERO, LAYOUT_TILES, LAYOUT_SINGLE, LAYOUT_LIST } layout_t;
-static layout_t layout_asked(void);
 
-/* The screen's number stands in the corner over the layout, as Keenetic's does; only a
- * list, whose first row reaches the corner, starts under it. */
-static int32_t content_top(void)
-{
-    return page_count > 1 && layout_asked() == LAYOUT_LIST ? HOST_UI_MARGIN + ui_text_height(HOST_UI_CAPTION) : 0;
-}
 
 /* ---- text ----
  *
@@ -550,7 +543,7 @@ static void draw_hero(const line_t *line)
     const picture_t *picture = picture_named(line->parts[1]);
     int32_t text_left = HERO_LEFT;
     if (picture != NULL) {
-        draw_picture(picture, HERO_LEFT, MARGIN + content_top(), HERO_PICTURE);
+        draw_picture(picture, HERO_LEFT, MARGIN, HERO_PICTURE);
         text_left += HERO_PICTURE + HERO_TEXT_GAP;
     }
     int32_t degree = degree_at(value);
@@ -559,7 +552,7 @@ static void draw_hero(const line_t *line)
                    HOST_FONT_TABULAR;
     /* The value stands in the middle of the picture's height. */
     int32_t cap_height = gfx_font_cap_height(font);
-    int32_t cap_top = content_top() + MARGIN + (HERO_PICTURE - cap_height) / 2;
+    int32_t cap_top = MARGIN + (HERO_PICTURE - cap_height) / 2;
     app_draw_text(text_left, cap_top - (gfx_font_ascent(font) - cap_height), font, value);
 }
 
@@ -580,7 +573,7 @@ static void draw_detail(int32_t left, int32_t number, int32_t count, const detai
                         bool has_pictures)
 {
     /* One alone stands where the middle of two would be. */
-    int32_t top = content_top() + DETAIL_TOP + number * DETAIL_LINE + (count == 1 ? DETAIL_LINE / 2 : 0);
+    int32_t top = DETAIL_TOP + number * DETAIL_LINE + (count == 1 ? DETAIL_LINE / 2 : 0);
     int32_t baseline = top + gfx_font_ascent(HOST_FONT_TEXT);
     if (detail->picture != NULL) {
         /* The picture stands on the text's baseline. */
@@ -597,11 +590,11 @@ static void draw_column(int32_t number, int32_t count, const line_t *line)
     int32_t width = gfx_width() / count;
     int32_t center = number * width + width / 2;
     const picture_t *picture = picture_named(line->parts[1]);
-    app_draw_centered(center, COLUMN_NAME_TOP + content_top(), HOST_FONT_SMALL, line->parts[0]);
+    app_draw_centered(center, COLUMN_NAME_TOP, HOST_FONT_SMALL, line->parts[0]);
     if (picture != NULL) {
-        draw_picture(picture, center - COLUMN_PICTURE / 2, COLUMN_PICTURE_TOP + content_top(), COLUMN_PICTURE);
+        draw_picture(picture, center - COLUMN_PICTURE / 2, COLUMN_PICTURE_TOP, COLUMN_PICTURE);
     }
-    app_draw_centered(center, COLUMN_VALUE_TOP + content_top(), HOST_FONT_TEXT, line->parts[2]);
+    app_draw_centered(center, COLUMN_VALUE_TOP, HOST_FONT_TEXT, line->parts[2]);
 }
 
 /* ---- the other layouts: items in cells, one large, or in a list ----
@@ -650,19 +643,19 @@ static int32_t cell_of(host_cell_t *cell, int32_t left, int32_t top, int32_t wid
 static void draw_cells_of(const item_t *items, int32_t count)
 {
     int32_t columns = count > 1 ? 2 : 1, rows = count > 2 ? 2 : 1;
-    int32_t width = gfx_width() / columns, height = (gfx_height() - content_top()) / rows;
+    int32_t width = gfx_width() / columns, height = (gfx_height()) / rows;
     int32_t shown = count < columns * rows ? count : columns * rows;
     host_cell_t cells[4];
     int32_t     icons[4];
     for (int32_t i = 0; i < shown; i++) {
-        icons[i] = cell_of(&cells[i], i % columns * width, content_top() + i / columns * height, width, height, &items[i]);
+        icons[i] = cell_of(&cells[i], i % columns * width, i / columns * height, width, height, &items[i]);
     }
     app_draw_cells(cells, 0, icons, shown); /* one size for all of them */
     if (columns > 1) {
-        gfx_draw_rect(width, content_top() + MARGIN, 1, gfx_height() - content_top() - 2 * MARGIN, HOST_RECT_FILLED);
+        gfx_draw_rect(width, MARGIN, 1, gfx_height() - 2 * MARGIN, HOST_RECT_FILLED);
     }
     if (rows > 1) {
-        gfx_draw_rect(MARGIN, content_top() + height, gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
+        gfx_draw_rect(MARGIN, height, gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
     }
 }
 
@@ -671,7 +664,7 @@ static void draw_cells_of(const item_t *items, int32_t count)
  * than the screen. */
 static void draw_list_of(const item_t *items, int32_t count)
 {
-    list.top = content_top();
+    list.top = 0;
     list.count = count;
     int32_t first = app_list_first(&list), shown = ui_list_visible(&list);
     for (int32_t i = first; i < first + shown && i < count; i++) {
@@ -730,7 +723,7 @@ static void draw_hero_layout(void)
                     has_detail_pictures);
     }
 
-    gfx_draw_rect(MARGIN, RULE_TOP + content_top(), gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
+    gfx_draw_rect(MARGIN, RULE_TOP, gfx_width() - 2 * MARGIN, 1, HOST_RECT_FILLED);
     int32_t column = 0;
     at = 0;
     while (next_line(&at, &line)) {
@@ -770,13 +763,5 @@ void app_on_draw(void)
         }
     } else {
         draw_reason();
-    }
-    if (screen_length > 0 && page_count > 1) {
-        char caption[] = "1/1";
-        caption[0] = (char)('0' + shown_page);
-        caption[2] = (char)('0' + page_count);
-        int32_t width = app_text_width(HOST_FONT_SMALL, caption);
-        ui_draw_text(gfx_width() - HOST_UI_MARGIN - width, HOST_UI_MARGIN,
-                     HOST_UI_CAPTION, caption, 3, width);
     }
 }
