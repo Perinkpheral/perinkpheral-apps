@@ -7,6 +7,22 @@
 #include <string.h>
 #include "json_pick.h"
 
+/* The generated application strings.h shadows the POSIX header in native tests. */
+static inline bool fixture_case_equal_n(const char *left, const char *right, size_t length)
+{
+    for (size_t i = 0; i < length; i++) {
+        if (tolower((unsigned char)left[i]) != tolower((unsigned char)right[i]))
+            return false;
+    }
+    return true;
+}
+
+static inline bool fixture_case_equal(const char *left, const char *right)
+{
+    size_t length = strlen(left);
+    return length == strlen(right) && fixture_case_equal_n(left, right, length);
+}
+
 /* Keep the original evidence beside the simulator mocks so their relative paths still work. */
 static inline char *fixture_text(const char *name)
 {

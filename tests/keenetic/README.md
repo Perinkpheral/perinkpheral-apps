@@ -27,6 +27,15 @@ and fonts. Every independent hotspot poll has a mock; unmatched requests return
 599. The device-only failure scenario keeps the Keenetic header and traffic
 while displaying No contact on Devices.
 
+The four navigation scenarios (`keenetic`, `keenetic-en-jersey`,
+`keenetic-ru-departure`, `keenetic-ru-jersey`) explicitly use the minimum
+one-minute refresh and wait 130 real seconds before capturing Overview.
+Their static batch mock repeats identical rates: after at least two answers,
+the connected flat chart has the same pixels for any sample count. This also
+keeps the later return-to-Overview captures stable. The supplied simulator
+does not support ordered mock responses, so these scenarios deliberately keep
+the same fixture rather than trying to alternate `batch-second.json`.
+
 `fixtures/router/` holds redacted inputs used by response, picker and application
 assertions; unused investigation captures are removed. `fixtures/replay/`
 contains synthetic authentication values and lengths recalculated for saved

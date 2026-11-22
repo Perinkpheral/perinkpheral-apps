@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include "fixtures.h"
 #include "json_pick.h"
 /* Login and picked-response header tests share the recorded-header seam. */
@@ -118,7 +117,7 @@ int32_t fixture_header(const char *name, int32_t length, int32_t occurrence, cha
 {
     for (int i = 0; i < 32; i++)
         if (header_names[i] && (int)strlen(header_names[i]) == length &&
-            !strncasecmp(header_names[i], name, (size_t)length)) {
+            fixture_case_equal_n(header_names[i], name, (size_t)length)) {
             if (occurrence-- > 0)
                 continue;
             int n = (int)strlen(header_values[i]);
@@ -157,8 +156,8 @@ static void recorded_answer(const char *name, const char *body)
         assert(count < 32);
         fixture_string(&mock, key, names[count], sizeof names[count]);
         /* The app reads only these singleton headers; duplicate Cache-Control is kept in the evidence. */
-        if (strcasecmp(names[count], "Set-Cookie") && strcasecmp(names[count], "X-NDM-Realm") &&
-            strcasecmp(names[count], "X-NDM-Challenge")) continue;
+        if (!fixture_case_equal(names[count], "Set-Cookie") && !fixture_case_equal(names[count], "X-NDM-Realm") &&
+            !fixture_case_equal(names[count], "X-NDM-Challenge")) continue;
         fixture_string(&mock, key + 1, values[count], sizeof values[count]);
         header_names[count] = names[count];
         header_values[count] = values[count];

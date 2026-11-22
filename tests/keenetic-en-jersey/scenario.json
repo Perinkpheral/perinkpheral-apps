@@ -13,7 +13,7 @@
   },
   "mocks": "mocks.json",
   "steps": [
-    "wait 3",
+    "wait 130",
     "shot overview",
     "press 3",
     "wait 2",

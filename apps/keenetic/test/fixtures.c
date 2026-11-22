@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 #include <dirent.h>
-#include <strings.h>
 #include "fixtures.h"
 
 static void text_at(const fixture_json_t *json, int object, const char *key, char *out, size_t capacity)
@@ -25,10 +24,10 @@ static void replace(char *text, size_t capacity, const char *old, const char *va
 
 static void substitute(const char *key, char *value, size_t capacity)
 {
-    if (!strcasecmp(key, "Set-Cookie")) replace(value, capacity, "[redacted]", "session_id=fixture-session");
-    else if (!strcasecmp(key, "X-NDM-Realm")) replace(value, capacity, "[redacted]", "Fixture router");
-    else if (!strcasecmp(key, "X-NDM-Challenge")) replace(value, capacity, "[redacted]", "0123456789abcdef0123456789abcdef");
-    else if (!strcasecmp(key, "WWW-Authenticate")) {
+    if (fixture_case_equal(key, "Set-Cookie")) replace(value, capacity, "[redacted]", "session_id=fixture-session");
+    else if (fixture_case_equal(key, "X-NDM-Realm")) replace(value, capacity, "[redacted]", "Fixture router");
+    else if (fixture_case_equal(key, "X-NDM-Challenge")) replace(value, capacity, "[redacted]", "0123456789abcdef0123456789abcdef");
+    else if (fixture_case_equal(key, "WWW-Authenticate")) {
         replace(value, capacity, "realm=\"[redacted]\"", "realm=\"Fixture router\"");
         replace(value, capacity, "challenge=\"[redacted]\"", "challenge=\"0123456789abcdef0123456789abcdef\"");
         replace(value, capacity, "session_id=\"[redacted]\"", "session_id=\"fixture-session\"");
@@ -59,8 +58,8 @@ static void replay(const fixture_json_t *meta, int response, const char *name, c
         fixture_string(meta, first, key, sizeof key);
         fixture_string(meta, second, value, sizeof value);
         substitute(key, value, sizeof value);
-        if (!strcasecmp(key, "Content-Length")) snprintf(value, sizeof value, "%zu", strlen(body));
-        if (!strcasecmp(key, "Content-Type")) snprintf(content_type, sizeof content_type, "%s", value);
+        if (fixture_case_equal(key, "Content-Length")) snprintf(value, sizeof value, "%zu", strlen(body));
+        if (fixture_case_equal(key, "Content-Type")) snprintf(content_type, sizeof content_type, "%s", value);
         bytes += strlen(key) + strlen(value) + 2;
         int index = 0;
         while (index < unique && strcmp(names[index], key)) index++;
