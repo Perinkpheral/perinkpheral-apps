@@ -1,0 +1,13 @@
+{
+  "status": 401,
+  "file": "../keenetic/fixtures/router/login-refused.body.txt",
+  "content_type": "",
+  "headers": {
+    "Server": "Web server",
+    "Date": "Sat, 21 Nov 2026 15:07:34 GMT",
+    "Transfer-Encoding": "chunked",
+    "Connection": "keep-alive",
+    "X-Ndm-Product": "[redacted]",
+    "WWW-Authenticate": "x-ndw2-interactive endpoint=\"/auth\" session_cookie=\"session_id\""
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "user": "[redacted]",
+      "readonly": false,
+      "manager": false,
+      "password": "[redacted]"
+    }
+  ]
+}

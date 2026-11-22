@@ -1,0 +1,10 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/rci/show/interface?name=WifiMaster0"
+  },
+  "status": 200,
+  "body": "v8-get-08.json",
+  "observed_body_bytes": 594,
+  "has_interface_counters": false
+}

@@ -1,0 +1,1 @@
+{"title":"Keenetic","description":"Трафик, система, сеть и устройства роутера","settings":{"router":{"title":"Адрес роутера"},"username":{"title":"Пользователь"},"password":{"title":"Пароль"},"every":{"title":"Обновление","options":{"1 min":"1 мин","5 min":"5 мин","15 min":"15 мин"}},"wan":{"title":"Интерфейс WAN"},"links":{"title":"Порт WAN и радиомодули"}}}

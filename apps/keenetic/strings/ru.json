@@ -1,0 +1,58 @@
+{
+  "download": "Приём",
+  "upload": "Передача",
+  "cpu": "Процессор",
+  "ram": "Память",
+  "temperature": "Температура",
+  "connections": "Соединения",
+  "uptime": "Время работы",
+  "mbit": "Мбит/с",
+  "hours": "ч",
+  "denied": "Доступ запрещён",
+  "no_contact": "Нет связи",
+  "no_internet": "Нет интернета",
+  "manifest": {
+    "title": "Keenetic",
+    "description": "Трафик, система, сеть и устройства роутера",
+    "settings": {
+      "router": {
+        "title": "Адрес роутера"
+      },
+      "username": {
+        "title": "Пользователь"
+      },
+      "password": {
+        "title": "Пароль"
+      },
+      "every": {
+        "title": "Обновление",
+        "options": {
+          "1 min": "1 мин",
+          "5 min": "5 мин",
+          "15 min": "15 мин"
+        }
+      },
+      "wan": {
+        "title": "Интерфейс WAN"
+      },
+      "links": {
+        "title": "Порт WAN и радиомодули"
+      }
+    }
+  },
+  "no_data": "Нет данных",
+  "interface": "Интерфейс",
+  "internet": "Интернет",
+  "reachable": "Доступен",
+  "address": "Адрес WAN",
+  "gateway": "Шлюз",
+  "dns": "DNS 1",
+  "link": "Линия (Мбит/с)",
+  "via": "Через",
+  "devices": "Активные устройства",
+  "empty": "Нет активных устройств",
+  "loading": "Загрузка...",
+  "dns2": "DNS 2",
+  "wan_uptime": "Время работы WAN",
+  "unknown": "Без имени"
+}

@@ -1,0 +1,13 @@
+{
+  "app": "apps/keenetic",
+  "at": 1795251600,
+  "font": "jersey",
+  "language": "ru",
+  "glyphs": "glyphs",
+  "store": {},
+  "mocks": "mocks.json",
+  "steps": [
+    "wait 3",
+    "shot setup"
+  ]
+}

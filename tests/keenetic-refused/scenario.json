@@ -1,0 +1,17 @@
+{
+  "app": "apps/keenetic",
+  "at": 1795251600,
+  "font": "jersey",
+  "language": "ru",
+  "glyphs": "glyphs",
+  "store": {
+    "router": "http://192.0.2.1",
+    "username": "admin",
+    "password": "secret"
+  },
+  "mocks": "mocks.json",
+  "steps": [
+    "wait 3",
+    "shot refused"
+  ]
+}

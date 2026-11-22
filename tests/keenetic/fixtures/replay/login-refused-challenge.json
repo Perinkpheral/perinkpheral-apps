@@ -1,0 +1,16 @@
+{
+  "status": 401,
+  "file": "../keenetic/fixtures/router/login-refused-challenge.body.txt",
+  "content_type": "",
+  "headers": {
+    "Server": "Web server",
+    "Date": "Sat, 21 Nov 2026 15:07:33 GMT",
+    "Transfer-Encoding": "chunked",
+    "Connection": "keep-alive",
+    "Set-Cookie": "session_id=fixture-session; Path=/; Max-Age=300; SameSite=Strict; HttpOnly",
+    "X-Ndm-Product": "[redacted]",
+    "WWW-Authenticate": "x-ndw2-interactive realm=\"Fixture router\" challenge=\"0123456789abcdef0123456789abcdef\" session_id=\"fixture-session\" session_cookie=\"session_id\"",
+    "X-NDM-Realm": "Fixture router",
+    "X-NDM-Challenge": "0123456789abcdef0123456789abcdef"
+  }
+}

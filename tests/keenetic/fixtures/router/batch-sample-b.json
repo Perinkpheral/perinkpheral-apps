@@ -1,0 +1,76 @@
+[
+  {
+    "show": {
+      "system": {
+        "hostname": "[redacted]",
+        "domainname": "[redacted]",
+        "cpuload": 60,
+        "memory": "444388/1048576",
+        "swap": "0/0",
+        "memtotal": 1048576,
+        "memfree": 320508,
+        "membuffers": 48940,
+        "memcache": 234740,
+        "swaptotal": 0,
+        "swapfree": 0,
+        "uptime": "23417",
+        "conntotal": 32768,
+        "connfree": 32193
+      }
+    }
+  },
+  {
+    "show": {
+      "interface": {
+        "stat": {
+          "rxpackets": 29535628,
+          "rx-multicast-packets": 0,
+          "rx-broadcast-packets": 0,
+          "rxbytes": 39418301000,
+          "rxerrors": 0,
+          "rxdropped": 0,
+          "txpackets": 11085418,
+          "tx-multicast-packets": 0,
+          "tx-broadcast-packets": 0,
+          "txbytes": 3453624730,
+          "txerrors": 0,
+          "txdropped": 0,
+          "timestamp": "23417.051498",
+          "last-overflow": "0.000000",
+          "rxspeed": 94344293,
+          "txspeed": 1622645
+        }
+      }
+    }
+  },
+  {
+    "show": {
+      "internet": {
+        "status": {
+          "checked": "[redacted]",
+          "enabled": true,
+          "reliable": true,
+          "gateway-accessible": true,
+          "dns-accessible": true,
+          "captive-accessible": true,
+          "internet": true,
+          "gateway": {
+            "interface": "PPPoE0",
+            "address": "192.0.2.56",
+            "failures": 0,
+            "accessible": true,
+            "excluded": false
+          },
+          "captive": {
+            "host": "[redacted]",
+            "response": "[redacted]",
+            "location": "[redacted]",
+            "failures": 0,
+            "resolved": true,
+            "address": "192.0.2.60"
+          }
+        }
+      }
+    }
+  }
+]

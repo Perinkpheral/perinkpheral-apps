@@ -1,0 +1,12 @@
+{
+  "status": 400,
+  "file": "../keenetic/fixtures/router/interface-query-rejected.body.html",
+  "content_type": "",
+  "headers": {
+    "Server": "Web server",
+    "Date": "Sat, 21 Nov 2026 15:13:15 GMT",
+    "Content-Length": "70",
+    "Connection": "keep-alive",
+    "X-Detail": "[redacted]"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "release": "5.01.C.10.0-0",
+  "sandbox": "[redacted]",
+  "title": "5.1.10",
+  "arch": "[redacted]",
+  "ndm": {
+    "exact": "[redacted]",
+    "cdate": "[redacted]"
+  },
+  "bsp": {
+    "exact": "[redacted]",
+    "cdate": "[redacted]"
+  },
+  "ndw": {
+    "features": "[redacted]",
+    "components": "[redacted]"
+  },
+  "ndw3": {
+    "version": "[redacted]"
+  },
+  "ndw4": {
+    "version": "[redacted]"
+  },
+  "manufacturer": "[redacted]",
+  "vendor": "[redacted]",
+  "series": "[redacted]",
+  "model": "[redacted]",
+  "hw_version": "[redacted]",
+  "hw_type": "router",
+  "hw_id": "[redacted]",
+  "device": "[redacted]",
+  "consent": "[redacted]",
+  "region": "[redacted]",
+  "description": "[redacted]"
+}

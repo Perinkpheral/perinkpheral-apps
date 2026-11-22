@@ -1,0 +1,67 @@
+{
+  "id": "GigabitEthernet1",
+  "index": 1,
+  "interface-name": "[redacted]",
+  "type": "[redacted]",
+  "description": "[redacted]",
+  "traits": [
+    "[redacted]",
+    "[redacted]",
+    "[redacted]",
+    "[redacted]",
+    "[redacted]",
+    "[redacted]",
+    "[redacted]"
+  ],
+  "link": "up",
+  "connected": "yes",
+  "state": "up",
+  "mtu": 1500,
+  "tx-queue-length": 2000,
+  "admin-only": false,
+  "global": false,
+  "security-level": "[redacted]",
+  "usedby": [
+    "[redacted]"
+  ],
+  "ipv6": {
+    "addresses": [
+      {
+        "address": "192.0.2.1",
+        "prefix-length": 64,
+        "proto": "[redacted]",
+        "valid-lifetime": "[redacted]"
+      }
+    ]
+  },
+  "mac": "[redacted]",
+  "auth-type": "[redacted]",
+  "port": {
+    "id": "[redacted]",
+    "index": 0,
+    "interface-name": "[redacted]",
+    "label": "[redacted]",
+    "type": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "up",
+    "speed": "[redacted]",
+    "duplex": "[redacted]",
+    "auto-negotiation": "[redacted]",
+    "flow-control": "[redacted]",
+    "eee": "[redacted]",
+    "cable-diagnostics": false,
+    "admin-only": false
+  },
+  "summary": {
+    "layer": {
+      "conf": "[redacted]",
+      "link": "[redacted]",
+      "ipv4": "[redacted]",
+      "ipv6": "[redacted]",
+      "ctrl": "[redacted]"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/rci/show/system"
+  },
+  "response": {
+    "status": 401,
+    "headers": [
+      [
+        "Server",
+        "Web server"
+      ],
+      [
+        "Date",
+        "Sat, 21 Nov 2026 15:07:33 GMT"
+      ],
+      [
+        "Content-Type",
+        "text/html; charset=utf-8"
+      ],
+      [
+        "Content-Length",
+        "177"
+      ],
+      [
+        "Connection",
+        "keep-alive"
+      ],
+      [
+        "WWW-Authenticate",
+        "x-ndw2-interactive endpoint=\"/auth\" session_cookie=\"[redacted]\""
+      ]
+    ],
+    "body_file": "system-wrong-cookie.body.html",
+    "body_format": "html",
+    "observed_body_bytes": 177
+  }
+}

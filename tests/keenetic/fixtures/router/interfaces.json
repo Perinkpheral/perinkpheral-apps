@@ -1,0 +1,1533 @@
+{
+  "GigabitEthernet0": {
+    "id": "GigabitEthernet0",
+    "index": 0,
+    "interface-name": "GigabitEthernet0",
+    "type": "[redacted]",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "EthernetPort",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 2000,
+    "admin-only": false,
+    "port": {
+      "1": {
+        "id": "GigabitEthernet0/0",
+        "index": 0,
+        "interface-name": "[redacted]",
+        "label": "[redacted]",
+        "type": "[redacted]",
+        "traits": [
+          "EthernetPort",
+          "[redacted]",
+          "[redacted]"
+        ],
+        "link": "down",
+        "last-change": "23351.035012",
+        "last-overflow": "0",
+        "cable-diagnostics": false,
+        "admin-only": false,
+        "public": false,
+        "link-group": {
+          "supported": true,
+          "group-id": 0,
+          "master": true,
+          "enabled": false
+        }
+      },
+      "2": {
+        "id": "GigabitEthernet0/1",
+        "index": 1,
+        "interface-name": "[redacted]",
+        "label": "[redacted]",
+        "type": "[redacted]",
+        "traits": [
+          "EthernetPort",
+          "[redacted]",
+          "[redacted]"
+        ],
+        "link": "down",
+        "last-change": "23351.034685",
+        "last-overflow": "0",
+        "cable-diagnostics": false,
+        "admin-only": false,
+        "public": false,
+        "link-group": {
+          "supported": true,
+          "group-id": 0,
+          "enabled": false
+        }
+      },
+      "3": {
+        "id": "GigabitEthernet0/2",
+        "index": 2,
+        "interface-name": "[redacted]",
+        "label": "[redacted]",
+        "type": "[redacted]",
+        "traits": [
+          "EthernetPort",
+          "[redacted]",
+          "[redacted]"
+        ],
+        "link": "down",
+        "last-change": "23351.034463",
+        "last-overflow": "0",
+        "cable-diagnostics": false,
+        "admin-only": false,
+        "public": false,
+        "link-group": {
+          "supported": true,
+          "group-id": 1,
+          "master": true,
+          "enabled": false
+        }
+      },
+      "4": {
+        "id": "GigabitEthernet0/3",
+        "index": 3,
+        "interface-name": "[redacted]",
+        "label": "[redacted]",
+        "type": "[redacted]",
+        "traits": [
+          "EthernetPort",
+          "[redacted]",
+          "[redacted]"
+        ],
+        "link": "down",
+        "last-change": "23351.034245",
+        "last-overflow": "0",
+        "cable-diagnostics": false,
+        "admin-only": false,
+        "public": false,
+        "link-group": {
+          "supported": true,
+          "group-id": 1,
+          "enabled": false
+        }
+      }
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "pending"
+      }
+    }
+  },
+  "1": {
+    "id": "GigabitEthernet0/0",
+    "index": 0,
+    "interface-name": "[redacted]",
+    "label": "[redacted]",
+    "type": "[redacted]",
+    "traits": [
+      "EthernetPort",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "last-change": "23351.035189",
+    "last-overflow": "0",
+    "cable-diagnostics": false,
+    "admin-only": false,
+    "public": false,
+    "link-group": {
+      "supported": true,
+      "group-id": 0,
+      "master": true,
+      "enabled": false
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "pending"
+      }
+    }
+  },
+  "2": {
+    "id": "GigabitEthernet0/1",
+    "index": 1,
+    "interface-name": "[redacted]",
+    "label": "[redacted]",
+    "type": "[redacted]",
+    "traits": [
+      "EthernetPort",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "last-change": "23351.034850",
+    "last-overflow": "0",
+    "cable-diagnostics": false,
+    "admin-only": false,
+    "public": false,
+    "link-group": {
+      "supported": true,
+      "group-id": 0,
+      "enabled": false
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "pending"
+      }
+    }
+  },
+  "3": {
+    "id": "GigabitEthernet0/2",
+    "index": 2,
+    "interface-name": "[redacted]",
+    "label": "[redacted]",
+    "type": "[redacted]",
+    "traits": [
+      "EthernetPort",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "last-change": "23351.034648",
+    "last-overflow": "0",
+    "cable-diagnostics": false,
+    "admin-only": false,
+    "public": false,
+    "link-group": {
+      "supported": true,
+      "group-id": 1,
+      "master": true,
+      "enabled": false
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "pending"
+      }
+    }
+  },
+  "4": {
+    "id": "GigabitEthernet0/3",
+    "index": 3,
+    "interface-name": "[redacted]",
+    "label": "[redacted]",
+    "type": "[redacted]",
+    "traits": [
+      "EthernetPort",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "last-change": "23351.034435",
+    "last-overflow": "0",
+    "cable-diagnostics": false,
+    "admin-only": false,
+    "public": false,
+    "link-group": {
+      "supported": true,
+      "group-id": 1,
+      "enabled": false
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "pending"
+      }
+    }
+  },
+  "GigabitEthernet0/Vlan1": {
+    "id": "GigabitEthernet0/Vlan1",
+    "index": 1,
+    "interface-name": "GigabitEthernet0/Vlan1",
+    "type": "[redacted]",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 0,
+    "admin-only": false,
+    "group": "Bridge0",
+    "usedby": [
+      "Bridge0"
+    ],
+    "ipv6": {
+      "addresses": [
+        {
+          "address": "[redacted]",
+          "prefix-length": 64,
+          "proto": "[redacted]",
+          "valid-lifetime": "[redacted]"
+        }
+      ]
+    },
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "pending",
+        "ctrl": "pending"
+      }
+    }
+  },
+  "GigabitEthernet1": {
+    "id": "GigabitEthernet1",
+    "index": 1,
+    "interface-name": "[redacted]",
+    "type": "[redacted]",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 2000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "public",
+    "usedby": [
+      "PPPoE0"
+    ],
+    "ipv6": {
+      "addresses": [
+        {
+          "address": "[redacted]",
+          "prefix-length": 64,
+          "proto": "[redacted]",
+          "valid-lifetime": "[redacted]"
+        }
+      ]
+    },
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "port": {
+      "id": "GigabitEthernet1/0",
+      "index": 0,
+      "interface-name": "[redacted]",
+      "label": "[redacted]",
+      "type": "[redacted]",
+      "traits": [
+        "EthernetPort",
+        "[redacted]"
+      ],
+      "link": "up",
+      "speed": "1000",
+      "duplex": "full",
+      "auto-negotiation": "on",
+      "flow-control": "off",
+      "eee": "off",
+      "cable-diagnostics": false,
+      "admin-only": false
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "running"
+      }
+    }
+  },
+  "0": {
+    "id": "GigabitEthernet1/0",
+    "index": 0,
+    "interface-name": "[redacted]",
+    "label": "[redacted]",
+    "type": "[redacted]",
+    "traits": [
+      "EthernetPort",
+      "[redacted]"
+    ],
+    "link": "up",
+    "speed": "1000",
+    "duplex": "full",
+    "auto-negotiation": "on",
+    "flow-control": "off",
+    "eee": "off",
+    "cable-diagnostics": false,
+    "admin-only": false,
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running"
+      }
+    }
+  },
+  "WifiMaster0": {
+    "id": "WifiMaster0",
+    "index": 0,
+    "interface-name": "WifiMaster0",
+    "type": "WifiMaster",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "WifiMaster",
+      "[redacted]"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "hwstate": "on",
+    "bitrate": 1376000000,
+    "channel": 11,
+    "bandwidth": "40",
+    "busy-channels": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+    ],
+    "temperature": 64,
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running"
+      }
+    }
+  },
+  "WifiMaster0/AccessPoint0": {
+    "id": "WifiMaster0/AccessPoint0",
+    "index": 0,
+    "interface-name": "[redacted]",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "group": "Bridge0",
+    "usedby": [
+      "Bridge0"
+    ],
+    "ipv6": {
+      "addresses": [
+        {
+          "address": "[redacted]",
+          "prefix-length": 64,
+          "proto": "[redacted]",
+          "valid-lifetime": "[redacted]"
+        }
+      ]
+    },
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "ssid": "[redacted]",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ctrl": "running"
+      }
+    }
+  },
+  "WifiMaster0/AccessPoint1": {
+    "id": "WifiMaster0/AccessPoint1",
+    "index": 1,
+    "interface-name": "[redacted]",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "public",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster0/AccessPoint2": {
+    "id": "WifiMaster0/AccessPoint2",
+    "index": 2,
+    "interface-name": "WifiMaster0/AccessPoint2",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster0/AccessPoint3": {
+    "id": "WifiMaster0/AccessPoint3",
+    "index": 3,
+    "interface-name": "WifiMaster0/AccessPoint3",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster0/AccessPoint4": {
+    "id": "WifiMaster0/AccessPoint4",
+    "index": 4,
+    "interface-name": "WifiMaster0/AccessPoint4",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster0/AccessPoint5": {
+    "id": "WifiMaster0/AccessPoint5",
+    "index": 5,
+    "interface-name": "WifiMaster0/AccessPoint5",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster0/AccessPoint6": {
+    "id": "WifiMaster0/AccessPoint6",
+    "index": 6,
+    "interface-name": "WifiMaster0/AccessPoint6",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster0/WifiStation0": {
+    "ap": "[redacted]",
+    "id": "WifiMaster0/WifiStation0",
+    "index": 0,
+    "interface-name": "WifiMaster0/WifiStation0",
+    "type": "[redacted]",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "public",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster1": {
+    "id": "WifiMaster1",
+    "index": 1,
+    "interface-name": "WifiMaster1",
+    "type": "WifiMaster",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "WifiMaster",
+      "[redacted]"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "hwstate": "on",
+    "bitrate": 2882000000,
+    "channel": 44,
+    "bandwidth": "80",
+    "busy-channels": [
+      36,
+      40,
+      44,
+      48
+    ],
+    "temperature": 63,
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running"
+      }
+    }
+  },
+  "WifiMaster1/AccessPoint0": {
+    "id": "WifiMaster1/AccessPoint0",
+    "index": 0,
+    "interface-name": "[redacted]",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "group": "Bridge0",
+    "usedby": [
+      "Bridge0"
+    ],
+    "ipv6": {
+      "addresses": [
+        {
+          "address": "[redacted]",
+          "prefix-length": 64,
+          "proto": "[redacted]",
+          "valid-lifetime": "[redacted]"
+        }
+      ]
+    },
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "ssid": "[redacted]",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ctrl": "running"
+      }
+    }
+  },
+  "WifiMaster1/AccessPoint1": {
+    "id": "WifiMaster1/AccessPoint1",
+    "index": 1,
+    "interface-name": "[redacted]",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "public",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster1/AccessPoint2": {
+    "id": "WifiMaster1/AccessPoint2",
+    "index": 2,
+    "interface-name": "WifiMaster1/AccessPoint2",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster1/AccessPoint3": {
+    "id": "WifiMaster1/AccessPoint3",
+    "index": 3,
+    "interface-name": "WifiMaster1/AccessPoint3",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster1/AccessPoint4": {
+    "id": "WifiMaster1/AccessPoint4",
+    "index": 4,
+    "interface-name": "WifiMaster1/AccessPoint4",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster1/AccessPoint5": {
+    "id": "WifiMaster1/AccessPoint5",
+    "index": 5,
+    "interface-name": "WifiMaster1/AccessPoint5",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster1/AccessPoint6": {
+    "id": "WifiMaster1/AccessPoint6",
+    "index": 6,
+    "interface-name": "WifiMaster1/AccessPoint6",
+    "type": "AccessPoint",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "AccessPoint",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "WifiMaster1/WifiStation0": {
+    "ap": "[redacted]",
+    "id": "WifiMaster1/WifiStation0",
+    "index": 0,
+    "interface-name": "WifiMaster1/WifiStation0",
+    "type": "[redacted]",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Wifi",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "down",
+    "mtu": 1500,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "global": false,
+    "security-level": "public",
+    "ipv6": {},
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "encryption": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "disabled",
+        "link": "disabled",
+        "ipv4": "disabled",
+        "ipv6": "disabled",
+        "ctrl": "disabled"
+      }
+    }
+  },
+  "XGigabitEthernet0": {
+    "id": "XGigabitEthernet0",
+    "index": 0,
+    "interface-name": "XGigabitEthernet0",
+    "type": "XGigabitEthernet",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "XGigabitEthernet"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 2000,
+    "admin-only": false,
+    "group": "Bridge0",
+    "usedby": [
+      "Bridge0"
+    ],
+    "ipv6": {
+      "addresses": [
+        {
+          "address": "[redacted]",
+          "prefix-length": 64,
+          "proto": "[redacted]",
+          "valid-lifetime": "[redacted]"
+        }
+      ]
+    },
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "port": {
+      "id": "XGigabitEthernet0/0",
+      "index": 0,
+      "interface-name": "[redacted]",
+      "label": "[redacted]",
+      "type": "[redacted]",
+      "traits": [
+        "EthernetPort",
+        "[redacted]"
+      ],
+      "link": "up",
+      "speed": "2500",
+      "duplex": "full",
+      "auto-negotiation": "on",
+      "flow-control": "on",
+      "eee": "off",
+      "cable-diagnostics": true,
+      "admin-only": false
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ctrl": "running"
+      }
+    }
+  },
+  "5": {
+    "id": "XGigabitEthernet0/0",
+    "index": 0,
+    "interface-name": "[redacted]",
+    "label": "[redacted]",
+    "type": "[redacted]",
+    "traits": [
+      "EthernetPort",
+      "[redacted]"
+    ],
+    "link": "up",
+    "speed": "2500",
+    "duplex": "full",
+    "auto-negotiation": "on",
+    "flow-control": "on",
+    "eee": "off",
+    "cable-diagnostics": true,
+    "admin-only": false,
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running"
+      }
+    }
+  },
+  "Bridge0": {
+    "id": "Bridge0",
+    "index": 0,
+    "interface-name": "[redacted]",
+    "type": "Bridge",
+    "description": "[redacted]",
+    "traits": [
+      "[redacted]",
+      "Ethernet",
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "Bridge"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 0,
+    "admin-only": false,
+    "address": "192.0.2.61",
+    "mask": "[redacted]",
+    "uptime": 23338,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {
+      "addresses": [
+        {
+          "address": "[redacted]",
+          "prefix-length": 64,
+          "proto": "[redacted]",
+          "valid-lifetime": "[redacted]"
+        }
+      ]
+    },
+    "mac": "[redacted]",
+    "auth-type": "none",
+    "bridge": {
+      "interface": [
+        {
+          "link": false,
+          "interface": "GigabitEthernet0/Vlan1"
+        },
+        {
+          "link": true,
+          "interface": "WifiMaster0/AccessPoint0"
+        },
+        {
+          "link": true,
+          "interface": "WifiMaster1/AccessPoint0"
+        },
+        {
+          "link": true,
+          "interface": "XGigabitEthernet0"
+        }
+      ]
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ipv4": "running",
+        "ipv6": "disabled",
+        "ctrl": "running"
+      }
+    }
+  },
+  "PPPoE0": {
+    "id": "PPPoE0",
+    "index": 0,
+    "interface-name": "PPPoE0",
+    "type": "PPPoE",
+    "description": "[redacted]",
+    "traits": [
+      "Ip",
+      "Ip6",
+      "[redacted]",
+      "[redacted]",
+      "[redacted]",
+      "[redacted]"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "role": [
+      "[redacted]"
+    ],
+    "mtu": 1492,
+    "tx-queue-length": 1000,
+    "admin-only": false,
+    "address": "192.0.2.62",
+    "mask": "[redacted]",
+    "global": true,
+    "defaultgw": true,
+    "priority": 39318,
+    "security-level": "public",
+    "ipv6": {
+      "defaultgw": false
+    },
+    "auth-type": "none",
+    "uptime": 23293,
+    "remote": "192.0.2.63",
+    "fail": "no",
+    "via": "GigabitEthernet1",
+    "last-change": "23293.141221",
+    "session-id": 10001,
+    "ac-mac": "[redacted]",
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ipv4": "running",
+        "ipv6": "disabled",
+        "ctrl": "running"
+      }
+    }
+  },
+  "OpkgTun13": {
+    "uptime": 23258,
+    "id": "OpkgTun13",
+    "index": 13,
+    "interface-name": "OpkgTun13",
+    "type": "[redacted]",
+    "description": "[redacted]",
+    "traits": [
+      "Ip",
+      "Ip6",
+      "[redacted]"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1280,
+    "tx-queue-length": 1,
+    "admin-only": false,
+    "address": "192.0.2.64",
+    "mask": "[redacted]",
+    "global": true,
+    "defaultgw": false,
+    "priority": 1638,
+    "security-level": "public",
+    "ipv6": {
+      "defaultgw": false
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ipv4": "running",
+        "ipv6": "disabled",
+        "ctrl": "running"
+      }
+    }
+  },
+  "Wireguard1": {
+    "id": "Wireguard1",
+    "index": 1,
+    "interface-name": "Wireguard1",
+    "type": "Wireguard",
+    "description": "[redacted]",
+    "traits": [
+      "Ip",
+      "Ip6",
+      "Wireguard"
+    ],
+    "link": "down",
+    "connected": "no",
+    "state": "up",
+    "mtu": 1324,
+    "tx-queue-length": 50,
+    "admin-only": false,
+    "address": "192.0.2.65",
+    "mask": "[redacted]",
+    "uptime": 0,
+    "global": false,
+    "security-level": "private",
+    "ipv6": {},
+    "wireguard": {
+      "public-key": "[redacted]",
+      "listen-port": 51820,
+      "status": "up",
+      "peer": [
+        {
+          "public-key": "[redacted]",
+          "description": "[redacted]",
+          "local-port": 51820,
+          "rxbytes": 0,
+          "txbytes": 113349,
+          "last-handshake": 2147483647,
+          "online": false,
+          "remote-port": 0,
+          "via": "[redacted]",
+          "local-endpoint-address": "192.0.2.56",
+          "remote-endpoint-address": "192.0.2.56",
+          "enabled": true,
+          "fwmark": 0
+        }
+      ]
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "pending",
+        "ipv4": "pending",
+        "ipv6": "disabled",
+        "ctrl": "pending"
+      }
+    }
+  },
+  "Wireguard2": {
+    "id": "Wireguard2",
+    "index": 2,
+    "interface-name": "Wireguard2",
+    "type": "Wireguard",
+    "description": "[redacted]",
+    "traits": [
+      "Ip",
+      "Ip6",
+      "Wireguard"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1500,
+    "tx-queue-length": 50,
+    "admin-only": false,
+    "address": "192.0.2.66",
+    "mask": "[redacted]",
+    "uptime": 23283,
+    "global": true,
+    "defaultgw": false,
+    "priority": 26212,
+    "security-level": "public",
+    "ipv6": {
+      "defaultgw": false
+    },
+    "wireguard": {
+      "public-key": "[redacted]",
+      "listen-port": 51820,
+      "status": "up",
+      "peer": [
+        {
+          "public-key": "[redacted]",
+          "description": "[redacted]",
+          "local-port": 51820,
+          "remote-port": 443,
+          "via": "PPPoE0",
+          "local-endpoint-address": "192.0.2.62",
+          "remote-endpoint-address": "192.0.2.67",
+          "rxbytes": 15179958600,
+          "txbytes": 421002875,
+          "last-handshake": 71,
+          "online": true,
+          "enabled": true,
+          "fwmark": 65536
+        }
+      ]
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ipv4": "running",
+        "ipv6": "disabled",
+        "ctrl": "running"
+      }
+    }
+  },
+  "Wireguard3": {
+    "id": "Wireguard3",
+    "index": 3,
+    "interface-name": "Wireguard3",
+    "type": "Wireguard",
+    "description": "[redacted]",
+    "traits": [
+      "Ip",
+      "Ip6",
+      "Wireguard"
+    ],
+    "link": "up",
+    "connected": "yes",
+    "state": "up",
+    "mtu": 1280,
+    "tx-queue-length": 50,
+    "admin-only": false,
+    "address": "192.0.2.68",
+    "mask": "[redacted]",
+    "uptime": 23283,
+    "global": true,
+    "defaultgw": false,
+    "priority": 6553,
+    "security-level": "public",
+    "ipv6": {
+      "defaultgw": false
+    },
+    "wireguard": {
+      "public-key": "[redacted]",
+      "listen-port": 51820,
+      "status": "up",
+      "peer": [
+        {
+          "public-key": "[redacted]",
+          "description": "[redacted]",
+          "local-port": 51820,
+          "remote-port": 443,
+          "via": "PPPoE0",
+          "local-endpoint-address": "192.0.2.62",
+          "remote-endpoint-address": "192.0.2.69",
+          "rxbytes": 14503193400,
+          "txbytes": 2033548391,
+          "last-handshake": 87,
+          "online": true,
+          "enabled": true,
+          "fwmark": 65536
+        }
+      ]
+    },
+    "summary": {
+      "layer": {
+        "conf": "running",
+        "link": "running",
+        "ipv4": "running",
+        "ipv6": "disabled",
+        "ctrl": "running"
+      }
+    }
+  }
+}

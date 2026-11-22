@@ -1,0 +1,163 @@
+[
+  {
+    "body": "login-success-challenge.body.txt",
+    "http": "login-success-challenge.http.json",
+    "method": "GET",
+    "path": "/auth",
+    "status": 401
+  },
+  {
+    "body": "login-success.json",
+    "http": "login-success.http.json",
+    "method": "POST",
+    "path": "/auth",
+    "status": 200
+  },
+  {
+    "body": "system.json",
+    "http": "system.http.json",
+    "method": "GET",
+    "path": "/rci/show/system",
+    "status": 200
+  },
+  {
+    "body": "version.json",
+    "http": "version.http.json",
+    "method": "GET",
+    "path": "/rci/show/version",
+    "status": 200
+  },
+  {
+    "body": "hotspot.json",
+    "http": "hotspot.http.json",
+    "method": "GET",
+    "path": "/rci/show/ip/hotspot",
+    "status": 200
+  },
+  {
+    "body": "associations.json",
+    "http": "associations.http.json",
+    "method": "GET",
+    "path": "/rci/show/associations",
+    "status": 200
+  },
+  {
+    "body": "internet-status.json",
+    "http": "internet-status.http.json",
+    "method": "GET",
+    "path": "/rci/show/internet/status",
+    "status": 200
+  },
+  {
+    "body": "interfaces.json",
+    "http": "interfaces.http.json",
+    "method": "GET",
+    "path": "/rci/show/interface",
+    "status": 200
+  },
+  {
+    "body": "batch-1.json",
+    "http": "batch-1.http.json",
+    "method": "POST",
+    "path": "/rci/",
+    "status": 200
+  },
+  {
+    "body": "users.json",
+    "http": "users.http.json",
+    "method": "GET",
+    "path": "/rci/show/user",
+    "status": 200
+  },
+  {
+    "body": "batch-sample-a.json",
+    "http": "batch-sample-a.http.json",
+    "method": "POST",
+    "path": "/rci/",
+    "status": 200
+  },
+  {
+    "body": "batch-sample-b.json",
+    "http": "batch-sample-b.http.json",
+    "method": "POST",
+    "path": "/rci/",
+    "status": 200
+  },
+  {
+    "body": "system-no-cookie.body.html",
+    "http": "system-no-cookie.http.json",
+    "method": "GET",
+    "path": "/rci/show/system",
+    "status": 401
+  },
+  {
+    "body": "system-wrong-cookie.body.html",
+    "http": "system-wrong-cookie.http.json",
+    "method": "GET",
+    "path": "/rci/show/system",
+    "status": 401
+  },
+  {
+    "body": "login-refused-challenge.body.txt",
+    "http": "login-refused-challenge.http.json",
+    "method": "GET",
+    "path": "/auth",
+    "status": 401
+  },
+  {
+    "body": "login-refused.body.txt",
+    "http": "login-refused.http.json",
+    "method": "POST",
+    "path": "/auth",
+    "status": 401
+  },
+  {
+    "body": "system-past-cookie-max-age.body.html",
+    "http": "system-past-cookie-max-age.http.json",
+    "method": "GET",
+    "path": "/rci/show/system",
+    "status": 401
+  },
+  {
+    "body": "login-renewed-challenge.body.txt",
+    "http": "login-renewed-challenge.http.json",
+    "method": "GET",
+    "path": "/auth",
+    "status": 401
+  },
+  {
+    "body": "login-renewed.json",
+    "http": "login-renewed.http.json",
+    "method": "POST",
+    "path": "/auth",
+    "status": 200
+  },
+  {
+    "body": "system-after-renewal.json",
+    "http": "system-after-renewal.http.json",
+    "method": "GET",
+    "path": "/rci/show/system",
+    "status": 200
+  },
+  {
+    "body": "interface-query-rejected.body.html",
+    "http": "interface-query-rejected.http.json",
+    "method": "GET",
+    "path": "/rci/show/interface?name=PPPoE0&stat",
+    "status": 400
+  },
+  {
+    "body": "batch-command-error.json",
+    "http": "batch-command-error.http.json",
+    "method": "POST",
+    "path": "/rci/",
+    "status": 200
+  },
+  {
+    "body": "system-clean-idle-expired.body.html",
+    "http": "system-clean-idle-expired.http.json",
+    "method": "GET",
+    "path": "/rci/show/system",
+    "status": 401
+  }
+]

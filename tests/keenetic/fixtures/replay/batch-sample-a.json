@@ -1,0 +1,21 @@
+{
+  "status": 200,
+  "file": "../keenetic/fixtures/router/batch-sample-a.json",
+  "content_type": "application/json",
+  "headers": {
+    "Server": "Web server",
+    "Date": "Sat, 21 Nov 2026 15:07:02 GMT",
+    "Content-Type": "application/json",
+    "Content-Length": "1808",
+    "Connection": "keep-alive",
+    "Vary": "Accept-Encoding",
+    "Set-Cookie": "session_id=fixture-session; Path=/; Max-Age=300; SameSite=Strict; HttpOnly",
+    "Expires": "Sat, 21 Nov 2026 15:07:01 GMT",
+    "Cache-Control": "no-cache",
+    "Ndm-Sysmode": "router",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-hashes' 'unsafe-inline'; script-src-attr 'self' 'unsafe-inline' 'unsafe-hashes'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' 'unsafe-eval' 'unsafe-hashes'; style-src-elem 'self' 'unsafe-inline' 'unsafe-eval' 'unsafe-hashes'; base-uri 'self'; form-action 'self';",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Ndm-Stage": "20"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/rci/",
+    "body_file": "batch-error-request.json"
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Server",
+        "Web server"
+      ],
+      [
+        "Date",
+        "Sat, 21 Nov 2026 15:14:02 GMT"
+      ],
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Length",
+        "817"
+      ],
+      [
+        "Connection",
+        "keep-alive"
+      ],
+      [
+        "Set-Cookie",
+        "[redacted]; Path=/; Max-Age=300; SameSite=Strict; HttpOnly"
+      ],
+      [
+        "Expires",
+        "Sat, 21 Nov 2026 15:14:01 GMT"
+      ],
+      [
+        "Cache-Control",
+        "no-cache"
+      ],
+      [
+        "Ndm-Sysmode",
+        "router"
+      ],
+      [
+        "X-Frame-Options",
+        "DENY"
+      ],
+      [
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-hashes' 'unsafe-inline'; script-src-attr 'self' 'unsafe-inline' 'unsafe-hashes'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' 'unsafe-eval' 'unsafe-hashes'; style-src-elem 'self' 'unsafe-inline' 'unsafe-eval' 'unsafe-hashes'; base-uri 'self'; form-action 'self';"
+      ],
+      [
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin"
+      ],
+      [
+        "Ndm-Stage",
+        "20"
+      ]
+    ],
+    "body_file": "batch-command-error.json",
+    "body_format": "json",
+    "observed_body_bytes": 817,
+    "status_line": "HTTP/1.1 200 OK"
+  }
+}

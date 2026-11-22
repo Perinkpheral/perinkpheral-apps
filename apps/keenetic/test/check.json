@@ -1,0 +1,12 @@
+{
+  "at": 1795251600,
+  "tz": "Europe/Moscow",
+  "store": {
+    "router": "http://192.0.2.1",
+    "username": "admin",
+    "password": "secret",
+    "every": "1 min",
+    "session": "session_id=fixture-session"
+  },
+  "mocks": "mocks.json"
+}

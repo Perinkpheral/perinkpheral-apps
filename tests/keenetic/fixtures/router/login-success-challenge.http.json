@@ -1,0 +1,50 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/auth"
+  },
+  "response": {
+    "status": 401,
+    "headers": [
+      [
+        "Server",
+        "Web server"
+      ],
+      [
+        "Date",
+        "Sat, 21 Nov 2026 15:06:00 GMT"
+      ],
+      [
+        "Transfer-Encoding",
+        "chunked"
+      ],
+      [
+        "Connection",
+        "keep-alive"
+      ],
+      [
+        "Set-Cookie",
+        "[redacted]; Path=/; Max-Age=300; SameSite=Strict; HttpOnly"
+      ],
+      [
+        "X-Ndm-Product",
+        "[redacted]"
+      ],
+      [
+        "WWW-Authenticate",
+        "x-ndw2-interactive realm=\"[redacted]\" challenge=\"[redacted]\" session_id=\"[redacted]\" session_cookie=\"[redacted]\""
+      ],
+      [
+        "X-NDM-Realm",
+        "[redacted]"
+      ],
+      [
+        "X-NDM-Challenge",
+        "[redacted]"
+      ]
+    ],
+    "body_file": "login-success-challenge.body.txt",
+    "body_format": "empty",
+    "observed_body_bytes": 0
+  }
+}

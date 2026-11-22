@@ -1,0 +1,50 @@
+{
+  "id": "PPPoE0",
+  "index": 0,
+  "interface-name": "[redacted]",
+  "type": "PPPoE",
+  "description": "[redacted]",
+  "traits": [
+    "[redacted]",
+    "[redacted]",
+    "[redacted]",
+    "[redacted]",
+    "[redacted]",
+    "[redacted]"
+  ],
+  "link": "up",
+  "connected": "yes",
+  "state": "up",
+  "role": [
+    "[redacted]"
+  ],
+  "mtu": 1492,
+  "tx-queue-length": 1000,
+  "admin-only": false,
+  "address": "192.0.2.1",
+  "mask": "[redacted]",
+  "global": true,
+  "defaultgw": true,
+  "priority": 39318,
+  "security-level": "[redacted]",
+  "ipv6": {
+    "defaultgw": false
+  },
+  "auth-type": "[redacted]",
+  "uptime": 42300,
+  "remote": "192.0.2.1",
+  "fail": "[redacted]",
+  "via": "GigabitEthernet1",
+  "last-change": "[redacted]",
+  "session-id": 46034,
+  "ac-mac": "[redacted]",
+  "summary": {
+    "layer": {
+      "conf": "[redacted]",
+      "link": "[redacted]",
+      "ipv4": "[redacted]",
+      "ipv6": "[redacted]",
+      "ctrl": "[redacted]"
+    }
+  }
+}

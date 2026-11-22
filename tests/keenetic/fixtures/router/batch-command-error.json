@@ -1,0 +1,38 @@
+[
+  {
+    "show": {
+      "system": {
+        "hostname": "[redacted]",
+        "domainname": "[redacted]",
+        "cpuload": 30,
+        "memory": "450452/1048576",
+        "swap": "0/0",
+        "memtotal": 1048576,
+        "memfree": 313808,
+        "membuffers": 49500,
+        "memcache": 234816,
+        "swaptotal": 0,
+        "swapfree": 0,
+        "uptime": "23833",
+        "conntotal": 32768,
+        "connfree": 32359
+      }
+    }
+  },
+  {
+    "show": {
+      "interface": {
+        "stat": {
+          "status": [
+            {
+              "status": "error",
+              "code": "6553609",
+              "ident": "[redacted]",
+              "message": "[redacted]"
+            }
+          ]
+        }
+      }
+    }
+  }
+]

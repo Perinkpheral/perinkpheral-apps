@@ -1,0 +1,139 @@
+{
+  "name": "keenetic",
+  "title": "Keenetic",
+  "author": "Perinkpheral",
+  "description": "Router traffic, system, network and devices",
+  "version": "0.4.4",
+  "abi": 3,
+  "firmware": "0.1.61",
+  "fullscreen": false,
+  "hosts": [
+    "{{router}}"
+  ],
+  "intents": [
+    "started"
+  ],
+  "settings": [
+    {
+      "key": "router",
+      "type": "url",
+      "title": "Router address"
+    },
+    {
+      "key": "username",
+      "type": "text",
+      "title": "Username"
+    },
+    {
+      "key": "password",
+      "type": "secret",
+      "title": "Password"
+    },
+    {
+      "key": "every",
+      "type": "choice",
+      "title": "Refresh",
+      "options": [
+        "1 min",
+        "5 min",
+        "15 min"
+      ],
+      "default": "1 min"
+    },
+    {
+      "key": "wan",
+      "type": "text",
+      "title": "WAN interface",
+      "default": "PPPoE0"
+    },
+    {
+      "key": "links",
+      "type": "list",
+      "title": "WAN port and radios",
+      "default": [
+        "GigabitEthernet1",
+        "WifiMaster0",
+        "WifiMaster1"
+      ]
+    }
+  ],
+  "icon": [
+    ".#.......#.",
+    ".#.......#.",
+    ".#.......#.",
+    ".#.......#.",
+    ".#########.",
+    ".#.......#.",
+    ".#.#.#...#.",
+    ".#.......#.",
+    ".#########.",
+    "...........",
+    "..........."
+  ],
+  "polls": [
+    {
+      "url": "{{router}}/rci/",
+      "every": 86400,
+      "headers": {
+        "Cookie": "{{session}}",
+        "Content-Type": "application/json"
+      },
+      "pick": [
+        "[0].show.system.cpuload",
+        "[0].show.system.memory",
+        "[0].show.system.memtotal",
+        "[0].show.system.uptime",
+        "[0].show.system.conntotal",
+        "[0].show.system.connfree",
+        "[1].show.interface.stat.rxspeed",
+        "[1].show.interface.stat.txspeed",
+        "[2].show.internet.status.gateway.interface",
+        "[2].show.internet.status.internet",
+        "[3].show.ip.name-server.server[0].address",
+        "[3].show.ip.name-server.server[1].address",
+        "[2].show.internet.status.gateway.address"
+      ],
+      "method": "POST",
+      "body": "[{\"show\":{\"system\":{}}},{\"show\":{\"interface\":{\"name\":\"{{wan}}\",\"stat\":{}}}},{\"show\":{\"internet\":{\"status\":{}}}},{\"show\":{\"ip\":{\"name-server\":{}}}}]"
+    },
+    {
+      "url": "{{router}}/rci/show/interface?name={{wan}}",
+      "every": 86400,
+      "headers": {
+        "Cookie": "{{session}}"
+      },
+      "pick": [
+        "address",
+        "uptime",
+        "speed",
+        "via",
+        "remote"
+      ]
+    },
+    {
+      "url": "{{router}}/rci/show/interface?name={{links}}",
+      "every": 86400,
+      "headers": {
+        "Cookie": "{{session}}"
+      },
+      "pick": [
+        "port.speed",
+        "temperature"
+      ],
+      "each": "links"
+    },
+    {
+      "url": "{{router}}/rci/show/ip/hotspot",
+      "every": 86400,
+      "headers": {
+        "Cookie": "{{session}}"
+      },
+      "pick": [
+        "host[*].ip",
+        "host[*].active",
+        "host[*].name",
+        "host[*].hostname"
+      ]
+    }
+  ]
+}

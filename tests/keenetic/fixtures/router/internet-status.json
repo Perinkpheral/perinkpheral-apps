@@ -1,0 +1,24 @@
+{
+  "checked": "[redacted]",
+  "enabled": true,
+  "reliable": true,
+  "gateway-accessible": true,
+  "dns-accessible": true,
+  "captive-accessible": true,
+  "internet": true,
+  "gateway": {
+    "interface": "PPPoE0",
+    "address": "192.0.2.56",
+    "failures": 0,
+    "accessible": true,
+    "excluded": false
+  },
+  "captive": {
+    "host": "[redacted]",
+    "response": "[redacted]",
+    "location": "[redacted]",
+    "failures": 0,
+    "resolved": true,
+    "address": "192.0.2.60"
+  }
+}

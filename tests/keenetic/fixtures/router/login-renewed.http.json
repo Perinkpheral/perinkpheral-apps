@@ -1,0 +1,59 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/auth"
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Server",
+        "Web server"
+      ],
+      [
+        "Date",
+        "Sat, 21 Nov 2026 15:13:14 GMT"
+      ],
+      [
+        "Content-Length",
+        "47"
+      ],
+      [
+        "Connection",
+        "keep-alive"
+      ],
+      [
+        "Expires",
+        "Sat, 21 Nov 2026 15:13:13 GMT"
+      ],
+      [
+        "Cache-Control",
+        "no-cache"
+      ],
+      [
+        "Cache-Control",
+        "private"
+      ],
+      [
+        "Cache-Control",
+        "must-revalidate"
+      ],
+      [
+        "X-Frame-Options",
+        "DENY"
+      ],
+      [
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-hashes' 'unsafe-inline'; script-src-attr 'self' 'unsafe-inline' 'unsafe-hashes'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' 'unsafe-eval' 'unsafe-hashes'; style-src-elem 'self' 'unsafe-inline' 'unsafe-eval' 'unsafe-hashes'; base-uri 'self'; form-action 'self';"
+      ],
+      [
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin"
+      ]
+    ],
+    "body_file": "login-renewed.json",
+    "body_format": "json",
+    "observed_body_bytes": 47,
+    "status_line": "HTTP/1.1 200 OK"
+  }
+}

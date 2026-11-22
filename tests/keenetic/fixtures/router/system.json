@@ -1,0 +1,16 @@
+{
+  "hostname": "[redacted]",
+  "domainname": "[redacted]",
+  "cpuload": 61,
+  "memory": "452616/1048576",
+  "swap": "0/0",
+  "memtotal": 1048576,
+  "memfree": 312396,
+  "membuffers": 48860,
+  "memcache": 234704,
+  "swaptotal": 0,
+  "swapfree": 0,
+  "uptime": "23359",
+  "conntotal": 32768,
+  "connfree": 32101
+}

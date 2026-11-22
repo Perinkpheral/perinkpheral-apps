@@ -1,0 +1,10 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/rci/show/ip/name-server"
+  },
+  "status": 200,
+  "body": "v9-get-02.json",
+  "observed_body_bytes": 290,
+  "observed_at_utc": "2026-11-21T21:39:14Z"
+}

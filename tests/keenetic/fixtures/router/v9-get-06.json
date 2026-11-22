@@ -1,0 +1,40 @@
+{
+  "id": "WifiMaster0",
+  "index": 0,
+  "interface-name": "WifiMaster0",
+  "type": "[redacted]",
+  "description": "",
+  "traits": [
+    "[redacted]",
+    "[redacted]",
+    "[redacted]"
+  ],
+  "link": "up",
+  "connected": "yes",
+  "state": "up",
+  "mtu": 1500,
+  "tx-queue-length": 1000,
+  "admin-only": false,
+  "hwstate": "[redacted]",
+  "bitrate": 1376000000,
+  "channel": 11,
+  "bandwidth": "40",
+  "busy-channels": [
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+  ],
+  "temperature": 61,
+  "summary": {
+    "layer": {
+      "conf": "[redacted]",
+      "link": "[redacted]"
+    }
+  }
+}

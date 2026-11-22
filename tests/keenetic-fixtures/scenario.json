@@ -1,0 +1,30 @@
+{
+  "app": "apps/keenetic",
+  "at": 1795251600,
+  "tz": "Europe/Moscow",
+  "language": "en",
+  "font": "departure",
+  "glyphs": "glyphs",
+  "store": {
+    "router": "http://192.0.2.1",
+    "username": "admin",
+    "password": "secret",
+    "every": "1 min"
+  },
+  "mocks": "mocks.json",
+  "steps": [
+    "wait 5",
+    "shot graph",
+    "press 3",
+    "wait 3",
+    "shot system",
+    "press 3",
+    "wait 3",
+    "shot network",
+    "press 3",
+    "wait 3",
+    "shot devices",
+    "press 3",
+    "shot devices-scroll"
+  ]
+}

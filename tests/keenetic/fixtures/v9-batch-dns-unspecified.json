@@ -1,0 +1,92 @@
+[
+  {
+    "show": {
+      "system": {
+        "hostname": "[redacted]",
+        "domainname": "[redacted]",
+        "cpuload": 53,
+        "memory": "450116/1048576",
+        "swap": "0/0",
+        "memtotal": 1048576,
+        "memfree": 314816,
+        "membuffers": 48932,
+        "memcache": 234712,
+        "swaptotal": 0,
+        "swapfree": 0,
+        "uptime": "23413",
+        "conntotal": 32768,
+        "connfree": 32200
+      }
+    }
+  },
+  {
+    "show": {
+      "interface": {
+        "stat": {
+          "rxpackets": 29510652,
+          "rx-multicast-packets": 0,
+          "rx-broadcast-packets": 0,
+          "rxbytes": 39382144869,
+          "rxerrors": 0,
+          "rxdropped": 0,
+          "txpackets": 11081825,
+          "tx-multicast-packets": 0,
+          "tx-broadcast-packets": 0,
+          "txbytes": 3452965888,
+          "txerrors": 0,
+          "txdropped": 0,
+          "timestamp": "23413.975469",
+          "last-overflow": "0.000000",
+          "rxspeed": 92944944,
+          "txspeed": 1671946
+        }
+      }
+    }
+  },
+  {
+    "show": {
+      "internet": {
+        "status": {
+          "checked": "[redacted]",
+          "enabled": true,
+          "reliable": true,
+          "gateway-accessible": true,
+          "dns-accessible": true,
+          "captive-accessible": true,
+          "internet": true,
+          "gateway": {
+            "interface": "PPPoE0",
+            "address": "192.0.2.56",
+            "failures": 0,
+            "accessible": true,
+            "excluded": false
+          },
+          "captive": {
+            "host": "[redacted]",
+            "response": "[redacted]",
+            "location": "[redacted]",
+            "failures": 0,
+            "resolved": true,
+            "address": "192.0.2.60"
+          }
+        }
+      }
+    }
+  },
+  {
+    "show": {
+      "ip": {
+        "name-server": {
+          "server": [
+            {
+              "address": "0.0.0.0"
+            },
+            {
+              "address": null
+            }
+          ]
+        }
+      }
+    }
+  }
+]
