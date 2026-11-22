@@ -27,6 +27,8 @@
 #define CITY_KEY        "city"
 #define HEADER_CITY_KEY "header_city"
 #define REDRAW_TIMER    0
+#define NOTIFY_ALARM    0
+#define NOTIFIED_KEY    "notified"
 
 /* ---- arithmetic ---- */
 
@@ -306,6 +308,95 @@ static void show_header(void)
     }
 }
 
+/* ---- notifications ---- */
+
+/* Values belong to the manifest, even when the labels are translated. An
+ * absent or unrecognized value is Off, including on an older installation. */
+static int32_t lead_seconds(const char *key)
+{
+    static const char *const choices[] = {
+        "At the time", "5 min", "15 min", "30 min", "1 h",
+    };
+    static const int32_t seconds[] = { 0, 300, 900, 1800, 3600 };
+    char choice[16];
+    app_setting(key, choice, sizeof choice);
+    for (int32_t i = 0; i < 5; i++) {
+        if (app_text_equal(choice, choices[i])) { return seconds[i]; }
+    }
+    return -1;
+}
+
+/* Calendar's notice: the clock in the large line, the event below it.
+ * Perinkpheral OS supplies the same OK/BACK actions in either language. */
+static bool notify_of(int32_t event, int64_t at)
+{
+    host_notice_t notice = { .icon = event == 0 ? HOST_ICON_SUNRISE : HOST_ICON_SUNSET };
+    app_time_text(at, HOST_TIME_CLOCK, notice.first, sizeof notice.first);
+    app_text_copy(notice.detail, sizeof notice.detail,
+                  app_string(event == 0 ? STR_SUNRISE : STR_SUNSET));
+    return notification_post(&notice) == HOST_OK;
+}
+
+/* Recompute the nearest events and the next local midnight. Yesterday is
+ * included for solar cycles crossing midnight; tomorrow for a lead time
+ * crossing midnight. Local date conversion respects daylight saving.
+ * Like Calendar, allow five minutes of late delivery, and retry a full
+ * queue after a minute. Only accepted events are remembered across unloads
+ * and restarts, so an already queued notice is not posted twice. */
+static void update_notifications(bool deliver)
+{
+    alarm_set(NOTIFY_ALARM, 0);
+    int32_t lead[2] = { lead_seconds("rise_notice"), lead_seconds("set_notice") };
+    int64_t now = time_now();
+    place_t place;
+    host_local_time_t date;
+    if ((lead[0] < 0 && lead[1] < 0) || now == 0 || !read_place(&place) ||
+        time_local(&date) != HOST_OK) {
+        return;
+    }
+
+    int64_t notified[2] = { 0, 0 };
+    if (kv_get(NOTIFIED_KEY, sizeof NOTIFIED_KEY - 1, notified, sizeof notified) != (int32_t)sizeof notified) {
+        notified[0] = notified[1] = 0;
+    }
+    int64_t next = 0;
+    date.hour = date.minute = date.second = 0;
+    date.day++;
+    time_from_local(&date, &next);
+    date.day -= 2;
+    date.hour = 12;
+    bool changed = false;
+    for (int32_t day = 0; day < 3; day++, date.day++) {
+        int64_t noon;
+        if (time_from_local(&date, &noon) != HOST_OK) { continue; }
+        sun_day_t sun = sun_on(noon, place.latitude, place.longitude);
+        if (sun.sky != SKY_USUAL) { continue; }
+        int64_t moments[2] = { sun.rise, sun.set };
+        for (int32_t i = 0; i < 2; i++) {
+            int64_t at = moments[i];
+            if (lead[i] < 0 || at == notified[i] || at + 5 * SECONDS_PER_MINUTE < now ||
+                at - lead[i] < HOST_TIME_MIN || at > HOST_TIME_MAX) {
+                continue;
+            }
+            int64_t due = at - lead[i];
+            if (deliver && due <= now) {
+                if (notify_of(i, at)) {
+                    notified[i] = at;
+                    changed = true;
+                    continue;
+                }
+                due = now + SECONDS_PER_MINUTE;
+            }
+            if (due <= now) { due = now + 1; }
+            if (next == 0 || due < next) { next = due; }
+        }
+    }
+    if (changed) {
+        kv_set(NOTIFIED_KEY, sizeof NOTIFIED_KEY - 1, notified, sizeof notified);
+    }
+    if (next > now && next <= HOST_TIME_MAX) { alarm_set_at(NOTIFY_ALARM, next); }
+}
+
 /* ---- the handlers ---- */
 
 /* What is shown changes with the hour - the moon - and the day: the
@@ -337,6 +428,7 @@ void app_on_timer(int32_t id)
 
 void app_on_settings(void)
 {
+    update_notifications(false);
     show_header();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
@@ -344,10 +436,28 @@ void app_on_settings(void)
 /* The clock or the time zone is another: so is the day. */
 void app_on_intent(int32_t intent)
 {
+    if (intent == HOST_INTENT_STARTED || intent == HOST_INTENT_TIME_CHANGED) {
+        update_notifications(false);
+    }
     if (intent == HOST_INTENT_TIME_CHANGED) {
         screen_redraw(HOST_REDRAW_SOON);
         schedule_redraw();
     }
+}
+
+void app_on_installed(void)
+{
+    update_notifications(false);
+}
+
+void app_on_updated(void)
+{
+    update_notifications(false);
+}
+
+void app_on_alarm(int32_t id)
+{
+    if (id == NOTIFY_ALARM) { update_notifications(true); }
 }
 
 /* ---- the picture ---- */

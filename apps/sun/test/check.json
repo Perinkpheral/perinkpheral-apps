@@ -1,5 +1,11 @@
 {
   "at": 1794832230,
   "tz": "Europe/Moscow",
-  "store": { "city": "Saint Petersburg", "lat": "59.94", "lon": "30.31" }
+  "store": {
+    "city": "Saint Petersburg",
+    "lat": "59.94",
+    "lon": "30.31",
+    "rise_notice": "15 min",
+    "set_notice": "30 min"
+  }
 }

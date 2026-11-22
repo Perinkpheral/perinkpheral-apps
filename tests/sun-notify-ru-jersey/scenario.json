@@ -1,0 +1,26 @@
+{
+  "app": "apps/sun",
+  "at": 1795327028,
+  "tz": "Europe/Moscow",
+  "language": "ru",
+  "font": "jersey",
+  "glyphs": "glyphs",
+  "store": {
+    "city": "Saint Petersburg",
+    "lat": "59.94",
+    "lon": "30.31",
+    "rise_notice": "15 min",
+    "set_notice": "30 min"
+  },
+  "steps": [
+    "forward 40",
+    "wait 2",
+    "shot sunrise",
+    "press 2",
+    "forward 24582",
+    "wait 2",
+    "shot sunset",
+    "press 4",
+    "shot restored"
+  ]
+}

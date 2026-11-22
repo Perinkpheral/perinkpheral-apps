@@ -777,18 +777,18 @@
     {
       "name": "sun",
       "title": "Sun and Moon",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 5448,
-          "sha256": "8873745eb47c9c4b3c3e2f2d7ea2f0240205bd27b38e21b4fc0e772f78d818a5"
+          "size": 6961,
+          "sha256": "6dbe3351f736851f4091c267f22ff6e8729684156cee0c170c5cdcfda429b431"
         },
         {
           "name": "manifest.ru",
-          "size": 264,
-          "sha256": "586a4dda9c9ad10f4e7946016481a0a4072ed6c9eb9228c8446b5392bcb1924b"
+          "size": 695,
+          "sha256": "21071497c3316c19791483e9d08dec660ee50d8c118cde437e924730798f703e"
         },
         {
           "name": "strings.ru",
@@ -797,8 +797,8 @@
         },
         {
           "name": "manifest.json",
-          "size": 891,
-          "sha256": "e02fc1c5d3b85a70feb472769d8edbe8e97043105a4d6bfc223e49717990eb2f"
+          "size": 1424,
+          "sha256": "dd99571f8f8c18b058faae08e6961306d1ed597e172d8998d895f8b8dd835c72"
         }
       ],
       "author": "Perinkpheral",

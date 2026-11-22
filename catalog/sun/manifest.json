@@ -3,7 +3,7 @@
   "title": "Sun and Moon",
   "author": "Perinkpheral",
   "description": "Sunrise, sunset and the moon's phase",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "abi": 3,
   "icon": [
     "...........",
@@ -41,9 +41,38 @@
       "type": "toggle",
       "title": "City in header",
       "default": "1"
+    },
+    {
+      "key": "rise_notice",
+      "type": "choice",
+      "title": "Sunrise notification",
+      "options": [
+        "Off",
+        "At the time",
+        "5 min",
+        "15 min",
+        "30 min",
+        "1 h"
+      ],
+      "default": "Off"
+    },
+    {
+      "key": "set_notice",
+      "type": "choice",
+      "title": "Sunset notification",
+      "options": [
+        "Off",
+        "At the time",
+        "5 min",
+        "15 min",
+        "30 min",
+        "1 h"
+      ],
+      "default": "Off"
     }
   ],
   "intents": [
+    "started",
     "time_changed"
   ],
   "firmware": "0.1.30"
