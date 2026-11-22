@@ -293,11 +293,15 @@ typedef struct {
 } place_t;
 APP_SESSION_FITS(place_t);
 
+/* The screen to ask for: the one of the session, or, opened anew, the one the kept picture is of -
+ * the screen the user left it on. Starting at the first while the second is drawn made it show
+ * the second, then jump to the first (the owner, 2026-11-23: these are static gauges; the user
+ * wanted that screen). */
 static void restore_page(void)
 {
     place_t place;
     current_page = app_session_load(&place, sizeof place) && place.page >= 1 && place.page <= 4
-                       ? place.page : 1;
+                       ? place.page : shown_page;
     if (current_page > page_count) { current_page = page_count; }
 }
 

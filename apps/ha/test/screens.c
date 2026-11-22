@@ -124,13 +124,15 @@ int main(void)
     app_on_blur();
     standin_forget_session();
     has_asked = false;
-    app_on_load(); app_on_focus(); asked(1);
-    answer("page|1|3\nhero|21|sunny");
-    app_on_button(BTN_DOWN_PRESSED); asked(2);
+    /* Opened anew it asks for the screen it was left on, the one its kept picture shows: no
+     * picture of screen 2 followed by a jump to screen 1 (the owner, 2026-11-23). */
+    app_on_load(); app_on_focus(); asked(2);
     answer("page|2|3\nhero|22|sunny");
+    app_on_button(BTN_DOWN_PRESSED); asked(3);
+    answer("page|3|3\nhero|23|sunny");
     app_on_blur();
     standin_restart();
     has_asked = false;
-    app_on_load(); app_on_intent(HOST_INTENT_STARTED); asked(1);
+    app_on_load(); app_on_intent(HOST_INTENT_STARTED); asked(3);
     puts("ha: page queries, wrap, refresh, legacy lists, stale replies, sessions, background delivery, removal and restart passed");
 }

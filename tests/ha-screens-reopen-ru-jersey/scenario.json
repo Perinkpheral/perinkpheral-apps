@@ -1,0 +1,25 @@
+{
+  "at": 1794832200,
+  "tz": "Europe/Moscow",
+  "font": "jersey",
+  "language": "ru",
+  "glyphs": "glyphs",
+  "app": "apps/ha",
+  "store": {
+    "server": "http://homeassistant.example.test:8123",
+    "token": "test"
+  },
+  "mocks": "mocks.json",
+  "steps": [
+    "wait 1",
+    "press 3",
+    "wait 1",
+    "shot screen-2",
+    "press 4L",
+    "wait 1",
+    "press 2",
+    "shot reopened",
+    "wait 2",
+    "shot reopened-later"
+  ]
+}
