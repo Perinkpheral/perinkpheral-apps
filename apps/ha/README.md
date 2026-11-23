@@ -78,5 +78,6 @@ and `drop`, `co2`, `gauge`, `thermometer`, `battery`, `bulb`, `door`, `home`,
 `clock`, `check`, `warning`, `info`, `play`.
 
 Text is UTF-8. Character coverage depends on the selected font and installed glyph
-packs. Responses must fit in 512 UTF-8 bytes. HA Companion discards bytes beyond
-that limit. The integration removes whole trailing lines to fit, avoiding partial values.
+packs. Responses must fit in 512 UTF-8 bytes. HA Companion refuses oversized or malformed
+responses and keeps the last valid screen. Without a valid screen, it shows the
+standard reason. The integration removes whole trailing lines to fit, avoiding partial values.

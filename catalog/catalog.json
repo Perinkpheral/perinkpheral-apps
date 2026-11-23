@@ -205,13 +205,13 @@
     {
       "name": "ha",
       "title": "HA Companion",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 8831,
-          "sha256": "0c86e5e427c37fcc4f02e70f43a0de560d43a797601ba787a45dca46b38181c0"
+          "size": 9369,
+          "sha256": "376230f17e746810a5c453a61c017965e64f9c76b74780e72409e1fb557bb92a"
         },
         {
           "name": "manifest.ru",
@@ -226,7 +226,7 @@
         {
           "name": "manifest.json",
           "size": 909,
-          "sha256": "b06ed817a6c17fed2fc53a91a5c76a16b991b19ae62ca6f69c8ece6ee64c169e"
+          "sha256": "159c0b043589615f0b9c3a167a3351e9e8c41472085ae8cf2bce15c307747843"
         }
       ],
       "author": "Perinkpheral",

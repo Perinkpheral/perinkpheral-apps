@@ -50,6 +50,7 @@ static bool source_ready, focused;
 static int32_t current_page = 1, page_count = 1, shown_page = 1;
 static void restore_page(void);
 static void read_page(void);
+static bool valid_screen(const char *text, int32_t length);
 
 /* Persist a changed tag before asking, so a late answer retains its old identity. */
 static void follow_pairing(void)
@@ -181,8 +182,8 @@ static void accept_answer(void)
 {
     last_status = coming_status;
     save_status();
-    /* A sensor that is not there renders as "None": not a screen. */
-    bool is_screen_payload = coming_status == HTTP_OK && coming_length > 0 && coming[0] != 'N';
+    /* Validate before touching the last good screen or its cache. */
+    bool is_screen_payload = coming_status == HTTP_OK && valid_screen(coming, coming_length);
     if (!is_screen_payload) {
         current_page = shown_page; /* what was shown before stays, and so does its number */
         return;
@@ -225,8 +226,9 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
         receiving = true;
     }
     if (!receiving) { return; }
-    for (int32_t i = 0; i < length && coming_length < SCREEN_MAX; i++) {
-        coming[coming_length++] = (char)data[i];
+    for (int32_t i = 0; i < length && coming_length <= SCREEN_MAX; i++) {
+        if (coming_length < SCREEN_MAX) { coming[coming_length] = (char)data[i]; }
+        coming_length++;
     }
     if (flags & HOST_DATA_LAST) {
         receiving = false;
@@ -255,6 +257,7 @@ void app_on_load(void)
                     cache.version == SCREEN_VERSION && cache.pairing == screen_pairing
                         ? length - (int32_t)offsetof(cached_screen_t, text) : 0;
     for (int32_t i = 0; i < screen_length; i++) { screen[i] = cache.text[i]; }
+    if (!valid_screen(screen, screen_length)) { screen_length = 0; }
     screen[screen_length] = '\0';
     read_page();
     bool loaded_status = kv_get(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status) ==
@@ -389,21 +392,22 @@ typedef struct {
     char        text[LINE_MAX + 1];
     const char *place; /* "hero", "detail", "column" */
     const char *parts[PARTS_MAX];
+    int32_t count;
 } line_t;
 
 /* The next line of the screen, taken apart at the '|'. False at the end. */
-static bool next_line(int32_t *at, line_t *line)
+static bool next_line_of(const char *text, int32_t size, int32_t *at, line_t *line)
 {
-    while (*at < screen_length && (screen[*at] == '\n' || screen[*at] == '\r')) {
+    while (*at < size && (text[*at] == '\n' || text[*at] == '\r')) {
         (*at)++;
     }
-    if (*at >= screen_length) {
+    if (*at >= size) {
         return false;
     }
     int32_t length = 0, parts = 0;
     line->place = line->text;
-    for (; *at < screen_length && screen[*at] != '\n'; (*at)++) {
-        char character = screen[*at];
+    for (; *at < size && text[*at] != '\n'; (*at)++) {
+        char character = text[*at];
         if (length >= LINE_MAX || character == '\r') {
             continue;
         }
@@ -415,10 +419,16 @@ static bool next_line(int32_t *at, line_t *line)
         }
     }
     line->text[length] = '\0';
+    line->count = parts;
     for (int32_t i = parts; i < PARTS_MAX; i++) {
         line->parts[i] = "";
     }
     return true;
+}
+
+static bool next_line(int32_t *at, line_t *line)
+{
+    return next_line_of(screen, screen_length, at, line);
 }
 
 /* Only a complete, bounded first line enables navigation. Unknown lines remain harmless. */
@@ -691,11 +701,11 @@ static void draw_list_of(const item_t *items, int32_t count)
 }
 
 
-static layout_t layout_asked(void)
+static layout_t layout_of(const char *text, int32_t length)
 {
     line_t  line;
     int32_t at = 0;
-    while (next_line(&at, &line)) {
+    while (next_line_of(text, length, &at, &line)) {
         if (app_text_equal(line.place, "layout")) {
             return app_text_equal(line.parts[0], "tiles")    ? LAYOUT_TILES
                    : app_text_equal(line.parts[0], "single") ? LAYOUT_SINGLE
@@ -704,6 +714,37 @@ static layout_t layout_asked(void)
         }
     }
     return LAYOUT_HERO;
+}
+
+static layout_t layout_asked(void) { return layout_of(screen, screen_length); }
+
+/* Unknown extension lines may be ignored, but the selected layout must have
+ * complete content it can draw. A layout header or an item in a hero screen
+ * alone used to replace the cache with an empty application area. */
+static bool valid_screen(const char *text, int32_t length)
+{
+    if (length <= 0 || length > SCREEN_MAX) { return false; }
+    for (int32_t i = 0; i < length; i++) {
+        if ((uint8_t)text[i] < ' ' && text[i] != '\n' && text[i] != '\r') { return false; }
+    }
+    bool hero_layout = layout_of(text, length) == LAYOUT_HERO, has_content = false;
+    line_t line;
+    int32_t at = 0;
+    while (next_line_of(text, length, &at, &line)) {
+        bool hero = app_text_equal(line.place, "hero");
+        bool detail = app_text_equal(line.place, "detail");
+        bool column = app_text_equal(line.place, "column");
+        bool item = app_text_equal(line.place, "item");
+        if (hero || detail || column || item) {
+            if (line.count < (hero ? 2 : 3)) { return false; }
+            if (hero_layout ? hero || detail || column : item) {
+                has_content |= line.parts[0][0] != '\0' ||
+                    (detail ? line.parts[1][0] != '\0' || picture_named(line.parts[2]) != NULL
+                            : (!hero && line.parts[2][0] != '\0') || picture_named(line.parts[1]) != NULL);
+            }
+        }
+    }
+    return has_content;
 }
 
 static void draw_hero_layout(void)

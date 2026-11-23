@@ -1,0 +1,22 @@
+{
+  "at": 1794832200,
+  "tz": "Europe/Moscow",
+  "font": "jersey",
+  "language": "en",
+  "glyphs": "glyphs",
+  "app": "apps/ha",
+  "store": {
+    "server": "http://homeassistant.example.test:8123",
+    "token": "test"
+  },
+  "steps": [
+    "wait 1",
+    "shot screen"
+  ],
+  "mocks": {
+    "http://homeassistant.example.test:8123/api/perinkpheral/screen?page=1": {
+      "status": 200,
+      "body": "{[[[layout|single\nitem|Living room|thermometer|22.5°"
+    }
+  }
+}
