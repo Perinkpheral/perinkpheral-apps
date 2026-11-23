@@ -1,0 +1,21 @@
+{
+  "app": "apps/space-launch",
+  "at": 1795516170,
+  "tz": "Europe/Nicosia",
+  "language": "en",
+  "font": "departure",
+  "glyphs": "glyphs",
+  "store": {
+    "remind": "15 min"
+  },
+  "mocks": "../fixtures/space-launch/mocks.json",
+  "steps": [
+    "wait 3",
+    "shot launches",
+    "forward 40",
+    "wait 2",
+    "shot reminder",
+    "press 2",
+    "shot dismissed"
+  ]
+}

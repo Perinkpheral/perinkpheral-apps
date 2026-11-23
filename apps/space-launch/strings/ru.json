@@ -1,0 +1,46 @@
+{
+  "launches": "Пуски",
+  "by_country": "{0} по странам",
+  "by_month": "{0} по месяцам",
+  "since": "С 1957 года",
+  "status_go": "Готов",
+  "status_tbd": "Не назначен",
+  "status_success": "Успех",
+  "status_failure": "Авария",
+  "status_hold": "Ожидание",
+  "status_flight": "В полёте",
+  "status_partial": "Частичная авария",
+  "status_tbc": "Уточняется",
+  "status_deployed": "Полезная нагрузка отделена",
+  "status_unknown": "Неизвестно",
+  "awaiting": "Ждём результат",
+  "in_hours": "через {0} ч",
+  "in_days": "через {0} дн",
+  "within_hour": "В течение часа",
+  "time_unknown": "Время неизвестно",
+  "time_unconfirmed": "Время уточняется",
+  "schedule_changed": "Время изменено",
+  "updated": "Обновлено {0}",
+  "no_launches": "Нет пусков",
+  "usa": "США",
+  "china": "Китай",
+  "russia": "Россия",
+  "europe": "Европа",
+  "india": "Индия",
+  "japan": "Япония",
+  "others": "Другие",
+  "months": "янв фев мар апр май июн июл авг сен окт ноя дек",
+  "year_line": "Пусков: {0}, успешных: {1}, аварий: {2}",
+  "history_line": "Орбитальных пусков в {0} году: {1}",
+  "back": "Назад",
+  "manifest": {
+    "title": "Космические пуски",
+    "description": "Космические пуски: ближайшие и прошедшие",
+    "settings": {
+      "remind": {
+        "title": "Напоминание",
+        "options": { "Off": "Выкл", "15 min": "15 мин", "1 h": "1 ч" }
+      }
+    }
+  }
+}

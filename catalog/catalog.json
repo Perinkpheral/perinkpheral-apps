@@ -624,6 +624,62 @@
       }
     },
     {
+      "name": "space-launch",
+      "title": "Space Launch",
+      "version": "0.1.0",
+      "abi": 3,
+      "files": [
+        {
+          "name": "app.wasm",
+          "size": 15273,
+          "sha256": "5afb02c1dd28fa60e32a83074c0ff782db3d868e2a5825d1b58765147bdff480"
+        },
+        {
+          "name": "history.bin",
+          "size": 1798,
+          "sha256": "602c9cbdc462d28309177be2324b38bda0deedb089d402443fdc3b48cd546a90"
+        },
+        {
+          "name": "manifest.ru",
+          "size": 257,
+          "sha256": "ef7659c681f27c3ddbe6feb47a9725344a14722aeeec6e0ae12a5a3210478d5a"
+        },
+        {
+          "name": "strings.ru",
+          "size": 884,
+          "sha256": "957b843466fe0ed44e7815639fd41f39219a18ea80769dd0d4dcfd67d4d0c9c6"
+        },
+        {
+          "name": "manifest.json",
+          "size": 3381,
+          "sha256": "ab01f3bb8680b75893467d0e523d7293325e72819e266ab164b0af853d274f3e"
+        }
+      ],
+      "author": "Perinkpheral",
+      "firmware": "0.1.30",
+      "writes_files": true,
+      "icon": [
+        ".....#.....",
+        "....###....",
+        "...##.##...",
+        "...#...#...",
+        "...#####...",
+        "...#...#...",
+        "..##...##..",
+        ".###...###.",
+        "...#####...",
+        "....#.#....",
+        ".....#....."
+      ],
+      "description": "Space launches, upcoming and past",
+      "translations": {
+        "ru": {
+          "title": "\u041a\u043e\u0441\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u043f\u0443\u0441\u043a\u0438",
+          "description": "\u041a\u043e\u0441\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u043f\u0443\u0441\u043a\u0438: \u0431\u043b\u0438\u0436\u0430\u0439\u0448\u0438\u0435 \u0438 \u043f\u0440\u043e\u0448\u0435\u0434\u0448\u0438\u0435"
+        }
+      }
+    },
+    {
       "name": "stocks",
       "title": "Stocks",
       "version": "0.2.14",

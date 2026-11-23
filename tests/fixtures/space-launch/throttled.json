@@ -1,0 +1,9 @@
+{
+  "https://ll.thespacedevs.com/*": {
+    "status": 429,
+    "body": "{\"detail\":\"Request was throttled. Expected available in 1406 seconds.\"}",
+    "headers": {
+      "Retry-After": "1406"
+    }
+  }
+}
