@@ -81,18 +81,19 @@ KEPT_ONE static int32_t digits(const char *text, int32_t count, int32_t maximum)
     return value <= maximum ? value : -1;
 }
 
-/* A number with its sign, and where it ends. */
-KEPT_ONE static int32_t signed_number(const char **text, int32_t maximum)
+/* A number with its sign, and where it ends. The cap is at most INT32_MAX + 1,
+ * so the next decimal digit fits in int64_t before saturation. */
+KEPT_ONE static int64_t signed_number(const char **text, int64_t maximum)
 {
     const char *at = *text;
     bool        is_negative = *at == '-';
     if (*at == '-' || *at == '+') {
         at++;
     }
-    int32_t value = 0;
+    int64_t value = 0;
     while (is_digit(*at)) {
-        int32_t digit = *at++ - '0';
-        value = value > (maximum - digit) / 10 ? maximum : value * 10 + digit;
+        value = value * 10 + (uint8_t)*at++ - '0';
+        if (value > maximum) { value = maximum; }
     }
     *text = at;
     return is_negative ? -value : value;
@@ -101,7 +102,7 @@ KEPT_ONE static int32_t signed_number(const char **text, int32_t maximum)
 /* Optional signed selectors outside their RFC range are ignored. */
 KEPT_ONE static int32_t selector_of(const char **text, int32_t maximum)
 {
-    int32_t value = signed_number(text, INT32_MAX);
+    int32_t value = (int32_t)signed_number(text, INT32_MAX);
     return value >= -maximum && value <= maximum ? value : 0;
 }
 
@@ -479,7 +480,7 @@ static void take_rule(ics_t *ics, const char *rule)
          * maximum occurrences across the bounded expansion loops. */
         case 1:
         case 2: {
-            int32_t number = signed_number(&part, field == 1 ? 3660000 : STEPS_MAX * DAYS_PER_WEEK);
+            int32_t number = (int32_t)signed_number(&part, field == 1 ? 3660000 : STEPS_MAX * DAYS_PER_WEEK);
             number -= number == 0; /* zero is invalid; keep the missing-field default distinct */
             *(field == 1 ? &ics->interval : &ics->rule_count) = number;
             break;
@@ -590,26 +591,27 @@ static void begin_event(ics_t *ics)
 /* "P1D", "PT1H30M", "P1W": what an event lasts when it has no end. */
 static int32_t duration_of(const char *value)
 {
-    int32_t seconds = 0;
+    int64_t seconds = 0;
     bool    in_time = false;
     for (const char *at = value; *at != '\0';) {
         if (*at == 'T') {
             in_time = true;
             at++;
         } else if (is_digit(*at)) {
-            int32_t amount = signed_number(&at, INT32_MAX);
+            int64_t amount = signed_number(&at, (int64_t)INT32_MAX + 1);
             static const char UNITS[] = "W\0D\0H\0M\0S\0";
             static const int32_t FACTORS[] = { 7 * SECONDS_PER_DAY, SECONDS_PER_DAY, 3600, 60, 1 };
             int32_t unit = ics_name_index(at, UNITS, true);
             if (unit >= 0 && (unit != 3 || in_time)) {
-                if (amount > (INT32_MAX - seconds) / FACTORS[unit]) { return 0; }
+                /* The capped amount times at most one week fits in int64_t. */
                 seconds += amount * FACTORS[unit];
+                if (seconds > INT32_MAX) { return 0; }
             }
         } else {
             at++;
         }
     }
-    return seconds;
+    return (int32_t)seconds;
 }
 
 static void event_line(ics_t *ics, int32_t property, const char *parameters, char *value)

@@ -367,6 +367,17 @@ static void test_numeric_bounds(void)
     static const char *const offsets[] = { "", "+", "+03", "+2400", "-0060", "+000060", "+9999999999999999" };
     for (unsigned i = 0; i < sizeof offsets / sizeof offsets[0]; i++) { CHECK(offset_of(offsets[i]) == 0); }
     CHECK(duration_of("PT2147483647S") == INT32_MAX);
+    CHECK(duration_of("PT0002147483647S") == INT32_MAX);
+    static const char *const oversized_seconds[] = {
+        "PT2147483648S", "PT4444444444S", "PT9999999999999999999999999999S",
+    };
+    for (unsigned i = 0; i < sizeof oversized_seconds / sizeof oversized_seconds[0]; i++) {
+        CHECK(duration_of(oversized_seconds[i]) == 0);
+        snprintf(text, sizeof text, "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20261118T120000Z\n"
+                 "DURATION:%s\nEND:VEVENT\nEND:VCALENDAR\n", oversized_seconds[i]);
+        CHECK(read_file(text, utc(2026, 11, 18, 0, 0), 2, 0, 1) == 1);
+        CHECK(ics.duration_s == 0 && events[0].end == events[0].start);
+    }
     CHECK(duration_of("P24855DT11647S") == INT32_MAX);
     CHECK(duration_of("P24855DT11648S") == 0);
     CHECK(duration_of("P4444444444W") == 0);

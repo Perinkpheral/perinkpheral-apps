@@ -24,6 +24,13 @@ int main(void)
         "layout|tiles\nhero|21|sunny", "item|Room|thermometer|22",
         "hero||unknown", "detail|||unknown", "layout|single\nitem||unknown|",
         "hero", "hero|21", "column|Room|thermometer", "layout|list\nitem|||",
+        "layout|list\nitem||sunny|", /* lists do not draw pictures */
+        "layout|single\nitem|||\nitem|Room||22", /* only the first item is drawn */
+        "layout|tiles\nitem|||\nitem|||\nitem|||\nitem|||\nitem|Room||22",
+        ("layout|list\nitem|||\nitem|||\nitem|||\nitem|||\nitem|||\nitem|||"
+         "\nitem|||\nitem|||\nitem|||\nitem|||\nitem|||\nitem|||\nitem|Room||22"),
+        "detail|||\ndetail|||\ndetail|22||",
+        "column|||\ncolumn|||\ncolumn|||\ncolumn|||\ncolumn|Room||22",
     };
     for (unsigned i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
         answer(invalid[i], 1);
@@ -36,11 +43,15 @@ int main(void)
         "layout|single\nitem|Room|thermometer|22.5°",
         "layout|tiles\nitem|Door||Closed", "layout|list\nitem|Room||22",
         "page|2|3\nlayout|single\nitem|Room|thermometer|22.5°",
+        "layout|single\nitem||sunny|", /* cells do draw pictures */
+        "layout|list\nitem||sunny|\nitem|Room||22",
+        "layout|tiles\nitem|||\nitem|Room||22",
     };
     for (unsigned i = 0; i < sizeof valid / sizeof valid[0]; i++) {
         answer(valid[i], 7);
         assert(!strcmp(screen, valid[i]));
     }
+    answer(valid[6], 7);
     cached_screen_t before;
     int32_t size;
     const uint8_t *value = standin_value(SCREEN_KEY, &size);
@@ -69,10 +80,12 @@ int main(void)
     assert(!strcmp(screen, valid[6]));
     /* A cache accepted by an older version must not render blank after upgrade. */
     cached_screen_t old = { .version = SCREEN_VERSION, .pairing = pairing() };
-    strcpy(old.text, invalid[0]);
-    assert(kv_set(SCREEN_KEY, sizeof SCREEN_KEY - 1, &old,
-                  offsetof(cached_screen_t, text) + strlen(old.text)) == HOST_OK);
-    app_on_load();
-    assert(screen_length == 0 && standin_draw() == reason);
+    for (unsigned i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        strcpy(old.text, invalid[i]);
+        assert(kv_set(SCREEN_KEY, sizeof SCREEN_KEY - 1, &old,
+                      offsetof(cached_screen_t, text) + strlen(old.text)) == HOST_OK);
+        app_on_load();
+        assert(screen_length == 0 && standin_draw() == reason);
+    }
     puts("ha: malformed screens show the reason, preserve the good cache and page, and remain refused after reload");
 }

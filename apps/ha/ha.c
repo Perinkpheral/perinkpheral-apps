@@ -727,7 +727,9 @@ static bool valid_screen(const char *text, int32_t length)
     for (int32_t i = 0; i < length; i++) {
         if ((uint8_t)text[i] < ' ' && text[i] != '\n' && text[i] != '\r') { return false; }
     }
-    bool hero_layout = layout_of(text, length) == LAYOUT_HERO, has_content = false;
+    layout_t layout = layout_of(text, length);
+    bool hero_layout = layout == LAYOUT_HERO, has_content = false;
+    int32_t items = 0, details = 0, columns = 0;
     line_t line;
     int32_t at = 0;
     while (next_line_of(text, length, &at, &line)) {
@@ -737,10 +739,16 @@ static bool valid_screen(const char *text, int32_t length)
         bool item = app_text_equal(line.place, "item");
         if (hero || detail || column || item) {
             if (line.count < (hero ? 2 : 3)) { return false; }
-            if (hero_layout ? hero || detail || column : item) {
+            int32_t item_limit = layout == LAYOUT_SINGLE ? 1 : layout == LAYOUT_TILES ? 4 : ITEMS_MAX;
+            bool drawn = hero_layout
+                             ? hero || (detail && details++ < DETAILS_MAX) ||
+                                   (column && columns++ < COLUMNS_MAX)
+                             : item && items++ < item_limit;
+            if (drawn) {
                 has_content |= line.parts[0][0] != '\0' ||
                     (detail ? line.parts[1][0] != '\0' || picture_named(line.parts[2]) != NULL
-                            : (!hero && line.parts[2][0] != '\0') || picture_named(line.parts[1]) != NULL);
+                            : (!hero && line.parts[2][0] != '\0') ||
+                              (layout != LAYOUT_LIST && picture_named(line.parts[1]) != NULL));
             }
         }
     }

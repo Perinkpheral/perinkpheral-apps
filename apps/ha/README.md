@@ -79,5 +79,7 @@ and `drop`, `co2`, `gauge`, `thermometer`, `battery`, `bulb`, `door`, `home`,
 
 Text is UTF-8. Character coverage depends on the selected font and installed glyph
 packs. Responses must fit in 512 UTF-8 bytes. HA Companion refuses oversized or malformed
-responses and keeps the last valid screen. Without a valid screen, it shows the
-standard reason. The integration removes whole trailing lines to fit, avoiding partial values.
+responses, including content the selected layout cannot draw, and keeps the last valid screen.
+Lists require a name or value; single layout uses only the first item.
+Without a valid screen, it shows the standard reason. The integration removes whole
+trailing lines to fit, avoiding partial values.
