@@ -20,5 +20,5 @@ The crosshair's dashed axes intersect at the position. The screen is always ligh
 night are not shown.
 The observed track uses thin four-pixel dashes with four-pixel gaps, continued across samples.
 
-Perinkpheral OS's map service draws the world with solid ink land and paper sea.
+Perinkpheral OS's map service draws the world: stippled land with an ink coastline, paper sea; with dithering off, the coastline alone.
 The service requires firmware 0.1.94 or later; the build computes the package's minimum.
