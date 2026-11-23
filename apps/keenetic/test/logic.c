@@ -275,12 +275,23 @@ static void protocol(void)
     for (unsigned i = 0; i < sizeof expired / sizeof *expired; i++) {
         logged_in(true);
         char *html = load(expired[i]);
-        picked(BATCH, 401, html); free(html);
+        /* as the device hands it over: the HTML is not JSON, the status is lost, the router's
+         * challenge header stays (recorded in router/system-no-cookie.http.json) */
+        header_names[0] = "WWW-Authenticate";
+        header_values[0] = "x-ndw2-interactive endpoint=\"/auth\" session_cookie=\"session_id\"";
+        picked(BATCH, HOST_FAILED_NO_ANSWER, html); free(html);
         assert(last_method == HOST_HTTP_GET && strstr(last_url, "/auth") && !cookie[0]);
         challenge(); recorded_answer("login-renewed", NULL);
         poll_fixture(BATCH, "v9-batch-sample-a.json");
         assert(!control.blocked && scene.status == 200 && !control.renewing);
     }
+    /* an answer that is not JSON without the challenge is no reason to log in */
+    logged_in(true); requests = sends;
+    picked(BATCH, HOST_FAILED_NO_ANSWER, "<html>");
+    assert(sends == requests && scene.status == HOST_FAILED_NO_ANSWER && cookie[0]);
+    header_names[0] = "WWW-Authenticate"; header_values[0] = "x-ndw2-interactiveness";
+    picked(BATCH, HOST_FAILED_NO_ANSWER, "<html>");
+    assert(sends == requests && cookie[0]);
     picked(INTERFACES, 401, "");
     challenge(); recorded_answer("login-success", NULL);
     assert(scene.pending == INTERFACES + 1);

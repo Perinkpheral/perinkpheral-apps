@@ -357,11 +357,28 @@ static void accept_batch(void)
         request_details();
     } else finish(200);
 }
+/* An expired session: the router answers 401 with an HTML page and its login challenge. A poll
+ * whose answer is not JSON is handed over as HOST_FAILED_NO_ANSWER with its headers kept, so the
+ * challenge is the sign that a login is wanted, not the status. */
+static bool asks_for_login(int32_t status)
+{
+    if (status == 401) return true;
+    if (status != HOST_FAILED_NO_ANSWER) return false;
+    static const char scheme[] = "x-ndw2-interactive";
+    char value[160];
+    int n = answer_header("WWW-Authenticate", 16, 0, value, sizeof value - 1);
+    if (n < (int)sizeof scheme - 1) return false;
+    for (int i = 0; i < (int)sizeof scheme - 1; i++) {
+        char c = value[i] >= 'A' && value[i] <= 'Z' ? (char)(value[i] - 'A' + 'a') : value[i];
+        if (c != scheme[i]) return false;
+    }
+    return n == (int)sizeof scheme - 1 || value[sizeof scheme - 1] == ' ';
+}
 void app_on_picked(int32_t poll, int32_t status)
 {
     restore();
     if (poll < 0 || poll >= POLLS || control.blocked || control.auth) return;
-    if (status == 401) {
+    if (asks_for_login(status)) {
         if (control.renewing) { finish(401); return; }
         clear_cookie();
         control.renewing = 1;
