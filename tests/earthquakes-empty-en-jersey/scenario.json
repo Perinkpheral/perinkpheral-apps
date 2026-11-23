@@ -1,0 +1,27 @@
+{
+  "app": "apps/earthquakes",
+  "at": 1795456800,
+  "tz": "Europe/Nicosia",
+  "language": "en",
+  "font": "jersey",
+  "glyphs": "glyphs",
+  "store": {
+    "place": "Panormos",
+    "lat": "37.01",
+    "lon": "26.96",
+    "radius": "1000",
+    "minmag": "3",
+    "notify": "Off",
+    "every": "1 min"
+  },
+  "mocks": "../earthquakes/empty-mocks.json",
+  "steps": [
+    "wait 8",
+    "shot map",
+    "press 3",
+    "shot nearby",
+    "press 2L",
+    "wait 8",
+    "shot worldwide"
+  ]
+}

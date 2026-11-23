@@ -1,0 +1,14 @@
+{
+  "at": 1795456800,
+  "tz": "Europe/Nicosia",
+  "store": {
+    "place": "Panormos",
+    "lat": "37.01",
+    "lon": "26.96",
+    "radius": "1000",
+    "minmag": "3",
+    "notify": "Off",
+    "every": "1 min"
+  },
+  "mocks": "../../../tests/earthquakes/mocks.json"
+}

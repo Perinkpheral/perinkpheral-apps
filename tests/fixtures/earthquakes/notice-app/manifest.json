@@ -1,0 +1,96 @@
+{
+  "name": "notice-app",
+  "version": "0.1.0",
+  "title": "Earthquakes",
+  "author": "Perinkpheral",
+  "description": "Captured USGS notice fixture for simulator tests",
+  "abi": 3,
+  "writes_files": true,
+  "settings": [
+    {
+      "key": "place",
+      "type": "place",
+      "title": "Place",
+      "latitude": "lat",
+      "longitude": "lon"
+    },
+    {
+      "key": "lat",
+      "type": "number",
+      "title": "Latitude",
+      "hidden": true
+    },
+    {
+      "key": "lon",
+      "type": "number",
+      "title": "Longitude",
+      "hidden": true
+    },
+    {
+      "key": "radius",
+      "type": "choice",
+      "title": "Radius",
+      "options": [
+        "100",
+        "300",
+        "1000",
+        "2000"
+      ],
+      "default": "1000",
+      "help": "Search radius in km."
+    },
+    {
+      "key": "minmag",
+      "type": "choice",
+      "title": "Minimum magnitude",
+      "options": [
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "default": "3"
+    },
+    {
+      "key": "notify",
+      "type": "choice",
+      "title": "Notifications",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": "Off"
+    },
+    {
+      "key": "every",
+      "type": "choice",
+      "title": "Refresh",
+      "options": [
+        "1 min",
+        "5 min",
+        "15 min"
+      ],
+      "default": "1 min"
+    }
+  ],
+  "hosts": [
+    "earthquake.usgs.gov"
+  ],
+  "intents": [
+    "started",
+    "time_changed"
+  ],
+  "icon": [
+    "...........",
+    ".....#.....",
+    ".....#.....",
+    "....#.#....",
+    "....#.#....",
+    "###.#.#.###",
+    "...#...#...",
+    "...#...#...",
+    ".......#...",
+    "...........",
+    "..........."
+  ]
+}

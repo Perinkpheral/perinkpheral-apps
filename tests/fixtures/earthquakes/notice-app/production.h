@@ -1,0 +1,1 @@
+../../../../apps/earthquakes/earthquakes.c

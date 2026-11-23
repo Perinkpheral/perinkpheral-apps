@@ -1,0 +1,24 @@
+{
+  "app": "tests/fixtures/earthquakes/notice-app",
+  "at": 1795391329,
+  "tz": "Europe/Nicosia",
+  "language": "en",
+  "font": "jersey",
+  "glyphs": "glyphs",
+  "store": {
+    "place": "Panormos",
+    "lat": "37.01",
+    "lon": "26.96",
+    "radius": "1000",
+    "minmag": "3",
+    "notify": "On",
+    "every": "1 min"
+  },
+  "mocks": {},
+  "steps": [
+    "wait 8",
+    "shot notice",
+    "press 2",
+    "shot dismissed"
+  ]
+}

@@ -203,6 +203,57 @@
       }
     },
     {
+      "name": "earthquakes",
+      "title": "Earthquakes",
+      "version": "0.1.0",
+      "abi": 3,
+      "files": [
+        {
+          "name": "app.wasm",
+          "size": 13366,
+          "sha256": "a2a84183a8096196238d664871ebd9c05d7ca9697ceef558e8785529faacf06c"
+        },
+        {
+          "name": "manifest.ru",
+          "size": 585,
+          "sha256": "c0a57f7644d8287746d54872d9806521be8c3f6bb60a8dd11029634cb04086f2"
+        },
+        {
+          "name": "strings.ru",
+          "size": 238,
+          "sha256": "82b5441114350a039636b7bb5a2de02a4935ed666d4c40d895ccce76f09f117f"
+        },
+        {
+          "name": "manifest.json",
+          "size": 3078,
+          "sha256": "abea9bc48fb77f4276c1c737106499c776badb15ee5a0b0d6c7f2546bea21830"
+        }
+      ],
+      "author": "Perinkpheral",
+      "firmware": "0.1.94",
+      "writes_files": true,
+      "icon": [
+        "...........",
+        ".....#.....",
+        ".....#.....",
+        "....#.#....",
+        "....#.#....",
+        "###.#.#.###",
+        "...#...#...",
+        "...#...#...",
+        ".......#...",
+        "...........",
+        "..........."
+      ],
+      "description": "Recent earthquakes worldwide, with optional nearby notices",
+      "translations": {
+        "ru": {
+          "title": "\u0417\u0435\u043c\u043b\u0435\u0442\u0440\u044f\u0441\u0435\u043d\u0438\u044f",
+          "description": "\u0417\u0435\u043c\u043b\u0435\u0442\u0440\u044f\u0441\u0435\u043d\u0438\u044f \u0432 \u043c\u0438\u0440\u0435 \u0438 \u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f \u043e \u0441\u043e\u0431\u044b\u0442\u0438\u044f\u0445 \u0440\u044f\u0434\u043e\u043c"
+        }
+      }
+    },
+    {
       "name": "ha",
       "title": "HA Companion",
       "version": "0.4.5",
