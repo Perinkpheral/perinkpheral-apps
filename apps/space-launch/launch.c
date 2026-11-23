@@ -844,7 +844,7 @@ static void draw_row(int32_t row, int32_t top, int32_t right, int64_t now)
 
 static void draw_launches(int64_t now)
 {
-    int32_t top = app_nav_draw_title(&place.nav, word(STR_LAUNCHES), true) + 2;
+    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 2;
     int32_t pitch = (gfx_height() - top) / ROWS;
     int32_t right = gfx_width() - (row_count > ROWS ? KIT_SCROLL_ROOM : 0);
     for (int32_t row = place.first; row < place.first + ROWS && row < row_count; row++) {
@@ -918,14 +918,6 @@ static void draw_launch(const launch_t *launch, int64_t now)
     app_draw_actions(NULL, word(STR_BACK));
 }
 
-/* "2026 by country" and the count of screens. */
-__attribute__((noinline)) static int32_t draw_year_title(int32_t pattern, int32_t year)
-{
-    char title[48];
-    fill_number(title, sizeof title, pattern, year);
-    return app_nav_draw_title(&place.nav, title, true);
-}
-
 /* Nothing to show yet: why. */
 static void draw_empty(int32_t status)
 {
@@ -962,7 +954,7 @@ static void draw_countries(void)
         counts[shown] = cache.total - sum;
         order[shown++] = COUNTRIES;
     }
-    int32_t top = draw_year_title(STR_BY_COUNTRY, cache.year) + 4;
+    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 4;
     int32_t pitch = (gfx_height() - top - 4) / (COUNTRIES + 1);
     int32_t name_width = 0, number_width = app_text_width(HOST_FONT_TEXT | HOST_FONT_TABULAR, "000");
     for (int32_t i = 0; i <= COUNTRIES; i++) {
@@ -1001,7 +993,7 @@ static void draw_months(int64_t now)
         draw_empty(state.status[POLL_YEAR]);
         return;
     }
-    int32_t top = draw_year_title(STR_BY_MONTH, number) + 8;
+    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 8;
     int32_t small_cap = gfx_font_cap_height(HOST_FONT_SMALL), inset = small_inset();
     int32_t totals_top = bottom_line_top();
     int32_t labels_top = totals_top - 12 - small_cap;
@@ -1045,9 +1037,9 @@ static void draw_months(int64_t now)
     }
     char line[96];
     int32_t total = year_total(&year);
-    host_text_argument_t args[3] = { { .number = total }, { .number = total - year.failures },
-                                     { .number = year.failures } };
-    fill(line, sizeof line, STR_YEAR_LINE, args, 3);
+    host_text_argument_t args[4] = { { .number = number }, { .number = total },
+                                     { .number = total - year.failures }, { .number = year.failures } };
+    fill(line, sizeof line, STR_YEAR_LINE, args, 4);
     app_draw_centered(gfx_width() / 2, totals_top, HOST_FONT_SMALL, line);
 }
 
@@ -1064,7 +1056,6 @@ static void draw_history(void)
         draw_empty(state.status[POLL_YEAR]);
         return;
     }
-    /* No title: the axis says which years. */
     int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 8;
     int32_t inset = small_inset();
     int32_t caption_top = bottom_line_top();

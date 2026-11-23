@@ -1,7 +1,4 @@
 {
-  "launches": "Launches",
-  "by_country": "{0} by country",
-  "by_month": "{0} by month",
   "status_go": "Go",
   "status_tbd": "TBD",
   "status_success": "Success",
@@ -29,7 +26,7 @@
   "japan": "Japan",
   "others": "Others",
   "months": "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec",
-  "year_line": "Launches: {0}, success: {1}, failures: {2}",
+  "year_line": "{0}: launches {1}, success {2}, failures {3}",
   "history_line": "Orbital launches in {0}: {1}",
   "back": "Back"
 }
