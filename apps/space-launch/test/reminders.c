@@ -25,7 +25,7 @@ int32_t queued_notice(const host_notice_t *notice)
 static void start(const char *remind)
 {
     standin_reset();
-    standin_handlers.on_data = app_on_data;
+    standin_handlers.on_picked = app_on_picked;
     standin_set("remind", remind);
     app_on_load();
     answer_file(POLL_UPCOMING, -1, "upcoming.json");
@@ -82,7 +82,7 @@ int main(void)
     assert(standin_alarm_left(REMIND_ALARM) == ARIANE - HOUR - AT);
 
     /* A list older than three hours reminds of nothing; nor does Off. */
-    standin_clock(AT + 3 * HOUR + 1);
+    standin_pass((3 * HOUR + 1) * 1000);
     app_on_intent(HOST_INTENT_TIME_CHANGED);
     assert(standin_alarm_left(REMIND_ALARM) == 0);
     start("Off");

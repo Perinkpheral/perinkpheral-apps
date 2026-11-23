@@ -32,10 +32,11 @@ __attribute__((unused)) static void answer_text(int32_t poll, int32_t item, int3
     state.request = poll;
     state.item = item;
     state.year = cache.year;
-    state.active_tag = HOST_REQUEST_FIRST;
+    int32_t driver = poll;
+    state.active_poll = driver + 1;
     if (poll == POLL_YEAR && item == 0) { cache.staging = (annual_t){ .year = cache.year, .total = -1 }; }
-    standin_handlers.on_data = app_on_data;
-    standin_data(state.active_tag, -1, status, body, (int32_t)strlen(body), 7, STANDIN_WHOLE, 0);
+    standin_handlers.on_picked = app_on_picked;
+    standin_picked(driver, -1, status, body, (int32_t)strlen(body));
 }
 
 /* A response from a fixture file. */
@@ -55,16 +56,11 @@ __attribute__((unused)) static int32_t flash_writes(void)
 /* Everything the scenarios load: both lists, this year's pages and the six countries. */
 __attribute__((unused)) static void answer_all(void)
 {
-    static const int32_t COUNTS[] = { 157, 83, 15, 7, 4, 4 };
     answer_file(0, -1, "upcoming.json");
     answer_file(1, -1, "previous.json");
-    answer_file(2, 0, "year-0.json");
-    answer_file(2, 100, "year-100.json");
-    answer_file(2, 200, "year-200.json");
-    for (int32_t i = 0; i < 6; i++) {
-        char body[64];
-        snprintf(body, sizeof body, "{\"count\":%d,\"next\":null,\"previous\":null,\"results\":[]}", COUNTS[i]);
-        answer_text(3, i, 200, body);
+    for (int32_t offset = 0; offset < 271; offset += PAGE_SIZE) {
+        char name[32];
+        snprintf(name, sizeof name, "year-%d.json", offset);
+        answer_file(POLL_YEAR, offset, name);
     }
-    answer_file(2, -1, "verify.json");
 }

@@ -24,7 +24,7 @@ int32_t header_with_retry(const char *name, int32_t length, int32_t occurrence, 
 int32_t answer_info_with_retry(host_answer_info_t *response, int32_t capacity)
 {
     int32_t length = answer_info(response, capacity);
-    if (length == sizeof *response) { response->retry_after = retry_after; }
+    if (length >= 12) { memcpy((uint8_t *)response + offsetof(host_answer_info_t, retry_after), &retry_after, sizeof retry_after); }
     return length;
 }
 
@@ -57,7 +57,7 @@ static void records(void)
     assert(cache.count[0] == 2 && cache.lists[0][0].precision == PRECISION_UNKNOWN);
     for (int32_t i = 0; i < 2; i++) {
         assert(!needs_reminder(&cache.lists[0][i], AT, HOUR));
-        assert(!strcmp(cache.lists[0][i].provider, "?"));
+        assert(!strcmp(cache.lists[0][i].provider, "?") && !strcmp(cache.lists[0][i].site, "?"));
     }
     char long_name[512];
     snprintf(long_name, sizeof long_name,
@@ -68,111 +68,203 @@ static void records(void)
     assert(cache.count[0] == 0);
 }
 
+static int sends(void) { return standin()->polls_run[0] + standin()->polls_run[1] + standin()->polls_run[2]; }
 static void throttle(void)
 {
-    standin_reset();
-    app_on_load();
-    app_on_intent(HOST_INTENT_STARTED);
-    assert(standin()->sends == 1 && state.active_tag);
-    int32_t tag = state.active_tag;
+    standin_reset(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+    assert(sends() == 1 && state.active_poll);
+    int32_t binding = state.active_poll;
+    standin_pass(20 * MINUTE * 1000);
+    app_on_settings(); app_on_focus(); app_on_alarm(FETCH_ALARM);
+    assert(sends() == 2 && state.active_poll == binding); /* requeue the same coalesced binding, never expire it */
+    int32_t asked = sends();
+    app_on_load(); fetch(); assert(sends() == asked); /* queued binding survives unload */
     retry_after = 7 * DAY;
-    standin_handlers.on_data = app_on_data;
-    standin_data(tag, -1, 429, "{}", 2, 1, STANDIN_CUT, 0);
+    answer_text(POLL_UPCOMING, -1, 429, "{}");
+    assert(!standin_poll_ready(0, -1) && !standin_poll_ready(1, -1) && !standin_poll_ready(2, -1));
     int64_t until = state.cooldown;
-    assert(until == AT + 7 * DAY);
-    for (int32_t i = 0; i < 4; i++) {
-        app_on_settings(); app_on_focus(); app_on_alarm(FETCH_ALARM);
-        app_on_intent(HOST_INTENT_NETWORK_UP); app_on_intent(HOST_INTENT_TIME_CHANGED);
-        app_on_updated(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
-        assert(standin()->sends == 1 && state.cooldown == until);
+    assert(until == time_now() + 7 * DAY);
+    for (int i = 0; i < 4; i++) {
+        app_on_settings(); app_on_alarm(FETCH_ALARM); app_on_intent(HOST_INTENT_NETWORK_UP);
+        app_on_load(); fetch(); assert(sends() == asked);
     }
-    standin_clock(until - 1); fetch();
-    assert(standin()->sends == 1);
-    standin_clock(until); fetch();
-    assert(standin()->sends == 1); /* moving the wall clock cannot shorten the wait */
-    standin_clock(AT);
-    standin_pass(7LL * DAY * 1000); fetch();
-    assert(standin()->sends == 2);
+    standin_clock(AT + DAY); fetch(); assert(sends() == asked); /* forward jump cannot waive wait */
+    standin_clock(AT); app_on_intent(HOST_INTENT_TIME_CHANGED); assert(sends() == asked);
+    standin_pass(7LL * DAY * 1000); fetch(); assert(sends() == asked + 1);
     retry_after = 0;
-    standin_data(state.active_tag, -1, 429, "{}", 2, 2, STANDIN_WHOLE, 0);
-    assert(state.cooldown == until + HOUR);
-    /* Date-form Retry-After, and a 429 for an old-year request, close the same gate. */
+    answer_text(state.request, state.item, 429, "{}");
+    assert(state.cooldown == time_now() + HOUR);
     standin_reset(); app_on_load();
     retry_header = "Tue, 24 Nov 2026 18:00:00 GMT";
     answer_text(POLL_UPCOMING, -1, 429, "{}");
-    assert(state.cooldown == AT + DAY);
-    retry_header = NULL;
-    state.request = POLL_COUNTRIES; state.item = 0; state.year = 2026; state.active_tag = 77;
-    standin_clock(1798762200); retry_after = 600;
-    standin_data(77, -1, 429, "{}", 2, 2, STANDIN_WHOLE, 0);
-    assert(cache.year == 2027 && state.cooldown == time_now() + 600);
-    int32_t sends = standin()->sends;
-    app_on_settings(); app_on_intent(HOST_INTENT_NETWORK_UP); app_on_alarm(PACE_ALARM);
-    assert(standin()->sends == sends);
+    assert(state.cooldown == AT + DAY); retry_header = NULL;
+}
+
+static void install_then_start(void)
+{
+    standin_reset(); app_on_load(); app_on_installed();
+    int32_t binding = state.active_poll, before = sends();
+    assert(binding == 1 && standin_poll_ready(0, -1));
+    app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+    assert(state.active_poll == binding && sends() == before && standin_poll_ready(0, -1));
+    answer_file(POLL_UPCOMING, -1, "upcoming.json");
+    assert(cache.count[0] == 10);
+}
+
+static void delayed_success(void)
+{
+    standin_reset(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+    standin_pass(20 * MINUTE * 1000);
+    answer_file(POLL_UPCOMING, -1, "upcoming.json");
+    int32_t before = sends();
+    app_on_settings(); fetch(); assert(sends() == before);
+    standin_pass(REQUEST_GAP * 1000); fetch();
+    assert(sends() == before + 1 && state.request == POLL_PREVIOUS);
+}
+
+static void restarted_gate(void)
+{
+    standin_reset(); app_on_load();
+    state.active_poll = 3; state.request = POLL_YEAR; state.cursor = 0;
+    assert(kv_set("year_gate", 9, "1", 1) == HOST_OK); save_state();
+    standin_restart(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+    assert(state.request == POLL_UPCOMING && !standin_poll_ready(1, -1) && !standin_poll_ready(2, -1));
+    /* Even a late refusal with another poll binding closes every service gate. */
+    int32_t binding = state.active_poll;
+    retry_after = 600; standin_handlers.on_picked = app_on_picked;
+    standin_picked(2, -1, 429, "{}", 2);
+    assert(state.active_poll == binding);
+    assert(state.cooldown == time_now() + 600);
+    assert(!standin_poll_ready(0, -1) && !standin_poll_ready(1, -1) && !standin_poll_ready(2, -1));
+    int32_t before = sends(); fetch(); assert(sends() == before);
+    standin_picked(0, -1, HOST_FAILED_NOT_READY, "{}", 2);
+    assert(!state.active_poll && state.status[POLL_UPCOMING] == 429);
+    fetch(); assert(sends() == before);
     retry_after = 0;
 }
 
-static void annual(void)
+static void clock_and_fairness(void)
 {
-    standin_reset(); app_on_load();
-    answer_file(2, 0, "year-0.json");
-    year_t year;
-    assert(!year_of(2026, &year) && cache.countries_have == 0 && state.status[POLL_YEAR] == 0);
-    answer_text(2, 100, 429, "{}");
-    assert(!year_of(2026, &year) && cache.staging.year == 0);
-    answer_all();
-    assert(year_of(2026, &year) && year_total(&year) == 271);
-    answer_file(2, 0, "year-0.json");
-    answer_text(2, 100, 500, "{}");
-    assert(year_of(2026, &year) && year_total(&year) == 271 && cache.countries[0] == 157);
-    /* A moving count cannot combine generations. */
-    answer_file(2, 0, "year-0.json");
-    answer_text(2, 100, 200, "{\"count\":401,\"results\":[]}");
-    assert(cache.staging.year == 0 && cache.total == 271);
-    /* 401 needs five pages. Check the actual queued offset, and no publication before
-     * all five pages plus every country have completed. */
-    for (int32_t offset = 0; offset < 401; offset += 100) {
-        char body[12000] = "{\"count\":401,\"results\":[";
-        int32_t count = 401 - offset < 100 ? 401 - offset : 100;
-        for (int32_t i = 0; i < count; i++) {
-            strcat(body, i ? "," : "");
-            strcat(body, "{\"net\":\"2026-01-01T10:00:00Z\",\"status\":{\"id\":3}}");
-        }
-        strcat(body, "]}");
-        answer_text(2, offset, 200, body);
-        assert(cache.total == 271 && cache.staging.offset == offset + count);
-        if (offset == 300) {
-            state.due[0] = state.due[1] = time_now() + DAY;
-            state.due[2] = 0;
-            state.next_send = state.cooldown = state.cooldown_uptime = 0;
-            request_pending = false;
-            fetch();
-            assert(standin()->request_count > 0);
-            assert(strstr(standin()->requests[standin()->request_count - 1].url, "offset=400&"));
-            state.active_tag = 0;
-        }
-    }
-    for (int32_t i = 0; i < COUNTRIES; i++) { answer_text(3, i, 200, "{\"count\":1}"); }
-    assert(cache.total == 271);
-    answer_text(2, -1, 200, "{\"count\":401,\"results\":[{\"net\":\"2026-01-01T10:00:00Z\",\"status\":{\"id\":3}}]}");
-    assert(cache.total == 401 && year_of(2026, &year) && year_total(&year) == 401);
-    /* Both empty pages and country counts are bound to the requested year. */
-    state.request = POLL_COUNTRIES; state.item = 0; state.year = 2026;
-    state.active_tag = 77; save_state();
-    standin_clock(1798762200);
-    app_on_load();
-    standin_data(77, -1, 200, "{\"count\":99}", 12, 1, STANDIN_WHOLE, 0);
-    assert(cache.year == 2027 && cache.countries_have == 0 && cache.staging.year == 0);
-    assert(year_of(2026, &year) && year_total(&year) == 401);
-    state.request = POLL_YEAR; state.item = 0; state.year = 2027; state.active_tag = 78;
-    standin_clock(1830297600); /* 2028 */
-    standin_data(78, -1, 200, "{\"count\":0,\"results\":[]}", 24, 7, STANDIN_WHOLE, 0);
-    assert(cache.year == 2028 && !cache.pages_have);
+    standin_reset(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+    answer_text(POLL_UPCOMING, -1, 500, "{}");
+    assert(state.due[0] == AT + HOUR);
+    standin_pass(REQUEST_GAP * 1000); fetch();
+    assert(state.request == POLL_PREVIOUS);
+    answer_file(POLL_PREVIOUS, -1, "previous.json");
+    standin_pass(REQUEST_GAP * 1000); fetch(); assert(state.request == POLL_YEAR);
+    answer_text(POLL_YEAR, 0, 500, "{}");
+    state.due[0] = time_now() + 30 * MINUTE;
+    state.due[1] = time_now() + 3 * HOUR;
+    state.due[2] = time_now() + DAY;
+    state.next_send = time_now() + REQUEST_GAP; save_state();
+    int64_t before = time_now();
+    standin_clock(HOST_TIME_MIN); app_on_intent(HOST_INTENT_TIME_CHANGED);
+    assert(state.next_send == HOST_TIME_MIN + REQUEST_GAP);
+    assert(state.due[0] == HOST_TIME_MIN + 30 * MINUTE);
+    assert(state.due[1] == HOST_TIME_MIN + 3 * HOUR && state.due[2] == HOST_TIME_MIN + DAY);
+    save_state(); app_on_load(); assert(state.due[0] == HOST_TIME_MIN + 30 * MINUTE);
+    /* Also detect a backward jump first observed after an unload. */
+    standin_clock(before); fetch(); save_state();
+    standin_restart(); standin_clock(HOST_TIME_MIN); app_on_load();
+    assert(state.due[0] <= HOST_TIME_MIN + 30 * MINUTE);
 }
 
+static void page(int32_t offset, int32_t total, int32_t duplicate, int32_t moved)
+{
+    char body[18000];
+    int length = snprintf(body, sizeof body, "{\"count\":%d,\"results\":[", total);
+    int32_t count = total - offset < PAGE_SIZE ? total - offset : PAGE_SIZE;
+    for (int i = 0; i < count; i++) {
+        int id = offset + i + 1;
+        if (!i && duplicate) { id--; }
+        length += snprintf(body + length, sizeof body - length,
+            "%s{\"id\":\"00000000-0000-0000-0000-%012x\",\"net\":\"2026-%s-01T10:00:00Z\",\"status\":{\"id\":3},\"launch_service_provider\":{\"id\":121}}",
+            i ? "," : "", id, moved && i == 0 ? "12" : "01");
+    }
+    snprintf(body + length, sizeof body - length, "]}");
+    answer_text(POLL_YEAR, offset, 200, body);
+}
+static void annual(void)
+{
+    standin_reset(); app_on_load(); answer_all();
+    year_t year;
+    assert(cache.total == 271 && year_of(2026, &year) && year.failures == 8);
+    answer_file(POLL_YEAR, 0, "year-0.json");
+    answer_text(POLL_YEAR, PAGE_SIZE, 500, "{}");
+    assert(cache.total == 271 && !cache.staging.year);
+    page(0, 401, 0, 0);
+    cache.staging.last_id[35] = 'A'; /* same UUID with a different textual case */
+    page(PAGE_SIZE, 401, 1, 0);
+    assert(!cache.staging.year && cache.total == 271); /* same total, repeated ID at boundary */
+    for (int offset = 0; offset < 401; offset += PAGE_SIZE) {
+        page(offset, 401, 0, 1); /* NET moves across old net-ordered boundaries, UUID order is stable */
+        if (offset < 400) { assert(cache.total == 271); }
+    }
+    assert(cache.total == 401 && cache.annual.months[11] == (401 + PAGE_SIZE - 1) / PAGE_SIZE && cache.countries[0] == 401);
+    /* Old-year responses never publish, including an empty annual response. */
+    state.request = POLL_YEAR; state.item = 0; state.year = 2026; state.active_poll = 3; save_state();
+    standin_clock(1798762200); app_on_load();
+    standin_picked(2, -1, 200, "{\"count\":0,\"results\":[]}", 24);
+    assert(cache.year == 2027 && !cache.pages_have && year_of(2026, &year) && year_total(&year) == 401);
+}
+
+static void unknown_provider(void)
+{
+    standin_reset(); app_on_load();
+    answer_text(POLL_YEAR, 0, 200, "{\"count\":2,\"results\":["
+        "{\"id\":\"00000000-0000-0000-0000-000000000001\",\"net\":\"2026-01-01T00:00:00Z\",\"status\":{\"id\":3},\"launch_service_provider\":null},"
+        "{\"id\":\"00000000-0000-0000-0000-000000000002\",\"net\":\"2026-01-02T00:00:00Z\",\"status\":{\"id\":3},\"launch_service_provider\":{\"id\":121}}]}");
+    assert(cache.total == 2 && cache.countries[0] == 1 && cache.annual.months[0] == 2);
+}
+
+static void scheduler_alarm(void)
+{
+    standin_reset(); standin_clock(0); app_on_load(); fetch();
+    assert(standin()->alarms[FETCH_ALARM].kind == STANDIN_ALARM_EVERY);
+    standin_clock(AT); app_on_intent(HOST_INTENT_TIME_CHANGED);
+    assert(standin()->alarms[FETCH_ALARM].kind == STANDIN_ALARM_EVERY);
+    app_on_load();
+    assert(standin_alarm_left(FETCH_ALARM) == REQUEST_GAP);
+}
+
+static void details(void)
+{
+    standin_reset(); app_on_load(); answer_file(0, -1, "upcoming.json");
+    assert(strcmp(cache.lists[0][0].provider, "?") && strcmp(cache.lists[0][0].site, "?"));
+    int32_t length;
+    char *body = fixture("upcoming.json", &length);
+    char *net = strstr(body, "2026-11-24T10:13:00Z"); assert(net); net[12] = '1';
+    standin_pass(MINUTE * 1000); answer_text(0, -1, 200, body);
+    int64_t changed = time_now();
+    assert(cache.lists[0][0].slipped_at == changed);
+    int writes = standin()->file_writes;
+    standin_pass(REQUEST_GAP * 1000); answer_text(0, -1, 200, body);
+    assert(cache.lists[0][0].slipped_at == changed && standin()->file_writes == writes);
+    app_on_load(); assert(cache.lists[0][0].slipped_at == changed);
+    free(body);
+}
+
+static void freshness(void)
+{
+    standin_reset(); app_on_load(); answer_file(0, -1, "upcoming.json");
+    int writes = standin()->file_writes;
+    standin_pass(30 * MINUTE * 1000); answer_file(0, -1, "upcoming.json");
+    assert(standin()->file_writes == writes && state.seen == time_now());
+    app_on_load(); assert(seen_at == time_now());
+    int32_t length;
+    char *body = fixture("upcoming.json", &length);
+    memcpy(strstr(body, "Soyuz"), "SOYUZ", 5);
+    answer_text(0, -1, 200, body); free(body);
+    int32_t size;
+    const uint8_t *bytes = standin_file(BANKS[cache_bank], &size);
+    uint8_t damaged[sizeof(bank_t)];
+    assert(size == sizeof damaged); memcpy(damaged, bytes, sizeof damaged); damaged[size - 1] ^= 1;
+    standin_file_put(BANKS[cache_bank], damaged, size);
+    app_on_load(); assert(!seen_at); /* freshness from a different list never follows fallback */
+}
 int main(void)
 {
-    records(); throttle(); annual();
-    puts("space-launch: validation, global cooldown, complete paging and year bindings passed");
+    records(); throttle(); install_then_start(); delayed_success(); restarted_gate(); clock_and_fairness(); annual(); details(); freshness(); scheduler_alarm(); unknown_provider();
+    puts("space-launch: validation, serialization, cooldown, clocks, fairness, UUID paging and KV freshness passed");
     return 0;
 }

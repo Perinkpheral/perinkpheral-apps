@@ -38,35 +38,42 @@ update.
 
 ## Requests
 
-All requests go to `ll.thespacedevs.com`, version 2.3.0, through application-driven
-`http_send`. There are no manifest polls. One request is outstanding at a time. The initial
-upcoming/previous pair can complete together; subsequent requests are spaced five minutes
-apart, including annual pages and country counts.
+All requests go to `ll.thespacedevs.com`, version 2.3.0, through three picked manifest
+polls. One persisted binding is outstanding at a time, without an expiring clock lease.
+Required header templates keep every other poll closed, including automatic reconnects.
+The application closes the gate after delivery and spaces requests five minutes apart.
+Installation followed by `started` in the same boot retains its queued binding; a new boot
+clears it. The fetch alarm reschedules an outstanding poll under the same binding because a
+background poll that cannot start may have no callback. Perinkpheral OS coalesces pending
+polls; any queued repeat reads the closed gate after delivery. Due endpoints take turns, and a failed endpoint waits an hour before retrying.
 
 | Request | Address | Interval |
 |---|---|---|
 | Upcoming | `launches/upcoming/`, 10, `mode=normal`, including those of the last day | 30 min |
 | Previous | `launches/previous/`, 10, `mode=normal` | 3 h |
-| This year | `launches/previous/`, `mode=list`, completed (status 3, 4, 7), orbital, `year`; pages of 100 until `count` is covered | 1 day |
-| Countries | the same, `limit=1`, `lsp__id` of each country's providers; the `count` field | in the annual round |
-| Verification | the unfiltered annual count, `limit=1` | after all countries |
+| This year | `launches/previous/`, completed orbital launches, `year`, ordered by UUID; pages of 10 until `count` is covered | 1 day |
 
-For a year with 271 launches this is about 66 requests a day, spread across the day. The free
-service allows 15 requests an hour from one address, shared by every device and program behind
-it. A 429 retains cached data and closes a persisted application-wide gate until `Retry-After`
-passes (one hour when absent). Startup, reconnect, settings saves, queued pages and other
-requests all use that gate. The initial twelve-request burst is gone. An interrupted raw
-response is discarded and recovered after its request lease; failed writes are retried.
-The header shows `Updated 19:20` once the upcoming list is 40 minutes old.
+For a year with 271 launches this is about 84 requests a day, spread across the day. The free
+service permits 15 requests an hour from one address, shared by every device and program behind
+it. Every 429, including a late response for another binding, persists a global cooldown and
+closes every gate. `Retry-After` accepts delta seconds or an HTTP date; absence means an hour.
+A late refusal does not release another outstanding request. Clock corrections rebase every
+scheduler deadline and list freshness, including across restarts. Within one boot elapsed uptime
+also protects the cooldown against forward jumps. The header shows `Updated 19:20` once the
+upcoming list is 40 minutes old. The existing fetch alarm also updates the visible countdown
+and freshness caption, without a separate foreground timer.
 
-Annual results are staged separately from the displayed snapshot. Every page must contain
-its expected number of records, match the requested year and report the same total. All six
-country counts must complete in that round, and the final total must still match. Only then
-are Months, History, Countries and Others published together. Failed or inconsistent rounds
-retain the last complete snapshot. Missing history is shown as No data.
+Annual results are staged separately from the displayed snapshot. Each page must have the
+expected row count, year, total, completed statuses and strictly increasing UUIDs, including
+across the page boundary. UUID ordering does not move a row when its NET is corrected.
+Country counts are folded from these same rows, with unknown providers under Others.
+Only the last complete page publishes Months, History and Countries together. Failed or
+inconsistent rounds retain the preceding complete snapshot; paging has no 400-launch ceiling.
+These checks prevent duplicate/missing boundary rows; the service provides no transactional
+snapshot of fields edited while a round is being fetched. Missing History is shown as No data.
 
 The library has no working country filter. The countries are lists of provider ids in the
-hidden `lsp` setting, from the library's agencies with launches:
+application's provider table, from the library's agencies with launches:
 
 | Country | Providers |
 |---|---|
@@ -81,14 +88,19 @@ A provider outside these lists counts under Others until the list is extended in
 
 ## Kept data
 
-- `cache-a` and `cache-b` (about 4.5 KB each, two file blocks per bank): versioned,
-  checksummed snapshots with generation numbers. Each retains both launch lists, published
-  annual statistics, the staged round, list freshness and the preceding year. The inactive bank is written
-  and verified before it becomes current; a damaged bank leaves the last valid one intact.
-- Store: `state` (response statuses, scheduler deadlines and request/year binding, service
-  cooldown, reminder reservations and the last 16 reminded launch IDs). A reminder reservation is committed before posting. Recovery
-  consumes an interrupted reservation to prevent duplicate delivery; a definite queue
-  rejection releases it for retry. Reminder IDs from the previous state format are retained.
+- `cache-a` and `cache-b` (about 4.5 KB each, two file blocks per bank): checksummed,
+  versioned snapshots with generation numbers. They retain both launch lists, published
+  annual statistics, the staged round and the preceding year. An inactive bank is written
+  and read back before becoming current; a damaged bank leaves the last valid one intact.
+- Store: `state` (statuses, scheduling deadlines, boot/uptime anchors, request binding,
+  cooldown, a list revision/freshness pair and the last 16 reminded launch IDs), poll gates,
+  and annual URL parameters. Unchanged list payloads update freshness here without rewriting
+  cache files. A mismatched revision prevents freshness following a fallback to an older list.
+- `told`: a complemented delivery receipt, used when posting succeeded but saving the reminded
+  ID failed. A rejected post or failed preflight never consumes an ID. Normal unloads run
+  handlers to completion; a power loss between posting and either durable receipt can repeat
+  a reminder because notification delivery and application storage are separate operations.
+- Version 0.1.1 uses new cache/state formats; earlier development snapshots are fetched again.
 - `files/history.bin`: orbital launches per month and failures per year, 1957 to 2025: two
   `uint16` (first year, count of years), then per year twelve `uint16` monthly counts and a
   `uint16` count of failures, little-endian. The same numbers are in
@@ -111,7 +123,18 @@ GCAT's count.
 ## Tests
 
 `test/network.c` (validation, global cooldown, complete paging beyond 400 and year bindings),
-`test/persistence.c` (torn banks, write retries and reminder reservations), `test/reminders.c`
+`test/persistence.c` (torn banks, write retries, rejected posts and delivery receipts), `test/reminders.c`
 and `test/screens.c` run with `app-check`. The simulator
 scenarios `tests/space-launch-*` use the answers in
 [tests/fixtures/space-launch](../../tests/fixtures/space-launch).
+
+The SDK's generic network recovery check assumes the next response can be delivered without
+advancing time. It fails for the closed gates during this application's retry interval;
+`test/network.c` exercises recovery with the clock advanced, as well as delayed responses,
+clock corrections, endpoint fairness and unchanged payloads. The other capability checks and
+all four application regression suites pass.
+
+The 32-bit QEMU arena harness measured a 73,512-byte (71.79 KiB) interpreter peak across all
+nine simulator scenarios and six supplementary paths, with no failed allocations in the
+80 KiB arena. A compile-all probe measured 73,512 bytes. Firmware 0.1.95 is required.
+[Measurement details and hashes](test/arena.json) record the harness, scenarios and limitations.

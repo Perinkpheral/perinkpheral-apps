@@ -35,11 +35,16 @@
     "settings": {
       "remind": {
         "title": "Напоминание",
-        "options": { "Off": "Выкл", "15 min": "15 мин", "1 h": "1 ч" }
+        "options": {
+          "Off": "Выкл",
+          "15 min": "15 мин",
+          "1 h": "1 ч"
+        }
       }
     }
   },
   "please_wait": "Подождите",
   "retry_later": "Повторим позже",
-  "no_data": "Нет данных"
+  "no_data": "Нет данных",
+  "month_width": "июл"
 }

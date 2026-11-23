@@ -34,7 +34,7 @@ static void draws(void)
 static void reload(void)
 {
     app_on_blur();
-    place = (place_t){ .nav = { .screens = SCREENS } };
+    place = (place_t){ 0 };
     app_on_load();
     app_on_focus();
 }
@@ -42,7 +42,7 @@ static void reload(void)
 static void navigation(void)
 {
     standin_reset();
-    standin_handlers.on_data = app_on_data;
+    standin_handlers.on_picked = app_on_picked;
     standin()->is_session_writable = true;
     app_on_load();
     app_on_focus();
@@ -68,14 +68,14 @@ static void navigation(void)
     /* OK opens the launch, UP and DOWN browse, BACK closes; BACK on the list leaves. */
     app_on_button(BTN_DOWN_PRESSED);
     app_on_button(BTN_OK_PRESSED);
-    assert(app_nav_view(&place.nav) == VIEW_LAUNCH && selected == 1);
+    assert(place.nav.depth == 1 && selected == 1);
     draws();
     app_on_button(BTN_DOWN_PRESSED);
-    assert(selected == 2 && app_nav_view(&place.nav) == VIEW_LAUNCH);
+    assert(selected == 2 && place.nav.depth == 1);
     app_on_button(BTN_DOWN_LONG_PRESSED); /* held in a view: nothing */
-    assert(place.nav.screen == SCREEN_LAUNCHES && app_nav_view(&place.nav) == VIEW_LAUNCH);
+    assert(place.nav.screen == SCREEN_LAUNCHES && place.nav.depth == 1);
     app_on_back();
-    assert(app_nav_view(&place.nav) == APP_NAV_ON_SCREEN && !standin()->is_leaving);
+    assert(place.nav.depth == 0 && !standin()->is_leaving);
 
     /* Held presses switch the screens round. */
     app_on_button(BTN_UP_LONG_PRESSED);
@@ -112,7 +112,7 @@ static void navigation(void)
 
     /* Opened anew: the list at the next launch. */
     standin_forget_session();
-    place = (place_t){ .nav = { .screens = SCREENS } };
+    place = (place_t){ 0 };
     app_on_focus();
     assert(place.nav.screen == SCREEN_LAUNCHES && selected == 10);
     standin_handlers.on_back = app_on_back;
@@ -182,7 +182,7 @@ static void no_clock(void)
     /* Until the clock is known: no year, the package's years, and every screen draws. */
     standin_reset();
     standin_clock(0);
-    standin_handlers.on_data = app_on_data;
+    standin_handlers.on_picked = app_on_picked;
     app_on_load();
     assert(cache.year == 0 && latest_year() == 2025);
     answer_file(POLL_UPCOMING, -1, "upcoming.json");

@@ -1,0 +1,183 @@
+{
+  "date": "2026-11-24",
+  "app_version": "0.1.1",
+  "firmware_minimum": "0.1.95",
+  "module": {
+    "sha256": "a89c125afc0c2f82873c83515673acef2bc3ffd0b28c3b097ce1abffe78479ac",
+    "bytes": 18349,
+    "code_section_bytes": 15612
+  },
+  "sources": {
+    "apps/space-launch/launch.c": "7f576367c63971f0f521c3b3595625dcba128bfb3bce102257a832a1a6e2f04c",
+    "apps/space-launch/manifest.json": "138aa6d3d7064f34071083c0e8290251ecb781d267263e01702662184ef4bab9",
+    "apps/space-launch/strings/en.json": "111d6d1248b607f3e83c81bc7a9a0ea13165e37435d310ac2d104dd4be1ad574",
+    "apps/space-launch/strings/ru.json": "e3ab055ac6d6442b806c5360e92663a259aeca7568e0c3728511386b65481d8a"
+  },
+  "harness": {
+    "commit": "26f42ed4dacf324db2fe3eb91112c21abf7c9717",
+    "branch": "research/interpreter-measure",
+    "target": "linux/arm/v7 under QEMU",
+    "pointer_bytes": 4,
+    "allocator": "Firmware m3_area.c and ESP-IDF multi_heap/TLSF; moving realloc overlap included",
+    "linear_memory_bytes": 65536,
+    "interpreter_capacity_bytes": 81920,
+    "combined_capacity_bytes": 147456,
+    "code_page_alignment_bytes": 512,
+    "native_stack_limit_bytes": 6144
+  },
+  "sdk": {
+    "source_head": "69960adce03e96364cd3f44c77b894ef490b1ecb",
+    "checkout_version": "0.1.94",
+    "isolated_metadata_version": "0.1.95",
+    "note": "The checkout has the 80 KiB arena; isolated views only change VERSION metadata to permit the requested manifest floor. The main SDK and instrumented SDK produced byte-identical modules."
+  },
+  "runtime": {
+    "peak_interpreter_bytes": 73512,
+    "limit_bytes": 73728,
+    "remaining_interpreter_bytes": 8408,
+    "allocation_failures": 0,
+    "scenarios": [
+      {
+        "scenario": "space-launch-background-measure",
+        "combined_peak_bytes": 139020,
+        "interpreter_peak_bytes": 73484,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-empty-measure",
+        "combined_peak_bytes": 128500,
+        "interpreter_peak_bytes": 62964,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-en-departure",
+        "combined_peak_bytes": 139020,
+        "interpreter_peak_bytes": 73484,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-en-jersey",
+        "combined_peak_bytes": 139020,
+        "interpreter_peak_bytes": 73484,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-offline-en-departure",
+        "combined_peak_bytes": 126824,
+        "interpreter_peak_bytes": 61288,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-offline-ru-jersey",
+        "combined_peak_bytes": 126824,
+        "interpreter_peak_bytes": 61288,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-reminder-en-departure",
+        "combined_peak_bytes": 129152,
+        "interpreter_peak_bytes": 63616,
+        "allocation_failures": 0,
+        "notifications": 1
+      },
+      {
+        "scenario": "space-launch-reminder-ru-jersey",
+        "combined_peak_bytes": 129152,
+        "interpreter_peak_bytes": 63616,
+        "allocation_failures": 0,
+        "notifications": 1
+      },
+      {
+        "scenario": "space-launch-retry-date-measure",
+        "combined_peak_bytes": 126876,
+        "interpreter_peak_bytes": 61340,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-retry-default-measure",
+        "combined_peak_bytes": 124052,
+        "interpreter_peak_bytes": 58516,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-ru-departure",
+        "combined_peak_bytes": 139020,
+        "interpreter_peak_bytes": 73484,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-ru-jersey",
+        "combined_peak_bytes": 139020,
+        "interpreter_peak_bytes": 73484,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-throttled-en-departure",
+        "combined_peak_bytes": 124616,
+        "interpreter_peak_bytes": 59080,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-unknown-measure",
+        "combined_peak_bytes": 139020,
+        "interpreter_peak_bytes": 73484,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-warm-reminder-measure",
+        "combined_peak_bytes": 139048,
+        "interpreter_peak_bytes": 73512,
+        "allocation_failures": 0,
+        "notifications": 1
+      }
+    ]
+  },
+  "compile_all_probe": {
+    "pointer_bytes": 4,
+    "area_bytes": 147456,
+    "compile_peak": 139048,
+    "peak_with_scratch": 139048,
+    "failures": 0,
+    "complete": true
+  },
+  "validation": {
+    "app_check": "8 of 9 groups passed; generic network recovery assumes an immediate retry without advancing time, incompatible with the application gate/backoff. All four application regression suites pass.",
+    "sim_test": {
+      "catalog_scenarios": 108,
+      "catalog_pictures": 351,
+      "catalog_failed": 0,
+      "final_space_launch_scenarios": 9,
+      "final_space_launch_pictures": 70,
+      "final_space_launch_failed": 0,
+      "note": "Full catalog comparison passed; after the final background retry change, all nine Space Launch scenarios were compared again without updating references."
+    },
+    "space_launch_pictures_reviewed": 70,
+    "catalog_build_apps": 18,
+    "production_ll2_requests": 0,
+    "development_ll2_requests": 5,
+    "ui_reference_comparison": {
+      "normal_view_pngs_unchanged_from_a77324d": 52,
+      "total_reviewed": 70,
+      "changed_offline_or_reminder_pngs": 8,
+      "note": "Ten regenerated files with identical pixels retain their original PNG encoding."
+    }
+  },
+  "evidence": "/tmp/wt-measure/build-measure/launch-final; run.py, tests, runs-release, probe80.json and screens-release",
+  "reproduce": {
+    "runtime": "Use the 26f42ed simulator built with ARENA=1 ARENA_WORKING_BYTES=81920 and a 32-bit ARM compiler. Run the nine committed scenarios plus the six supplementary scenarios in the evidence directory with run.py, mounted at /work; mount this catalog checkout at /launch. Subtract 65536 from app_area_peak, including the shutdown run_peak.",
+    "probe": "Set PERINKPHERAL_ARENA_PROBE to a wrapper of the same 32-bit arena-estimate, then build the application with the measurement SDK.",
+    "limits": "Measurements include arena allocator metadata and temporary allocations; they do not measure C6 native stack usage or device timing."
+  }
+}

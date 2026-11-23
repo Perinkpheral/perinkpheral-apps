@@ -3,14 +3,14 @@
  * Copyright (c) 2026 GrakovNe
  *
  * Space Launch: rocket launches from The Space Devs' Launch Library 2, and how many there
- * were. Four screens, switched with held UP and DOWN (sdk/lib/app_nav.h):
+ * were. Four screens, switched with held UP and DOWN:
  *   Launches   the next launches and, scrolled up, the last ones with their results;
  *              OK opens a launch's page over the list, BACK closes it.
  *   Countries  this year's launches by the provider's country, bars against the leader.
  *   Months     a year's launches by month; UP and DOWN choose the year.
  *   History    orbital launches a year since 1957; UP and DOWN choose the year.
- * Requests are serialized by the application, with a persistent service-wide cooldown.
- * Lists refresh every half hour / three hours, complete annual statistics once a day.
+ * Picked poll requests are gated by the application, with a persistent service-wide cooldown.
+ * Gated picked polls refresh the lists every half hour / three hours and statistics daily.
  * Past years come with the package (files/history.bin, from GCAT).
  * A 429 keeps what is there and waits the time the server names. A reminder can come some
  * time before a launch that is Go, as a notification.
@@ -21,19 +21,13 @@
 
 #include "app_days.h"
 #include "app_draw.h"
-#include "app_nav.h"
 #include "app_state.h"
 #include "app_text.h"
-#include "json_pick.h"
 #include "host_api.h"
 #include "strings.h"
 
-enum { POLL_UPCOMING, POLL_PREVIOUS, POLL_YEAR, POLL_COUNTRIES, POLLS };
-/* The order of paths in the local streaming picker. */
-enum { PICK_ID, PICK_NAME, PICK_NET, PICK_STATUS, PICK_PRECISION, PICK_PROVIDER, PICK_SITE, PICK_COUNT };
-enum { YEAR_COUNT, YEAR_NET, YEAR_STATUS };
+enum { POLL_UPCOMING, POLL_PREVIOUS, POLL_YEAR, POLLS };
 enum { SCREEN_LAUNCHES, SCREEN_COUNTRIES, SCREEN_MONTHS, SCREEN_HISTORY, SCREENS };
-enum { VIEW_LAUNCH = 1 };
 /* Launch Library 2 status ids. */
 enum { ST_GO = 1, ST_TBD, ST_SUCCESS, ST_FAILURE, ST_HOLD, ST_FLIGHT, ST_PARTIAL, ST_TBC, ST_DEPLOYED };
 /* Launch Library 2 NET precision ids: 0 second, 1 minute, 2 hour, 3..6 a part of a day to a
@@ -44,30 +38,26 @@ enum { ST_GO = 1, ST_TBD, ST_SUCCESS, ST_FAILURE, ST_HOLD, ST_FLIGHT, ST_PARTIAL
 
 #define LIST_MAX     10 /* launches a list request asks for */
 #define TEXT_MAX     64 /* a picked value is at most 63 bytes */
-#define PAGE_SIZE    100
+#define PAGE_SIZE    10
+#define ROWS         4
 #define COUNTRIES    6  /* USA, China, Russia, Europe, India, Japan; Others are the rest */
 #define FIRST_YEAR   1957
-#define ROWS         4
 #define HTTP_OK      200
 #define HTTP_TOO_MANY 429
 
 #define MINUTE           60
 #define HOUR             3600
 #define DAY              86400
-#define STALE_S          (40 * MINUTE) /* the list's age at which the header says when it was updated */
+#define STALE_S          (40 * MINUTE)
+#define COUNTDOWN_S      DAY
+#define SLIP_SHOWN_S     DAY
 #define FRESH_S          (3 * HOUR)    /* reminders come only from a list this recent */
-#define COUNTDOWN_S      DAY           /* "in 5 h" only from a list this recent */
 #define LATE_S           (5 * MINUTE)  /* a reminder this late is not given */
-#define SLIP_SHOWN_S     DAY           /* how long "Schedule changed" stays */
 #define RETRY_DEFAULT_S  HOUR          /* a 429 without Retry-After */
 #define REMIND_ALARM     0
 #define FETCH_ALARM      1
 #define SAVE_ALARM       2
-#define PACE_ALARM       3
 #define REQUEST_GAP      (5 * MINUTE)
-#define REQUEST_LEASE    (10 * MINUTE)
-#define TICK_TIMER       0
-#define TICK_MS          (10 * MINUTE * 1000)
 #define TOLD_MAX         16
 
 __attribute__((noinline)) static const char *word(int32_t id)
@@ -75,14 +65,40 @@ __attribute__((noinline)) static const char *word(int32_t id)
     return app_string(id);
 }
 
+/* One wrapper owns the host formatter's missing terminator. */
+__attribute__((noinline)) static int32_t format_text(char *out, int32_t size, const char *pattern,
+                                                    const host_text_argument_t *args, int32_t count)
+{
+    int32_t length = text_fill(pattern, app_text_length(pattern), args, count, out, size - 1);
+    out[length > 0 ? length : 0] = '\0';
+    return length;
+}
+
+__attribute__((noinline)) static void fill_number(char *out, int32_t size, int32_t pattern, int32_t number)
+{
+    host_text_argument_t arg = { .number = number };
+    format_text(out, size, pattern < 0 ? "{0}" : word(pattern), &arg, 1);
+}
+
 /* A number as text, in a buffer of its own until the next call. */
 __attribute__((noinline)) static const char *number_text(int32_t number)
 {
     static char text[12];
-    app_text_t line;
-    app_text_start(&line, text, sizeof text);
-    app_text_add_number(&line, number);
+    fill_number(text, sizeof text, -1, number);
     return text;
+}
+
+/* The host formatter copies text within the same UTF-8 and capacity limits. */
+static void copy_text(char *to, int32_t size, const char *from)
+{
+    if (size <= 0) { return; }
+    host_text_argument_t arg = { .text = from, .length = app_text_length(from) };
+    format_text(to, size, "{0}", &arg, 1);
+}
+
+static bool set_text(const char *key, const char *value)
+{
+    return kv_set(key, app_text_length(key), value, app_text_length(value)) == HOST_OK;
 }
 
 /* ---- what is kept ---- */
@@ -92,10 +108,11 @@ typedef struct {
     uint8_t  status, precision;
     uint16_t spare;            /* no padding: records are compared byte by byte */
     int64_t  net;              /* Unix seconds */
-    int64_t  slipped_at;       /* when its time last moved; 0: never seen to */
-    char     name[TEXT_MAX];   /* "Falcon 9 Block 5 | Starlink Group 10-5" */
-    char     provider[TEXT_MAX];
-    char     site[TEXT_MAX];
+    int64_t  slipped_at;
+    union {
+        struct { char name[TEXT_MAX], provider[TEXT_MAX], site[TEXT_MAX]; };
+        char text[3][TEXT_MAX];
+    };
 } launch_t;
 
 /* A year by month: the layout of a record of files/history.bin. */
@@ -104,16 +121,17 @@ typedef struct {
     uint16_t failures;
 } year_t;
 
-#define CACHE_VERSION 2
-/* The staged annual refresh is persisted too: background deliveries use fresh instances.
- * Published statistics change only when every required page and country has arrived. */
+#define CACHE_VERSION 3
+/* Background answers use fresh instances. Publish annual totals only after all UUID-ordered pages. */
 typedef struct {
-    int32_t year, total, offset, country;
+    int32_t year, total, offset;
+    char last_id[37];
     year_t sum;
     int32_t countries[COUNTRIES];
 } annual_t;
 typedef struct {
     int32_t version;
+    uint32_t revision;
     int32_t count[2];
     int32_t spare;
     launch_t lists[2][LIST_MAX];
@@ -124,54 +142,53 @@ typedef struct {
     int32_t last_year;
     year_t last;
     annual_t staging;
-    int64_t seen; /* freshness travels with this bank, including after fallback */
 } cache_t;
-_Static_assert(sizeof(cache_t) <= 8 * 1024 - 16, "a bank fits in two file blocks");
+_Static_assert(sizeof(cache_t) + 8 <= 8192, "a bank fits in two file blocks");
 _Static_assert(sizeof(year_t) == 26 && sizeof(launch_t) == 216, "records without padding");
 
 typedef struct {
-    uint32_t version, generation, checksum, spare;
+    uint32_t generation, checksum;
     cache_t data;
 } bank_t;
 static const char *const BANKS[] = { "cache-a", "cache-b" };
-/* Reuse the read/write scratch space for a one-time migration from the old file. */
-typedef struct {
-    int32_t version, count[2], spare;
-    launch_t lists[2][LIST_MAX];
-    int32_t year, total;
-    uint32_t pages_have, countries_have;
-    year_t pages[4];
-    int32_t countries[COUNTRIES], last_year;
-    year_t last;
-} legacy_cache_t;
-static union { bank_t bank; legacy_cache_t legacy; } bank_scratch;
-#define bank_buffer bank_scratch.bank
+static const char *const GATES[] = { "list_gate", "past_gate", "year_gate" };
+static bank_t bank_buffer;
 static uint32_t cache_generation;
 static int32_t cache_bank;
 
 #define STATE_KEY "state"
-#define STATE_VERSION 2
+#define STATE_VERSION 3
 typedef struct {
     int32_t version;
     int32_t status[POLLS];
     int32_t told_next;
     uint32_t told[TOLD_MAX];
-    /* A reservation means delivery may have happened. On recovery it remains told.
-     * Only a definite notification_post failure releases it for another attempt. */
-    uint32_t reservation;
-    int64_t cooldown, next_send, due[3], lease;
-    int32_t active_tag, request, item, year;
-    int32_t cache_pending, completed_tag;
-    int64_t completed_at, cooldown_uptime;
-    uint32_t cooldown_boot;
+    union {
+        struct { int64_t seen, cooldown, next_send, due[3]; };
+        int64_t deadlines[6];
+    };
+    int64_t clock, uptime;
+    uint32_t boot;
+    int32_t active_poll, request, item, year, cursor;
+    int32_t cache_pending;
+    uint32_t revision;
 } state_t;
 _Static_assert(sizeof(state_t) <= HOST_KV_VALUE_MAX, "state fits one KV value");
 static cache_t cache;
 static state_t state;
 static int64_t seen_at;
 static bool cache_dirty, state_dirty;
-static bool stream_open, request_pending;
-static int32_t stream_status;
+
+
+/* Share record transfers instead of repeating field loads and stores at each call site. */
+__attribute__((noinline)) static void copy_record(void *to, const void *from, uint32_t size)
+{
+    __builtin_memcpy(to, from, size);
+}
+static void clear_record(void *to, uint32_t size)
+{
+    __builtin_memset(to, 0, size);
+}
 
 static bool is_same(const void *one, const void *other, uint32_t size)
 {
@@ -187,21 +204,23 @@ static bool save_state(void)
     return !state_dirty;
 }
 
+static inline __attribute__((always_inline)) bool close_gate(int32_t poll)
+{
+    return set_text(GATES[poll], "");
+}
+
 static uint32_t checksum(const bank_t *bank)
 {
-    const uint8_t *bytes = (const uint8_t *)bank;
-    uint32_t hash = 2166136261u;
-    for (uint32_t i = 0; i < sizeof *bank; i++) {
-        if (i < offsetof(bank_t, checksum) || i >= offsetof(bank_t, checksum) + sizeof bank->checksum) {
-            hash = (hash ^ bytes[i]) * 16777619u;
-        }
-    }
+    const uint8_t *bytes = (const uint8_t *)&bank->data;
+    uint32_t hash = 2166136261u ^ bank->generation;
+    uint32_t size = sizeof bank->data;
+    while (size--) { hash = (hash ^ *bytes++) * 16777619u; }
     return hash;
 }
 
 static bool valid_bank(const bank_t *bank)
 {
-    return bank->version == CACHE_VERSION && bank->data.version == CACHE_VERSION &&
+    return bank->data.version == CACHE_VERSION &&
            bank->checksum == checksum(bank) && (uint32_t)bank->data.count[0] <= LIST_MAX &&
            (uint32_t)bank->data.count[1] <= LIST_MAX;
 }
@@ -209,21 +228,20 @@ static bool valid_bank(const bank_t *bank)
 static void save_cache(void)
 {
     int32_t target = 1 - cache_bank;
-    bank_buffer = (bank_t){ .version = CACHE_VERSION, .generation = cache_generation + 1, .data = cache };
+    bank_buffer.generation = cache_generation + 1;
+    copy_record(&bank_buffer.data, &cache, sizeof cache);
     bank_buffer.checksum = checksum(&bank_buffer);
     cache_dirty = file_write(BANKS[target], 7, 0, &bank_buffer, sizeof bank_buffer) != HOST_OK;
     /* Read back before advancing the generation: never overwrite the last valid bank. */
     if (!cache_dirty) {
         cache_dirty = file_read(BANKS[target], 7, 0, &bank_buffer, sizeof bank_buffer) != sizeof bank_buffer ||
-                      !valid_bank(&bank_buffer);
+                      (!valid_bank(&bank_buffer) || bank_buffer.generation != cache_generation + 1);
     }
     if (cache_dirty) { alarm_set(SAVE_ALARM, MINUTE); }
     else {
         cache_bank = target;
         cache_generation = bank_buffer.generation;
-        /* An earlier app version used one unprotected bank. Retire it only after a
-         * verified snapshot exists, leaving room for the second checksummed bank. */
-        if (file_size("cache", 5) > 0) { file_write("cache", 5, 0, NULL, 0); }
+
     }
 }
 
@@ -235,19 +253,8 @@ static void persist(void)
 
 }
 
-/* Local picker adapters keep the validation code independent of transport. */
-static json_pick_t picker;
-static char picked_lists[HOST_LIST_BYTES];
-static int32_t value_count(int32_t path) { return json_pick_count(&picker, path); }
-static bool value_text(int32_t path, int32_t element, char *out, int32_t size)
-{
-    const char *value = json_pick_element(&picker, path, element);
-    out[0] = '\0';
-    if (value == NULL || app_text_length(value) >= size) { return false; }
-    app_text_copy(out, size, value);
-    return true;
-}
 static void fetch(void);
+static void update_header(void);
 
 /* ---- time ---- */
 
@@ -255,8 +262,9 @@ static int32_t digits(const char *text, int32_t from, int32_t count)
 {
     int32_t value = 0;
     for (int32_t i = from; i < from + count; i++) {
-        if (text[i] < '0' || text[i] > '9') { return -1; }
-        value = value * 10 + text[i] - '0';
+        int32_t digit = (uint8_t)text[i] - '0';
+        if ((uint32_t)digit > 9) { return -1; }
+        value = value * 10 + digit;
     }
     return value;
 }
@@ -268,11 +276,12 @@ static int32_t number_of(const char *text)
     return length > 0 && length < 10 ? digits(text, 0, length) : -1;
 }
 
-/* Element `element` of a picked path as such a number. */
-__attribute__((noinline)) static int32_t picked_number(int32_t path, int32_t element)
+/* Shared validation of ISO NET and Retry-After clock components. */
+static int32_t clock_seconds(const char *text)
 {
-    char text[16];
-    return value_text(path, element, text, sizeof text) ? number_of(text) : -1;
+    int32_t hour = digits(text, 0, 2), minute = digits(text, 3, 2), second = digits(text, 6, 2);
+    if ((uint32_t)hour > 23 || (uint32_t)minute > 59 || (uint32_t)second > 59) { return -1; }
+    return hour * HOUR + minute * MINUTE + second;
 }
 
 /* "2026-11-24T10:13:00Z" (or with ".123Z"); 0 when it is not such a moment. */
@@ -280,23 +289,21 @@ static int64_t parse_moment(const char *text)
 {
     if (app_text_length(text) < 19) { return 0; }
     int32_t year = digits(text, 0, 4), month = digits(text, 5, 2), day = digits(text, 8, 2);
-    int32_t hour = digits(text, 11, 2), minute = digits(text, 14, 2), second = digits(text, 17, 2);
-    if (year < 1957 || month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 ||
-        minute < 0 || minute > 59 || second < 0 || second > 59 || text[4] != '-' || text[7] != '-' ||
-        text[10] != 'T' || text[13] != ':' || text[16] != ':' ||
-        (text[19] != 'Z' && text[19] != '.')) { return 0; }
+    int32_t seconds = clock_seconds(text + 11);
+    if (year < FIRST_YEAR || month < 1 || month > 12 || day < 1 || seconds < 0 || text[4] != '-' || text[7] != '-' ||
+        text[10] != 'T' || text[13] != ':' || text[16] != ':') { return 0; }
     int32_t end = 19;
     if (text[end] == '.') {
         end++;
         int32_t start = end;
-        while (text[end] >= '0' && text[end] <= '9') { end++; }
+        while ((uint32_t)((uint8_t)text[end] - '0') <= 9) { end++; }
         if (end == start) { return 0; }
     }
     if (text[end] != 'Z' || text[end + 1]) { return 0; }
-    int32_t y, m, d;
-    app_date_from_days(app_days_from_date(year, month, day), &y, &m, &d);
-    if (y != year || m != month || d != day) { return 0; }
-    return (int64_t)app_days_from_date(year, month, day) * DAY + hour * HOUR + minute * MINUTE + second;
+    static const uint8_t DAYS[] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+    int32_t limit = DAYS[month - 1] + (month == 2 && year % 4 == 0 && (year % 100 || year % 400 == 0));
+    if (day > limit) { return 0; }
+    return (int64_t)app_days_from_date(year, month, day) * DAY + seconds;
 }
 
 static int32_t utc_year(int64_t moment)
@@ -327,9 +334,9 @@ static void read_history(void)
     }
 }
 
-static void sum_pages(year_t *year) { *year = cache.annual; }
 
-static int32_t year_total(const year_t *year)
+
+__attribute__((noinline)) static int32_t year_total(const year_t *year)
 {
     int32_t total = 0;
     for (int32_t month = 0; month < 12; month++) { total += year->months[month]; }
@@ -341,15 +348,15 @@ __attribute__((noinline)) static bool year_of(int32_t number, year_t *year)
 {
     read_history();
     if (number == cache.year && cache.pages_have) {
-        sum_pages(year);
+        copy_record(year, &cache.annual, sizeof *year);
         return true;
     }
     if (number == cache.last_year && cache.last_year != 0) {
-        *year = cache.last;
+        copy_record(year, &cache.last, sizeof *year);
         return true;
     }
     if (number >= FIRST_YEAR && number < FIRST_YEAR + history_count) {
-        *year = history[number - FIRST_YEAR];
+        copy_record(year, &history[number - FIRST_YEAR], sizeof *year);
         return true;
     }
     return false;
@@ -373,12 +380,12 @@ static void follow_year(void)
     if (cache.year != year) {
         if (cache.year == year - 1 && cache.pages_have) {
             cache.last_year = cache.year;
-            sum_pages(&cache.last);
+            copy_record(&cache.last, &cache.annual, sizeof cache.last);
         }
         cache.year = year;
         cache.total = 0;
         cache.pages_have = cache.countries_have = 0;
-        cache.staging = (annual_t){ 0 };
+        clear_record(&cache.staging, sizeof cache.staging);
         state.due[2] = 0;
         state_dirty = true;
         cache_dirty = true;
@@ -388,7 +395,7 @@ static void follow_year(void)
 
 /* ---- the launches ---- */
 
-static bool is_done(const launch_t *launch)
+__attribute__((noinline)) static bool is_done(const launch_t *launch)
 {
     return launch->status == ST_SUCCESS || launch->status == ST_FAILURE || launch->status == ST_PARTIAL ||
            launch->status == ST_DEPLOYED;
@@ -424,39 +431,23 @@ static void build_rows(void)
 static uint32_t hash_of(const char *text)
 {
     uint32_t hash = 2166136261u;
-    while (*text) { hash = (hash ^ (uint8_t)*text++) * 16777619u; }
-    return hash;
-}
-
-/* An optional column is used only when it has a value for every launch: a launch without one
- * would shift the rest onto the wrong launches. */
-static void column(int32_t path, int32_t element, int32_t count, char *text)
-{
-    text[0] = '\0';
-    if (value_count(path) == count) { value_text(path, element, text, TEXT_MAX); }
-    if ((app_text_length(text) == 4 && is_same(text, "null", 4))) { text[0] = '\0'; }
-}
-
-static uint8_t number_column(int32_t path, int32_t element, int32_t count, uint8_t otherwise)
-{
-    int32_t number = value_count(path) == count ? picked_number(path, element) : -1;
-    return number < 0 || number >= PRECISION_UNKNOWN ? otherwise : (uint8_t)number;
+    while (*text) { hash = (hash ^ (uint8_t)(*text++ | 32)) * 16777619u; }
+    return hash ? hash : 1;
 }
 
 static bool uuid_valid(const char *text)
 {
-    if (app_text_length(text) != 36) { return false; }
     for (int32_t i = 0; i < 36; i++) {
         char c = text[i];
         if (i == 8 || i == 13 || i == 18 || i == 23) { if (c != '-') { return false; } }
-        else if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) { return false; }
+        else { c |= 32; if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) { return false; } }
     }
-    return true;
+    return !text[36];
 }
 
 static bool present_text(const char *text)
 {
-    if (!text[0] || (app_text_length(text) == 4 && is_same(text, "null", 4))) { return false; }
+    if (!text[0] || is_same(text, "null", 5)) { return false; }
     bool nonspace = false;
     for (; *text; text++) {
         if ((uint8_t)*text < 32) { return false; }
@@ -471,11 +462,31 @@ static void mark_truncated(char *text)
     if (app_text_length(text) < TEXT_MAX - 4) { return; }
     int32_t end = TEXT_MAX - 4;
     while (end > 0 && ((uint8_t)text[end] & 0xc0) == 0x80) { end--; }
-    app_text_copy(text + end, TEXT_MAX - end, "...");
+    copy_text(text + end, TEXT_MAX - end, "...");
+}
+
+/* Indices of the manifest's picked paths. */
+enum { PICK_ID, PICK_NAME, PICK_NET, PICK_STATUS, PICK_PRECISION, PICK_PROVIDER, PICK_SITE, PICK_COUNT };
+enum { PICK_LSP = PICK_COUNT + 1 };
+__attribute__((noinline)) static bool value_text(int32_t path, int32_t element, char *out, int32_t size)
+{
+    int32_t length = answer_element(path, element, out, size - 1);
+    out[length > 0 ? length : 0] = '\0';
+    return length >= 0;
+}
+#define value_count answer_count
+__attribute__((noinline)) static int32_t picked_number(int32_t path, int32_t element)
+{
+    char text[16];
+    return value_text(path, element, text, sizeof text) ? number_of(text) : -1;
+}
+__attribute__((noinline)) static uint8_t number_column(int32_t path, int32_t element, int32_t count, uint8_t otherwise)
+{
+    int32_t number = value_count(path) == count ? picked_number(path, element) : -1;
+    return number < 0 || number >= PRECISION_UNKNOWN ? otherwise : (uint8_t)number;
 }
 
 static launch_t incoming[LIST_MAX];
-
 /* A picked list of launches; false when the answer is not one. */
 static bool take_launches(int32_t list)
 {
@@ -488,13 +499,20 @@ static bool take_launches(int32_t list)
     for (int32_t i = 0; i < count; i++) {
         launch_t *launch = &incoming[i];
         char text[TEXT_MAX];
-        *launch = (launch_t){ 0 };
+        clear_record(launch, sizeof *launch);
         value_text(PICK_ID, i, text, sizeof text);
         if (!uuid_valid(text)) { return false; }
         launch->id = hash_of(text);
         for (int32_t j = 0; j < i; j++) { if (incoming[j].id == launch->id) { return false; } }
-        value_text(PICK_NAME, i, launch->name, sizeof launch->name);
-        if (!present_text(launch->name)) { return false; }
+        static const uint8_t TEXT_PATHS[] = { PICK_NAME, PICK_PROVIDER, PICK_SITE };
+        for (int32_t field = 0; field < 3; field++) {
+            char *destination = launch->text[field];
+            if (value_count(TEXT_PATHS[field]) == count) { value_text(TEXT_PATHS[field], i, destination, TEXT_MAX); }
+            if (!present_text(destination)) {
+                if (!field) { return false; }
+                copy_text(destination, TEXT_MAX, "?");
+            }
+        }
         mark_truncated(launch->name);
         value_text(PICK_NET, i, text, sizeof text);
         launch->net = parse_moment(text);
@@ -502,10 +520,6 @@ static bool take_launches(int32_t list)
         launch->status = number_column(PICK_STATUS, i, count, 0);
         launch->precision = number_column(PICK_PRECISION, i, count, PRECISION_UNKNOWN);
         if (launch->precision > 16) { launch->precision = PRECISION_UNKNOWN; }
-        column(PICK_PROVIDER, i, count, launch->provider);
-        column(PICK_SITE, i, count, launch->site);
-        if (!present_text(launch->provider)) { app_text_copy(launch->provider, TEXT_MAX, "?"); }
-        if (!present_text(launch->site)) { app_text_copy(launch->site, TEXT_MAX, "?"); }
         /* A launch whose time moved says so for a day. */
         const launch_t *before = find_launch(launch->id);
         if (before != NULL) {
@@ -515,77 +529,59 @@ static bool take_launches(int32_t list)
     }
     if (cache.count[list] != count || !is_same(cache.lists[list], incoming, (uint32_t)(count * sizeof(launch_t)))) {
         cache.count[list] = count;
-        for (int32_t i = 0; i < count; i++) { cache.lists[list][i] = incoming[i]; }
+        if (!list) { cache.revision++; }
+        copy_record(cache.lists[list], incoming, count * sizeof(launch_t));
         cache_dirty = true;
     }
     return true;
 }
 
-/* Pages are folded into a private generation, without a fixed page ceiling. A changed
- * count, missing row or wrong year aborts the round; the last published year stays visible. */
-static bool take_page(int32_t offset)
+
+/* Stable UUID order, including the boundary between pages, is independent of NET.
+ * Country counts come from these same rows, so they cannot mix annual generations. */
+static bool take_page(void)
 {
     annual_t *stage = &cache.staging;
-    int32_t count = value_count(YEAR_NET), total = picked_number(YEAR_COUNT, 0);
-    if (offset == -1) {
-        /* Recheck the common total after the country round. A launch added during the
-         * round invalidates it instead of becoming an incorrect Others remainder. */
-        if (state.year != cache.year || stage->year != state.year || total != stage->total ||
-            count != (total > 0 ? 1 : 0)) { return false; }
-        if (count) {
-            char text[TEXT_MAX];
-            value_text(YEAR_NET, 0, text, sizeof text);
-            if (!parse_moment(text) || utc_year(parse_moment(text)) != state.year) { return false; }
-        }
-        return true;
-    }
-    if (state.year != cache.year || stage->year != state.year || offset != stage->offset ||
-        total < 0 || total > UINT16_MAX || value_count(YEAR_STATUS) != count ||
-        (offset != 0 && stage->total != total) || offset > total ||
-        count != (total - offset < PAGE_SIZE ? total - offset : PAGE_SIZE)) { return false; }
-    year_t page = { 0 };
+    int32_t count = value_count(PICK_ID), total = picked_number(PICK_COUNT, 0);
+    if (state.year != cache.year || state.item != stage->offset || total < state.item || total > UINT16_MAX ||
+        (state.item && stage->total != total) || value_count(PICK_NET) != count ||
+        value_count(PICK_STATUS) != count || value_count(PICK_LSP) > count ||
+        count != (total - state.item < PAGE_SIZE ? total - state.item : PAGE_SIZE)) { return false; }
+    annual_t next;
+    copy_record(&next, stage, sizeof next);
+    next.year = state.year; next.total = total;
+    static const uint16_t PROVIDERS[] = { 121,124,141,147,257,265,44,266,285,1030,0,88,189,184,194,259,272,274,1021,1040,1049,1080,17,263,0,63,193,96,103,111,163,154,119,0,115,27,159,1046,1051,1066,46,0,31,190,1099,0,98,37,1083,1002,1009,0 };
     for (int32_t i = 0; i < count; i++) {
-        char text[TEXT_MAX];
-        value_text(YEAR_NET, i, text, sizeof text);
+        char id[TEXT_MAX], text[TEXT_MAX];
+        value_text(PICK_ID, i, id, sizeof id);
+        int32_t cmp = 0;
+        for (int32_t j = 0; j < 36 && !cmp; j++) { cmp = (uint8_t)(id[j] | 32) - (uint8_t)(next.last_id[j] | 32); }
+        value_text(PICK_NET, i, text, sizeof text);
         int64_t net = parse_moment(text);
-        int32_t month = digits(text, 5, 2), status = picked_number(YEAR_STATUS, i);
-        if (net == 0 || utc_year(net) != state.year ||
+        int32_t status = picked_number(PICK_STATUS, i), provider = picked_number(PICK_LSP, i);
+        if (!uuid_valid(id) || cmp <= 0 || !net || digits(text, 0, 4) != state.year ||
             (status != ST_SUCCESS && status != ST_FAILURE && status != ST_PARTIAL)) { return false; }
-        page.months[month - 1]++;
-        page.failures += status != ST_SUCCESS;
+        copy_text(next.last_id, sizeof next.last_id, id);
+        next.sum.months[digits(text, 5, 2) - 1]++;
+        next.sum.failures += status != ST_SUCCESS;
+        /* Country totals do not depend on row alignment: missing IDs count under Others. */
+        int32_t country = 0;
+        for (uint32_t j = 0; j < sizeof PROVIDERS / sizeof PROVIDERS[0]; j++) {
+            if (PROVIDERS[j] && PROVIDERS[j] == provider) { next.countries[country]++; break; }
+            if (!PROVIDERS[j]) { country++; }
+        }
     }
-    stage->total = total;
-    for (int32_t m = 0; m < 12; m++) { stage->sum.months[m] += page.months[m]; }
-    stage->sum.failures += page.failures;
-    stage->offset += count;
-    cache_dirty = true;
-    return true;
-}
-
-static bool take_country(int32_t country)
-{
-    annual_t *stage = &cache.staging;
-    int32_t total = picked_number(0, 0);
-    if (state.year != cache.year || stage->year != state.year || country != stage->country ||
-        country < 0 || country >= COUNTRIES || total < 0 || total > stage->total) { return false; }
-    stage->countries[country] = total;
-    stage->country++;
-    cache_dirty = true;
-    return true;
-}
-
-static bool publish_annual(void)
-{
-    annual_t *stage = &cache.staging;
-    int32_t sum = 0;
-    for (int32_t i = 0; i < COUNTRIES; i++) { sum += stage->countries[i]; }
-    if (stage->offset != stage->total || stage->country != COUNTRIES || sum > stage->total) { return false; }
-    cache.annual = stage->sum;
-    cache.total = stage->total;
-    for (int32_t i = 0; i < COUNTRIES; i++) { cache.countries[i] = stage->countries[i]; }
-    cache.pages_have = 1;
-    cache.countries_have = (1u << COUNTRIES) - 1;
-    cache.staging = (annual_t){ 0 };
+    next.offset += count;
+    copy_record(stage, &next, sizeof next);
+    if (next.offset == total) {
+        copy_record(&cache.annual, &next.sum, sizeof next.sum);
+        cache.total = total;
+        for (int32_t i = 0; i < COUNTRIES; i++) { cache.countries[i] = next.countries[i]; }
+        cache.pages_have = 1;
+        cache.countries_have = (1u << COUNTRIES) - 1;
+        clear_record(stage, sizeof *stage);
+        state.due[POLL_YEAR] = time_now() + DAY;
+    }
     cache_dirty = true;
     return true;
 }
@@ -599,7 +595,7 @@ __attribute__((noinline)) static const char *split_name(const launch_t *launch, 
     while (name[length] && !(name[length] == ' ' && name[length + 1] == '|')) { length++; }
     rocket[0] = '\0';
     if (!name[length]) { return name; }
-    app_text_copy(rocket, length + 1, name);
+    copy_text(rocket, length + 1, name);
     return name + length + (name[length + 2] == ' ' ? 3 : 2);
 }
 
@@ -646,408 +642,236 @@ static void schedule_reminder(void)
 
 void app_on_alarm(int32_t id)
 {
-    if (id == PACE_ALARM) {
-        /* This relative alarm is the pacing permit, independent of a clock adjustment.
-         * The absolute service cooldown is still checked by fetch(). */
-        if (!request_pending && state.status[state.request] != HTTP_OK) { state.next_send = time_now(); }
+    if (id == FETCH_ALARM) {
+        /* A background poll that cannot start may have no callback. Pending polls coalesce;
+         * a queued repeat reads the gate after the preceding answer has closed it. */
+        int32_t pending = state.active_poll;
         fetch();
-        return;
+        if (pending) { poll_run(pending - 1); }
+        update_header(); screen_redraw(HOST_REDRAW_NORMAL); return;
     }
-    if (id == FETCH_ALARM) { fetch(); return; }
     if (id == SAVE_ALARM) { persist(); fetch(); return; }
     int64_t now = time_now();
     int32_t lead = lead_seconds();
     for (int32_t i = 0; i < cache.count[0]; i++) {
         const launch_t *launch = &cache.lists[0][i];
         if (!needs_reminder(launch, now, lead) || launch->net - lead > now) { continue; }
-        host_notice_t notice = { .icon = HOST_ICON_BELL };
+        host_notice_t notice;
+        clear_record(&notice, sizeof notice);
+        notice.icon = HOST_ICON_BELL;
         app_time_text(launch->net, HOST_TIME_CLOCK, notice.first, sizeof notice.first);
         char rocket[TEXT_MAX];
-        app_text_copy(notice.detail, sizeof notice.detail, split_name(launch, rocket));
-        int32_t slot = state.told_next;
-        uint32_t before = state.told[slot];
-        state.reservation = launch->id;
-        state.told[slot] = launch->id;
-        state.told_next = (slot + 1) % TOLD_MAX;
-        if (!save_state()) {
-            state.told[slot] = before;
-            state.told_next = slot;
-            state.reservation = 0;
-            alarm_set(REMIND_ALARM, MINUTE);
-            return;
-        }
+        copy_text(notice.detail, sizeof notice.detail, split_name(launch, rocket));
+        /* A failed preflight consumes no launch ID. Handlers run to completion on normal unloads. */
+        if (!save_state()) { alarm_set(REMIND_ALARM, MINUTE); return; }
         if (notification_post(&notice) != HOST_OK) {
-            state.told[slot] = before;
-            state.told_next = slot;
-            state.reservation = 0;
-            save_state();
             alarm_set(REMIND_ALARM, MINUTE);
             return;
         }
-        state.reservation = 0;
-        save_state();
+        state.told[state.told_next] = launch->id;
+        state.told_next = (state.told_next + 1) % TOLD_MAX;
+        if (!save_state()) {
+            uint32_t receipt[2] = { launch->id, ~launch->id };
+            file_write("told", 4, 0, receipt, sizeof receipt);
+        }
     }
     schedule_reminder();
 }
 
 /* ---- answers ---- */
 
-static void update_header(void);
 
-static const char *const LAUNCH_PATHS[] = {
-    "results[*].id", "results[*].name", "results[*].net", "results[*].status.id",
-    "results[*].net_precision.id", "results[*].launch_service_provider.name",
-    "results[*].pad.location.name", "count"
-};
-static const char *const YEAR_PATHS[] = { "count", "results[*].net", "results[*].status.id" };
-static const char *const COUNTRY_PATHS[] = { "count" };
-
-static void wake_fetch(int64_t at)
+/* Rebase every scheduling deadline after a backward adjustment, even after a restart.
+ * Within one boot cooldown also follows elapsed uptime, so a forward jump cannot waive it. */
+static void rebase_clock(void)
 {
-    if (time_now() == 0 || at <= time_now()) { alarm_set(FETCH_ALARM, 1); }
-    else if (at < HOST_TIME_MIN || at > HOST_TIME_MAX) { alarm_set(FETCH_ALARM, HOUR); }
-    else { alarm_set_at(FETCH_ALARM, at); }
+    int64_t now = time_now(), uptime = time_uptime_ms();
+    uint32_t boot = time_boot_id();
+    if (!now) { return; }
+    int64_t elapsed = state.boot == boot ? (uptime - state.uptime) / 1000 : 0;
+    int64_t delta = state.clock ? now - state.clock - elapsed : 0;
+    if (state.boot != boot && delta > 0) { delta = 0; }
+    int64_t *deadlines = state.deadlines;
+    for (int32_t i = 0; i < 6; i++) { if (deadlines[i]) { deadlines[i] += delta; } }
+    seen_at = state.revision == cache.revision ? state.seen : 0;
+    if (delta || state.boot != boot) { state_dirty = true; }
+    state.clock = now; state.uptime = uptime; state.boot = boot;
 }
 
-/* Persist the request identity before queuing. Only one request may be outstanding,
- * including across background unloads. The lease recovers interrupted raw streams. */
+/* One enabled poll at a time. Queued work has no clock lease; the callback closes
+ * its required header gate before another endpoint is enabled. Disabled polls fail
+ * template expansion locally, including automatic reconnect and settings polls. */
 static void fetch(void)
 {
+    rebase_clock();
     follow_year();
     persist();
-    int64_t now = time_now();
-    if (now == 0) { alarm_set(FETCH_ALARM, MINUTE); return; }
-    /* The initial pair of lists can complete together. Annual work is paced; no batch
-     * is queued ahead of an answer, so a 429 always closes the gate immediately. */
-    bool initial_previous = !request_pending && cache.count[0] > 0 && state.request == POLL_UPCOMING &&
-                            state.status[0] == HTTP_OK && state.due[1] <= now;
-    int64_t pace = initial_previous ? now : state.next_send;
-    int64_t cooldown = state.cooldown;
-    if (state.cooldown_boot == time_boot_id() && state.cooldown_uptime > time_uptime_ms()) {
-        int64_t until = now + (state.cooldown_uptime - time_uptime_ms() + 999) / 1000;
-        if (until > cooldown) { cooldown = until; }
-    }
-    int64_t wait = cooldown > pace ? cooldown : pace;
-    if (request_pending && state.lease > now) { if (state.lease > wait) { wait = state.lease; } }
-    if (wait > now) { wake_fetch(wait); return; }
-    if (cache_dirty || state_dirty) { alarm_set(FETCH_ALARM, MINUTE); return; }
-    request_pending = false;
+    int64_t now = time_now(), wait = state.cooldown > state.next_send ? state.cooldown : state.next_send;
+    if (state.active_poll) { return; }
+    for (int32_t i = 0; i < POLLS; i++) { if (!close_gate(i)) { return; } }
+    if (!now) { return; }
+    if (wait > now) { return; }
+    if (cache_dirty || state_dirty) { return; }
     int32_t kind = -1;
-    for (int32_t i = 0; i < 3; i++) { if (state.due[i] <= now) { kind = i; break; } }
-    if (kind < 0) {
-        wait = state.due[0];
-        for (int32_t i = 1; i < 3; i++) { if (state.due[i] < wait) { wait = state.due[i]; } }
-        wake_fetch(wait);
-        return;
+    for (int32_t i = 0; i < 3; i++) {
+        int32_t candidate = (state.cursor + i) % 3;
+        if (state.due[candidate] <= now) { kind = candidate; break; }
     }
-    if (kind == POLL_YEAR && cache.staging.year == 0) {
-        cache.staging = (annual_t){ .year = cache.year, .total = -1 };
-        cache_dirty = true;
-        persist();
-        if (cache_dirty) { alarm_set(FETCH_ALARM, MINUTE); return; }
+    if (kind < 0) { return; }
+    if (kind == POLL_YEAR && !cache.staging.year) {
+        clear_record(&cache.staging, sizeof cache.staging);
+        cache.staging.year = cache.year;
+        cache.staging.total = -1;
     }
     state.request = kind;
-    state.item = -1;
+    state.cursor = (kind + 1) % 3;
+    state.item = cache.staging.offset;
     state.year = cache.year;
-    char url[512];
-    app_text_t text;
-    app_text_start(&text, url, sizeof url);
-    app_text_add(&text, "https://ll.thespacedevs.com/2.3.0/launches/");
-    if (kind == POLL_UPCOMING) {
-        app_text_add(&text, "upcoming/?format=json&mode=normal&limit=10&ordering=net&hide_recent_previous=false");
-    } else if (kind == POLL_PREVIOUS) {
-        app_text_add(&text, "previous/?format=json&mode=normal&limit=10&ordering=-net");
-    } else {
-        annual_t *stage = &cache.staging;
-        if (stage->country == COUNTRIES) {
-            state.item = -1;
-            app_text_add(&text, "previous/?offset=0&limit=1&format=json&mode=list&ordering=net&year=");
-        } else if (stage->total >= 0 && stage->offset == stage->total) {
-            state.request = POLL_COUNTRIES;
-            state.item = stage->country;
-            char providers[256];
-            /* Hidden provider list is a single encoded setting item in the URL. */
-            app_setting("lsp", providers, sizeof providers);
-            const char *from = providers;
-            for (int32_t i = 0; i < stage->country && *from; ) { if (*from++ == '\n') { i++; } }
-            app_text_add(&text, "previous/?lsp__id=");
-            for (; *from && *from != '\n'; from++) {
-                if (*from == ',') { app_text_add(&text, "%2C"); }
-                else if (*from >= '0' && *from <= '9') { char digit[2] = { *from, 0 }; app_text_add(&text, digit); }
-                else { alarm_set(FETCH_ALARM, HOUR); return; }
-            }
-            app_text_add(&text, "&limit=1&format=json&mode=list&year=");
-        } else {
-            state.item = stage->offset;
-            app_text_add(&text, "previous/?offset=");
-            app_text_add_number(&text, stage->offset);
-            app_text_add(&text, "&limit=100&format=json&mode=list&ordering=net&year=");
-        }
-        app_text_add_number(&text, state.year);
-        app_text_add(&text, "&status__ids=3,4,7&include_suborbital=false");
-    }
-    /* A serialized request can reuse its binding within the year. Leases exceed the
-     * host stream timeout; an abandoned response cannot overlap the next such binding. */
-    state.active_tag = HOST_REQUEST_FIRST + ((state.year - FIRST_YEAR) % 30) * 8 + state.request;
-    state.lease = now + REQUEST_LEASE;
+    state.active_poll = kind + 1;
     state.next_send = now + REQUEST_GAP;
-    if (!save_state()) { request_pending = false; alarm_set(FETCH_ALARM, MINUTE); return; }
-    static const char HEADERS[] = "Accept: application/json\nUser-Agent: perinkpheral-space-launch";
-    request_pending = true;
-    if (http_send(state.active_tag, HOST_HTTP_GET, url, app_text_length(url), HEADERS, sizeof HEADERS - 1, NULL, 0) != HOST_OK) {
-        request_pending = false;
-        save_state();
+    if (!save_state()) { state.active_poll = 0; return; }
+    bool ready = true;
+    if (kind == POLL_YEAR) {
+        ready = set_text("yr", number_text(state.year));
+        const char *offset = number_text(state.item);
+        ready = set_text("offset", offset) && ready;
     }
-    wake_fetch(state.lease);
+    const char *gate = GATES[state.active_poll - 1];
+    if (!ready || !set_text(gate, "1") || poll_run(state.active_poll - 1) != HOST_OK) {
+        close_gate(kind);
+        state.active_poll = 0; state.due[kind] = now + HOUR; save_state();
+    }
+
 }
 
 /* Retry-After permits either delta seconds or an RFC 7231 GMT date. */
 static int64_t retry_deadline(void)
 {
-    host_answer_info_t info = { 0 };
-    answer_info(&info, sizeof info);
-    if (info.retry_after > 0) { return time_now() + info.retry_after; }
+    int64_t now = time_now();
+    int32_t info[3] = { 0 }; /* status, length, Retry-After: only this metadata prefix is needed */
+    answer_info((host_answer_info_t *)info, sizeof info);
+    if (info[2] > 0) { return now + info[2]; }
     char header[64] = { 0 };
     int32_t size = answer_header("Retry-After", 11, 0, header, sizeof header - 1);
     if (size > 0) {
         int32_t seconds = number_of(header);
-        if (seconds >= 0) { return time_now() + seconds; }
-        if (size == 29 && app_text_equal(header + 25, " GMT") &&
-            digits(header, 5, 2) > 0 && digits(header, 5, 2) <= 31 && digits(header, 12, 4) >= FIRST_YEAR) {
+        if (seconds >= 0) { return now + seconds; }
+        if (size == 29 && is_same(header + 25, " GMT", 4)) {
             static const char MONTHS[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
-            for (int32_t month = 0; month < 12; month++) {
-                if (!is_same(header + 8, MONTHS + 3 * month, 3)) { continue; }
-                char iso[24];
-                app_text_t text;
-                app_text_start(&text, iso, sizeof iso);
-                app_text_add_number(&text, digits(header, 12, 4)); app_text_add(&text, "-");
-                app_text_add_padded(&text, month + 1, 2); app_text_add(&text, "-");
-                app_text_add_padded(&text, digits(header, 5, 2), 2); app_text_add(&text, "T");
-                for (int32_t i = 17; i < 25; i++) { char one[2] = { header[i], 0 }; app_text_add(&text, one); }
-                app_text_add(&text, "Z");
+            for (int32_t month = 1; month <= 12; month++) {
+                if (!is_same(header + 8, MONTHS + 3 * (month - 1), 3)) { continue; }
+                char iso[] = "0000-00-00T00:00:00Z";
+                copy_record(iso, header + 12, 4);
+                iso[5] = '0' + month / 10; iso[6] = '0' + month % 10;
+                copy_record(iso + 8, header + 5, 2);
+                copy_record(iso + 11, header + 17, 8);
                 int64_t at = parse_moment(iso);
-                if (at) { return at > time_now() ? at : time_now(); }
+                if (at) { return at > now ? at : now; }
             }
         }
     }
-    return time_now() + RETRY_DEFAULT_S;
+    return now + RETRY_DEFAULT_S;
 }
 
 static void finish_answer(int32_t status)
 {
-    int32_t request = state.request;
-    if (status == HTTP_OK) {
-        bool taken = request == POLL_YEAR ? take_page(state.item) :
-                     request == POLL_COUNTRIES ? take_country(state.item) : take_launches(request);
-        if (!taken) { status = HOST_FAILED_NO_ANSWER; }
+    int64_t now = time_now();
+    int32_t kind = state.request;
+    state.next_send = now + REQUEST_GAP;
+    if (status == HTTP_OK && !(kind == POLL_YEAR ? take_page() : take_launches(kind))) { status = HOST_FAILED_NO_ANSWER; }
+    /* A closed private gate is not a setting the user must fix. */
+    if (status != HOST_FAILED_NOT_READY) { state.status[kind] = status; }
+    if (status != HTTP_OK) {
+        state.due[kind] = now + HOUR;
+        if (kind == POLL_YEAR) { clear_record(&cache.staging, sizeof cache.staging); cache_dirty = true; }
+    } else if (kind < POLL_YEAR) {
+        state.due[kind] = now + (kind == POLL_UPCOMING ? 30 * MINUTE : 3 * HOUR);
+        if (kind == POLL_UPCOMING) { state.seen = seen_at = now; state.revision = cache.revision; }
     }
-    if (request >= POLL_YEAR && state.year != cache.year && status != HTTP_TOO_MANY) {
-        request_pending = false;
-        state.completed_tag = state.active_tag;
-        state.completed_at = time_now();
-        save_state();
-        wake_fetch(state.next_send);
-        return;
-    }
-    if (status == HTTP_TOO_MANY) {
-        int64_t until = retry_deadline();
-        if (until > state.cooldown) { state.cooldown = until; }
-        int64_t deadline = time_uptime_ms() + (state.cooldown > time_now() ? state.cooldown - time_now() : 0) * 1000;
-        if (state.cooldown_boot != time_boot_id() || deadline > state.cooldown_uptime) {
-            state.cooldown_uptime = deadline;
-        }
-        state.cooldown_boot = time_boot_id();
-        /* No staged set survives a failed round, including a 429 in its countries. */
-        cache.staging = (annual_t){ 0 };
-        cache_dirty = true;
-        for (int32_t i = 0; i < POLLS; i++) { state.status[i] = status; }
-    } else {
-        state.status[request] = status;
-        if (status == HTTP_OK && request >= POLL_YEAR && !cache.pages_have && cache.staging.year) {
-            state.status[request] = 0; /* a complete annual snapshot is still loading */
-        }
-        if (status < 0) {
-            for (int32_t i = 0; i < POLLS; i++) { if (state.status[i] == 0) { state.status[i] = status; } }
-        }
-        if (request < POLL_YEAR) { state.due[request] = status == HTTP_OK ? time_now() + (request == 0 ? 30 * MINUTE : 3 * HOUR) : time_now(); }
-        else if (status != HTTP_OK) {
-            cache.staging = (annual_t){ 0 };
-            cache_dirty = true;
-            state.due[2] = time_now() + HOUR;
-        } else if (request == POLL_YEAR && state.item == -1) {
-            bool published = publish_annual();
-            state.status[POLL_YEAR] = state.status[POLL_COUNTRIES] = published ? HTTP_OK : HOST_FAILED_NO_ANSWER;
-            if (!published) { cache.staging = (annual_t){ 0 }; }
-            state.due[2] = time_now() + (published ? DAY : HOUR);
-        }
-    }
-    request_pending = false;
-    state.completed_tag = state.active_tag;
-    state.completed_at = time_now();
+    if (kind == POLL_YEAR && cache.staging.year && !cache.pages_have && status == HTTP_OK) { state.status[kind] = 0; }
+    state.active_poll = 0;
     state_dirty = true;
-    if (request == POLL_UPCOMING && status == HTTP_OK && seen_at != time_now()) {
-        seen_at = time_now();
-        cache.seen = seen_at;
-        cache_dirty = true;
-    }
     persist();
     schedule_reminder();
     update_header();
-    wake_fetch(state.cooldown > state.next_send ? state.cooldown : state.next_send);
     screen_redraw(HOST_REDRAW_NORMAL);
-    if (request == POLL_UPCOMING && status == HTTP_OK) { fetch(); }
+    fetch();
 }
 
-void app_on_data(int32_t tag, const uint8_t *data, int32_t length, int32_t flags, int32_t status)
+void app_on_picked(int32_t poll, int32_t status)
 {
-    if (tag != state.active_tag || !state.active_tag) { return; }
+    rebase_clock();
     follow_year();
-    if (flags & HOST_DATA_FIRST) {
-        stream_open = true;
-        stream_status = status;
-        const char *const *paths = state.request == POLL_YEAR ? YEAR_PATHS :
-                                  state.request == POLL_COUNTRIES ? COUNTRY_PATHS : LAUNCH_PATHS;
-        json_pick_init(&picker, paths, state.request == POLL_YEAR ? 3 : state.request == POLL_COUNTRIES ? 1 : 8);
-        json_pick_lists(&picker, picked_lists, sizeof picked_lists);
-    }
-    /* A 429's body can itself be interrupted: persist the cooldown on FIRST. */
-    if ((flags & HOST_DATA_FIRST) && status == HTTP_TOO_MANY) {
-        stream_open = false;
-        finish_answer(status);
-        return;
-    }
-    if (flags & HOST_DATA_FAILED) {
-        stream_open = false;
-        finish_answer(status);
-        return;
-    }
-    if (!stream_open) { return; }
-    json_pick_feed(&picker, (const char *)data, length);
-    if (flags & HOST_DATA_LAST) {
-        stream_open = false;
-        status = stream_status;
-        if (status == HTTP_OK && (!json_pick_finish(&picker) || json_pick_is_cut(&picker))) { status = HOST_FAILED_NO_ANSWER; }
-        finish_answer(status);
-    }
-}
-
-/* The old file cannot prove coherent annual statistics. Preserve its validated lists
- * and their freshness during upgrade; annual data is rebuilt through the staged path. */
-static void migrate_cache(void)
-{
-    legacy_cache_t *old = &bank_scratch.legacy;
-    if (file_read("cache", 5, 0, old, sizeof *old) != sizeof *old || old->version != 1 ||
-        (uint32_t)old->count[0] > LIST_MAX || (uint32_t)old->count[1] > LIST_MAX) { return; }
-    for (int32_t list = 0; list < 2; list++) {
-        for (int32_t i = 0; i < old->count[list]; i++) {
-            launch_t *launch = &old->lists[list][i];
-            if (!launch->id || launch->net < HOST_TIME_MIN || launch->net > HOST_TIME_MAX ||
-                launch->name[TEXT_MAX - 1] || launch->provider[TEXT_MAX - 1] || launch->site[TEXT_MAX - 1] ||
-                !present_text(launch->name)) { return; }
-        }
-    }
-    for (int32_t list = 0; list < 2; list++) {
-        cache.count[list] = old->count[list];
-        for (int32_t i = 0; i < old->count[list]; i++) {
-            launch_t *launch = &cache.lists[list][i];
-            *launch = old->lists[list][i];
-            mark_truncated(launch->name);
-            if (launch->precision > 16) { launch->precision = PRECISION_UNKNOWN; }
-            if (!present_text(launch->provider)) { app_text_copy(launch->provider, TEXT_MAX, "?"); }
-            if (!present_text(launch->site)) { app_text_copy(launch->site, TEXT_MAX, "?"); }
-        }
-    }
-    if (kv_get("seen", 4, &cache.seen, sizeof cache.seen) != sizeof cache.seen) { cache.seen = 0; }
-    cache_dirty = true;
+    if (status == HTTP_TOO_MANY) {
+        int64_t until = retry_deadline();
+        if (until > state.cooldown) { state.cooldown = until; }
+        for (int32_t i = 0; i < POLLS; i++) { state.status[i] = status; }
+        for (int32_t i = 0; i < POLLS; i++) { close_gate(i); }
+        state_dirty = true;
+        persist();
+        if (poll + 1 != state.active_poll) { screen_redraw(HOST_REDRAW_NORMAL); return; }
+    } else if (poll + 1 != state.active_poll) { return; }
+    finish_answer(status);
 }
 
 /* ---- the life of it ---- */
 
 void app_on_load(void)
 {
-    cache_dirty = state_dirty = stream_open = false;
+    cache_dirty = state_dirty = false;
     if (!app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION)) {
-        state = (state_t){ .version = STATE_VERSION };
-        typedef struct { int32_t version, status[4]; uint32_t postponed; int32_t next; uint32_t told[16]; } legacy_t;
-        legacy_t old;
-        if (kv_get(STATE_KEY, sizeof STATE_KEY - 1, &old, sizeof old) == sizeof old && old.version == 1) {
-            state.told_next = old.next;
-            for (int32_t i = 0; i < TOLD_MAX; i++) { state.told[i] = old.told[i]; }
-            state_dirty = true;
-        }
+        clear_record(&state, sizeof state);
+        state.version = STATE_VERSION;
     }
-    if ((uint32_t)state.told_next >= TOLD_MAX) { state.told_next = 0; }
-    cache = (cache_t){ .version = CACHE_VERSION };
+    if (state.boot != time_boot_id()) { state.active_poll = 0; state_dirty = true; }
+    /* Separate delivery receipt survives KV failure after a successful post. */
+    uint32_t receipt[2];
+    if (file_read("told", 4, 0, receipt, sizeof receipt) == sizeof receipt && receipt[0] && receipt[1] == ~receipt[0] && !was_told(receipt[0])) {
+        state.told[state.told_next] = receipt[0];
+        state.told_next = (state.told_next + 1) % TOLD_MAX;
+        state_dirty = true;
+    }
+    clear_record(&cache, sizeof cache);
+    cache.version = CACHE_VERSION;
     cache_generation = 0;
     cache_bank = 1;
     bool have = false;
     for (int32_t i = 0; i < 2; i++) {
         if (file_read(BANKS[i], 7, 0, &bank_buffer, sizeof bank_buffer) == sizeof bank_buffer && valid_bank(&bank_buffer) &&
             (!have || (int32_t)(bank_buffer.generation - cache_generation) > 0)) {
-            cache = bank_buffer.data;
+            copy_record(&cache, &bank_buffer.data, sizeof cache);
             cache_generation = bank_buffer.generation;
             cache_bank = i;
             have = true;
         }
     }
-    if (!have) { migrate_cache(); }
-    seen_at = cache.seen;
-    if (cache.staging.year) { state.due[2] = 0; state_dirty = true; }
+    seen_at = state.revision == cache.revision ? state.seen : 0;
     if (state.cache_pending) {
         state.due[state.request < POLL_YEAR ? state.request : POLL_YEAR] = 0;
-        request_pending = false;
-        state.lease = 0;
+
         state.cache_pending = 0;
         state.status[state.request] = HOST_FAILED_NO_ANSWER;
         state_dirty = true;
     }
-    /* An interrupted reservation is deliberately consumed (at most once delivery). */
-    if (state.reservation) { state.reservation = 0; state_dirty = true; }
-    request_pending = state.active_tag && state.lease > time_now() &&
-                      !(state.completed_tag == state.active_tag && state.completed_at >= state.lease - REQUEST_LEASE);
+    rebase_clock();
     follow_year();
     persist();
-    if (alarm_set_every(PACE_ALARM, REQUEST_GAP, REQUEST_GAP) != HOST_OK) {
-        log_write(HOST_LOG_ERROR, "Fetch alarm unavailable", 23);
-    }
-    wake_fetch(state.cooldown > time_now() ? state.cooldown : time_now() + 1);
+    if (alarm_set_every(FETCH_ALARM, REQUEST_GAP, REQUEST_GAP) != HOST_OK) { log_write(HOST_LOG_ERROR, "Fetch alarm unavailable", 23); }
 }
 
 void app_on_intent(int32_t intent)
 {
-    if (intent == HOST_INTENT_TIME_CHANGED && time_now() && state.cooldown_boot == time_boot_id() &&
-        state.cooldown_uptime > time_uptime_ms()) {
-        state.cooldown = time_now() + (state.cooldown_uptime - time_uptime_ms() + 999) / 1000;
-        state_dirty = true;
-    }
-    if (intent == HOST_INTENT_STARTED) {
-        request_pending = false; /* a restart cleared the host request queue */
-        state_dirty = true;
-    }
+    (void)intent;
     fetch();
     schedule_reminder();
 }
 
 void app_on_installed(void) { fetch(); schedule_reminder(); }
 void app_on_updated(void) { fetch(); schedule_reminder(); }
-void app_on_settings(void)
-{
-    fetch();
-    schedule_reminder();
-    screen_redraw(HOST_REDRAW_NORMAL);
-}
+void app_on_settings(void) { fetch(); schedule_reminder(); }
 
 void app_on_terminate(void)
 {
-    if (stream_open) {
-        /* The host drops an interrupted raw request when this instance is unloaded. */
-        state.lease = 0;
-        state_dirty = true;
-        request_pending = false;
-    }
-    stream_open = false;
-    /* Refused writes remain scheduled off screen. The persisted cache_pending marker
-     * restores the affected deadline if this instance loses an uncommitted snapshot. */
     persist();
 }
 
@@ -1055,13 +879,13 @@ void app_on_terminate(void)
 
 /* Where the user is, kept in the session while the application waits in the stack. */
 typedef struct {
-    app_nav_t nav;
+    struct { int32_t screen, depth; } nav;
     uint32_t  selected_id;    /* the launch chosen in the list; 0: the next one */
     int32_t   first;          /* the list's top row */
     int32_t   chosen_year[2]; /* of Months and History; 0: the latest */
 } place_t;
 APP_SESSION_FITS(place_t);
-static place_t place = { .nav = { .screens = SCREENS } };
+static place_t place;
 static int32_t selected; /* the row of the chosen launch */
 
 /* The row of the next launch: the first that has no result yet. */
@@ -1096,29 +920,14 @@ void app_on_blur(void)
     app_session_save(&place, sizeof place);
 }
 
-static void tick(void)
-{
-    timer_set(TICK_TIMER, TICK_MS);
-}
-
 void app_on_focus(void)
 {
-    if (!app_session_load(&place, sizeof place)) { place = (place_t){ .nav = { .screens = SCREENS } }; }
+    if (!app_session_load(&place, sizeof place)) { clear_record(&place, sizeof place); }
     fetch();
     schedule_reminder();
-    app_nav_check(&place.nav, SCREENS);
+    if ((uint32_t)place.nav.screen >= SCREENS) { place.nav.screen = place.nav.depth = 0; }
     fit_rows();
     update_header();
-    tick();
-}
-
-void app_on_timer(int32_t id)
-{
-    (void)id;
-    fetch();
-    update_header();
-    screen_redraw(HOST_REDRAW_NORMAL);
-    tick();
 }
 
 /* The year a chart shows: what UP and DOWN chose, within the years there are. */
@@ -1132,16 +941,17 @@ static int32_t year_shown(int32_t chart)
 
 void app_on_button(int32_t event)
 {
-    if (app_nav_button(&place.nav, event) != APP_NAV_IGNORED) {
+    if (!place.nav.depth && (event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
+        place.nav.screen = (place.nav.screen + (event == BTN_UP_LONG_PRESSED ? SCREENS - 1 : 1)) % SCREENS;
         screen_redraw(HOST_REDRAW_SOON);
         return;
     }
     int32_t by = event == BTN_UP_PRESSED ? -1 : event == BTN_DOWN_PRESSED ? 1 : 0;
     if (place.nav.screen == SCREEN_LAUNCHES) {
         fit_rows();
-        if (event == BTN_OK_PRESSED && app_nav_view(&place.nav) == APP_NAV_ON_SCREEN && row_count > 0) {
+        if (event == BTN_OK_PRESSED && !place.nav.depth && row_count > 0) {
             place.selected_id = rows[selected]->id; /* the page stays with it while the list changes */
-            app_nav_open(&place.nav, VIEW_LAUNCH);
+            place.nav.depth = 1;
             screen_redraw(HOST_REDRAW_NORMAL);
         } else if (by != 0 && selected + by >= 0 && selected + by < row_count) {
             place.selected_id = rows[selected + by]->id;
@@ -1160,9 +970,10 @@ void app_on_button(int32_t event)
 
 void app_on_back(void)
 {
-    if (app_nav_button(&place.nav, BTN_BACK_PRESSED) == APP_NAV_IGNORED) {
+    if (!place.nav.depth) {
         screen_leave();
     } else {
+        place.nav.depth = 0;
         screen_redraw(HOST_REDRAW_NORMAL);
     }
 }
@@ -1171,16 +982,7 @@ void app_on_back(void)
 
 static int32_t fill(char *out, int32_t size, int32_t pattern, const host_text_argument_t *args, int32_t count)
 {
-    const char *text = word(pattern);
-    int32_t length = text_fill(text, app_text_length(text), args, count, out, size - 1);
-    out[length > 0 ? length : 0] = '\0';
-    return length;
-}
-
-__attribute__((noinline)) static void fill_number(char *out, int32_t size, int32_t pattern, int32_t number)
-{
-    host_text_argument_t arg = { .number = number };
-    fill(out, size, pattern, &arg, 1);
+    return format_text(out, size, word(pattern), args, count);
 }
 
 /* The header says when the list was taken once it is old: what is shown stays meanwhile. */
@@ -1196,7 +998,7 @@ static void update_header(void)
     header_set_text(HOST_HEADER_LEFT, line, app_text_length(line));
 }
 
-static int32_t status_word(const launch_t *launch, int64_t now)
+__attribute__((noinline)) static int32_t status_word(const launch_t *launch, int64_t now)
 {
     static const uint8_t WORDS[] = { STR_STATUS_UNKNOWN, STR_STATUS_GO, STR_STATUS_TBD, STR_STATUS_SUCCESS,
                                      STR_STATUS_FAILURE, STR_STATUS_HOLD, STR_STATUS_FLIGHT, STR_STATUS_PARTIAL,
@@ -1224,38 +1026,31 @@ static int32_t nth_word(int32_t list, int32_t index, char *out, int32_t size)
 static void say_day(const launch_t *launch, int32_t style, char *out, int32_t size)
 {
     host_local_time_t then, today;
-    app_text_t text;
     out[0] = '\0';
     if (launch->precision == PRECISION_UNKNOWN) {
-        app_text_copy(out, size, word(STR_TIME_UNKNOWN));
+        copy_text(out, size, word(STR_TIME_UNKNOWN));
         return;
     }
     if (launch->precision > PRECISION_HOUR) {
         /* Coarse NETs name a supplied UTC calendar period, not a local instant. */
         app_date_from_days((int32_t)(launch->net / DAY), &then.year, &then.month, &then.day);
-        app_text_start(&text, out, size);
         char month[16];
         nth_word(STR_MONTHS, then.month - 1, month, sizeof month);
-        if (launch->precision < PRECISION_MONTH) {
-            app_text_add_number(&text, then.day);
-            app_text_add(&text, " ");
-        }
-        if (launch->precision <= PRECISION_MONTH) {
-            app_text_add(&text, month);
-            app_text_add(&text, " ");
-        }
-        app_text_add_number(&text, then.year);
+        host_text_argument_t args[3] = { { .number = then.day },
+            { .text = month, .length = app_text_length(month) }, { .number = then.year } };
+        format_text(out, size, launch->precision < PRECISION_MONTH ? "{0} {1} {2}" :
+            launch->precision == PRECISION_MONTH ? "{1} {2}" : "{2}", args, 3);
         return;
     }
     if (time_local_at(launch->net, &then) != HOST_OK) { return; }
-    if (style == HOST_TIME_NEAR_DAY && time_local(&today) == HOST_OK &&
+    if (style == HOST_TIME_NEAR_DAY && time_local_at(time_now(), &today) == HOST_OK &&
         then.year == today.year && then.month == today.month && then.day == today.day) {
         style = HOST_TIME_CLOCK;
     }
     if (style == HOST_TIME_CLOCK && launch->precision == PRECISION_HOUR) {
-        app_text_start(&text, out, size);
-        app_text_add_padded(&text, then.hour, 2);
-        app_text_add(&text, ":--");
+        out[0] = '0' + then.hour / 10;
+        out[1] = '0' + then.hour % 10;
+        copy_text(out + 2, size - 2, ":--");
     } else { app_time_text(launch->net, style, out, size); }
 }
 
@@ -1269,7 +1064,7 @@ static void say_in(const launch_t *launch, int64_t now, char *out, int32_t size)
         return;
     }
     if (seconds < HOUR) {
-        app_text_copy(out, size, word(STR_WITHIN_HOUR));
+        copy_text(out, size, word(STR_WITHIN_HOUR));
     } else if (seconds < 2 * DAY) {
         fill_number(out, size, STR_IN_HOURS, (int32_t)((seconds + HOUR / 2) / HOUR));
     } else {
@@ -1284,6 +1079,18 @@ static void say_in(const launch_t *launch, int64_t now, char *out, int32_t size)
 #define KIT_BAR_INSET   8
 #define KIT_SCROLL_ROOM 12
 
+/* The accepted counter shares the text baseline; no screen title is drawn. */
+static int32_t screen_top(void)
+{
+    char counter[] = "1/4";
+    counter[0] += place.nav.screen;
+    int32_t right = gfx_width() - MARGIN;
+    int32_t width = gfx_text_width(HOST_FONT_SMALL, counter, 3);
+    int32_t top = MARGIN + gfx_font_ascent(HOST_FONT_TEXT) - gfx_font_ascent(HOST_FONT_SMALL);
+    ui_draw_text(right - width, top, HOST_UI_CAPTION, counter, 3, width);
+    return MARGIN + ui_text_height(HOST_UI_TEXT);
+}
+
 static int32_t top_of(int32_t font, int32_t baseline)
 {
     return baseline - gfx_font_ascent(font);
@@ -1292,17 +1099,20 @@ static int32_t top_of(int32_t font, int32_t baseline)
 /* Draws `text` cut with "..." to `width`. */
 __attribute__((noinline)) static void draw_fitted(int32_t x, int32_t y, int32_t font, const char *text, int32_t width)
 {
-    char fitted[96];
-    int32_t length = gfx_fit_text(font, text, app_text_length(text), width, fitted, sizeof fitted);
-    gfx_draw_text(x, y, font, fitted, length > 0 ? length : 0);
+    ui_draw_text(x, y, font == HOST_FONT_SMALL ? HOST_UI_CAPTION : HOST_UI_TEXT,
+                 text, app_text_length(text), width);
 }
 
 /* "Ariane 64 Block 2   Go" */
-static void add_spaced(app_text_t *text, const char *first, const char *second)
+/* Reuse the host formatter for the caption and detail string joins. */
+__attribute__((noinline)) static void join_text(char *out, int32_t size, const char *first,
+                                               const char *second, const char *separator)
 {
-    app_text_add(text, first);
-    if (first[0] && second[0]) { app_text_add(text, "   "); }
-    app_text_add(text, second);
+    host_text_argument_t args[3] = { { .text = first, .length = app_text_length(first) },
+        { .text = first[0] && second[0] ? separator : "", .length = app_text_length(separator) },
+        { .text = second, .length = app_text_length(second) } };
+    if (!first[0] || !second[0]) { args[1].length = 0; }
+    format_text(out, size, "{0}{1}{2}", args, 3);
 }
 
 static void draw_row(int32_t row, int32_t top, int32_t right, int64_t now)
@@ -1327,16 +1137,14 @@ static void draw_row(int32_t row, int32_t top, int32_t right, int64_t now)
     draw_fitted(MARGIN, top_of(HOST_FONT_TEXT, baseline), HOST_FONT_TEXT, mission,
                 value_right - when_width - 14 - MARGIN);
     char caption[96];
-    app_text_t text;
-    app_text_start(&text, caption, sizeof caption);
-    add_spaced(&text, rocket, word(status_word(launch, now)));
+    join_text(caption, sizeof caption, rocket, word(status_word(launch, now)), "   ");
     draw_fitted(MARGIN, top_of(HOST_FONT_SMALL, caption_baseline), HOST_FONT_SMALL, caption, value_right - MARGIN);
     gfx_set_color(HOST_INK);
 }
 
 static void draw_launches(int64_t now)
 {
-    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 2;
+    int32_t top = screen_top() + 2;
     int32_t pitch = (gfx_height() - top) / ROWS;
     int32_t right = gfx_width() - (row_count > ROWS ? KIT_SCROLL_ROOM : 0);
     for (int32_t row = place.first; row < place.first + ROWS && row < row_count; row++) {
@@ -1358,7 +1166,7 @@ __attribute__((noinline)) static int32_t caption_line(int32_t top, const char *t
     return top + ui_text_height(HOST_UI_CAPTION);
 }
 
-static void draw_launch(const launch_t *launch, int64_t now)
+__attribute__((noinline)) static void draw_launch(const launch_t *launch, int64_t now)
 {
     int32_t width = gfx_width() - 2 * MARGIN;
     char rocket[TEXT_MAX], line[128];
@@ -1387,13 +1195,12 @@ static void draw_launch(const launch_t *launch, int64_t now)
                        ? STR_SCHEDULE_CHANGED
                        : -1;
     char day[48];
-    app_text_t text;
     say_day(launch, HOST_TIME_DATE, day, sizeof day);
-    app_text_start(&text, line, sizeof line);
-    add_spaced(&text, rocket, day);
+    join_text(line, sizeof line, rocket, day, "   ");
     if (note >= 0) {
-        app_text_add(&text, "   ");
-        app_text_add(&text, word(note));
+        char dated[128];
+        copy_text(dated, sizeof dated, line);
+        join_text(line, sizeof line, dated, word(note), "   ");
     }
     top = caption_line(top, line) + 10;
 
@@ -1407,13 +1214,8 @@ static void draw_launch(const launch_t *launch, int64_t now)
 
     /* The status, and how soon. */
     char soon[48];
-    app_text_start(&text, line, sizeof line);
-    app_text_add(&text, word(status_word(launch, now)));
     say_in(launch, now, soon, sizeof soon);
-    if (soon[0]) {
-        app_text_add(&text, ", ");
-        app_text_add(&text, soon);
-    }
+    join_text(line, sizeof line, word(status_word(launch, now)), soon, ", ");
     int32_t text_inset = gfx_font_ascent(HOST_FONT_TEXT) - gfx_font_cap_height(HOST_FONT_TEXT);
     ui_draw_text(MARGIN, top - text_inset, HOST_UI_TEXT, line, app_text_length(line), width);
 
@@ -1426,45 +1228,38 @@ static void draw_launch(const launch_t *launch, int64_t now)
 /* Nothing to show yet: why. */
 static void draw_empty(int32_t status)
 {
-    host_notice_t notice = { .icon = HOST_ICON_INFO };
+    host_notice_t notice;
+    clear_record(&notice, sizeof notice);
+    notice.icon = HOST_ICON_INFO;
     if (status == HTTP_TOO_MANY) {
         notice.icon = HOST_ICON_HOURGLASS;
-        app_text_copy(notice.first, sizeof notice.first, word(STR_PLEASE_WAIT));
-        app_text_copy(notice.detail, sizeof notice.detail, word(STR_RETRY_LATER));
+        copy_text(notice.first, sizeof notice.first, word(STR_PLEASE_WAIT));
+        copy_text(notice.detail, sizeof notice.detail, word(STR_RETRY_LATER));
         ui_draw_notice(&notice);
     } else if (status == HTTP_OK) {
-        app_text_copy(notice.first, sizeof notice.first, word(STR_NO_LAUNCHES));
+        copy_text(notice.first, sizeof notice.first, word(STR_NO_LAUNCHES));
         ui_draw_notice(&notice);
     } else {
         ui_draw_reason(status);
     }
 }
 
-static void draw_countries(void)
+__attribute__((noinline)) static void draw_countries(void)
 {
     static const uint8_t NAMES[] = { STR_USA, STR_CHINA, STR_RUSSIA, STR_EUROPE, STR_INDIA, STR_JAPAN, STR_OTHERS };
-    int32_t counts[COUNTRIES + 1], order[COUNTRIES + 1], shown = 0, sum = 0;
-    for (int32_t i = 0; i < COUNTRIES; i++) {
-        if (!(cache.countries_have & (1u << i))) { continue; }
-        int32_t at = shown++;
-        while (at > 0 && counts[at - 1] < cache.countries[i]) { /* the most first */
-            counts[at] = counts[at - 1];
-            order[at] = order[at - 1];
-            at--;
+    if (!cache.countries_have) { draw_empty(state.status[POLL_YEAR]); return; }
+    int32_t order[COUNTRIES + 1] = { 0, 1, 2, 3, 4, 5, 6 };
+    int32_t counts[COUNTRIES + 1], sum = 0;
+    for (int32_t i = 0; i < COUNTRIES; i++) { counts[i] = cache.countries[i]; sum += counts[i]; }
+    counts[COUNTRIES] = cache.total - sum;
+    for (int32_t i = 1; i < COUNTRIES; i++) {
+        int32_t at = i;
+        while (at > 0 && counts[order[at - 1]] < counts[i]) {
+            order[at] = order[at - 1]; at--;
         }
-        counts[at] = cache.countries[i];
         order[at] = i;
-        sum += cache.countries[i];
     }
-    if (shown == 0) {
-        draw_empty(state.status[POLL_COUNTRIES]);
-        return;
-    }
-    if (shown == COUNTRIES && cache.total >= sum) {
-        counts[shown] = cache.total - sum;
-        order[shown++] = COUNTRIES;
-    }
-    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 4;
+    int32_t top = screen_top() + 4;
     int32_t pitch = (gfx_height() - top - 4) / (COUNTRIES + 1);
     int32_t name_width = 0, number_width = app_text_width(HOST_FONT_TEXT | HOST_FONT_TABULAR, "000");
     for (int32_t i = 0; i <= COUNTRIES; i++) {
@@ -1474,13 +1269,13 @@ static void draw_countries(void)
     int32_t bar_left = MARGIN + name_width + 12;
     int32_t bar_width = gfx_width() - MARGIN - number_width - 12 - bar_left;
     int32_t cap = gfx_font_cap_height(HOST_FONT_TEXT), ascent = gfx_font_ascent(HOST_FONT_TEXT);
-    int32_t leader = counts[0] > 0 ? counts[0] : 1;
-    for (int32_t i = 0; i < shown; i++) {
+    int32_t leader = counts[order[0]] > 0 ? counts[order[0]] : 1;
+    for (int32_t i = 0; i <= COUNTRIES; i++) {
         int32_t middle = top + i * pitch + pitch / 2;
         int32_t text_y = middle - cap / 2 - (ascent - cap);
         app_draw_text(MARGIN, text_y, HOST_FONT_TEXT, word(NAMES[order[i]]));
-        ui_draw_bar(bar_left, middle - 7, bar_width, counts[i], leader);
-        app_draw_right(gfx_width() - MARGIN, text_y, HOST_FONT_TEXT | HOST_FONT_TABULAR, number_text(counts[i]));
+        ui_draw_bar(bar_left, middle - 7, bar_width, counts[order[i]], leader);
+        app_draw_right(gfx_width() - MARGIN, text_y, HOST_FONT_TEXT | HOST_FONT_TABULAR, number_text(counts[order[i]]));
     }
 }
 
@@ -1492,7 +1287,23 @@ static int32_t small_inset(void)
 /* The caption line at the bottom of a chart's screen, centred. */
 static int32_t bottom_line_top(void)
 {
-    return gfx_height() - 10 - gfx_font_cap_height(HOST_FONT_SMALL) - small_inset();
+    return gfx_height() - 10 - gfx_font_ascent(HOST_FONT_SMALL);
+}
+
+/* Both charts use the same frame, with room for the accepted month values and year ticks. */
+__attribute__((noinline)) static int32_t chart_frame(host_chart_t *chart, int32_t count, bool history_chart)
+{
+    int32_t cap = gfx_font_cap_height(HOST_FONT_SMALL);
+    int32_t caption = bottom_line_top(), labels = caption - 12 - cap;
+    chart->x = MARGIN;
+    chart->y = screen_top() + 8 + (history_chart ? 2 : cap + 6);
+    chart->width = gfx_width() - 2 * MARGIN;
+    chart->height = labels - (history_chart ? 10 : 8) - chart->y;
+    chart->kind = history_chart ? HOST_CHART_AREA : HOST_CHART_BARS;
+    chart->flags = HOST_CHART_AXIS | HOST_CHART_FROM_ZERO | (history_chart ? HOST_CHART_RANGE_RIGHT : 0);
+    chart->decimals = 0;
+    chart->count = count;
+    return caption;
 }
 
 static void draw_months(int64_t now)
@@ -1503,13 +1314,13 @@ static void draw_months(int64_t now)
         draw_empty(state.status[POLL_YEAR]);
         return;
     }
-    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 8;
     int32_t small_cap = gfx_font_cap_height(HOST_FONT_SMALL), inset = small_inset();
-    int32_t totals_top = bottom_line_top();
+    host_chart_t chart;
+    int32_t totals_top = chart_frame(&chart, 12, false);
     int32_t labels_top = totals_top - 12 - small_cap;
     int32_t values[12], high = 1;
     /* The months of this year still to come are gaps, not zeros. */
-    host_local_time_t today = { 0 };
+    host_local_time_t today;
     int32_t last_month = 12;
     if (number == cache.year && now != 0) {
         int32_t day;
@@ -1519,23 +1330,13 @@ static void draw_months(int64_t now)
         values[i] = i < last_month ? year.months[i] : HOST_CHART_NO_VALUE;
         if (i < last_month && year.months[i] > high) { high = year.months[i]; }
     }
-    host_chart_t chart = {
-        .x = MARGIN, .y = top + small_cap + 6, .width = gfx_width() - 2 * MARGIN,
-        .height = labels_top - 8 - (top + small_cap + 6),
-        .kind = HOST_CHART_BARS, .flags = HOST_CHART_AXIS | HOST_CHART_FROM_ZERO, .count = 12,
-    };
     ui_draw_chart(&chart, values);
     /* The bar geometry repeated from the kit: slot i spans x + i*w/n .. x + (i+1)*w/n less a
      * 2-pixel gap; rows = height - 1; value v at y + rows - 1 - v*(rows-1)/max. */
-    int32_t rows_high = chart.height - 1, widest = 0;
+    int32_t rows_high = chart.height - 1;
     char label[16];
-    for (int32_t i = 0; i < 12; i++) {
-        nth_word(STR_MONTHS, i, label, sizeof label);
-        int32_t w = app_text_width(HOST_FONT_SMALL, label);
-        if (w > widest) { widest = w; }
-    }
-    /* The names when they fit their slots, otherwise the months' numbers. */
-    bool numbers = widest > chart.width / 12 - 1;
+    /* Each translation names its widest abbreviation in the supported font families. */
+    bool numbers = app_text_width(HOST_FONT_SMALL, word(STR_MONTH_WIDTH)) > chart.width / 12 - 1;
     for (int32_t i = 0; i < 12; i++) {
         int32_t from = chart.x + i * chart.width / 12, to = chart.x + (i + 1) * chart.width / 12;
         int32_t centre = from + (to - from - 2) / 2;
@@ -1567,15 +1368,10 @@ static void draw_history(void)
         draw_empty(state.status[POLL_YEAR]);
         return;
     }
-    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 8;
     int32_t inset = small_inset();
-    int32_t caption_top = bottom_line_top();
+    host_chart_t chart;
+    int32_t caption_top = chart_frame(&chart, count, true);
     int32_t years_top = caption_top - 12 - gfx_font_cap_height(HOST_FONT_SMALL);
-    host_chart_t chart = {
-        .x = MARGIN, .y = top + 2, .width = gfx_width() - 2 * MARGIN, .height = years_top - 10 - (top + 2),
-        .kind = HOST_CHART_AREA, .flags = HOST_CHART_AXIS | HOST_CHART_FROM_ZERO | HOST_CHART_RANGE_RIGHT,
-        .count = count,
-    };
     ui_draw_chart(&chart, values);
     /* x of point i, repeated from the kit: the range column (the widest caption + 6) comes off
      * the width; x = left + i*(width-2)/(count-1). */
@@ -1610,7 +1406,7 @@ void app_on_draw(void)
     if (place.nav.screen == SCREEN_LAUNCHES) {
         if (row_count == 0) {
             draw_empty(state.status[POLL_UPCOMING]);
-        } else if (app_nav_view(&place.nav) == VIEW_LAUNCH) {
+        } else if (place.nav.depth) {
             draw_launch(rows[selected], now);
         } else {
             draw_launches(now);
