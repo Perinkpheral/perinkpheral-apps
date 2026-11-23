@@ -1064,13 +1064,14 @@ static void draw_history(void)
         draw_empty(state.status[POLL_YEAR]);
         return;
     }
-    int32_t top = app_nav_draw_title(&place.nav, word(STR_SINCE), true) + 8;
+    /* No title: the axis says which years. */
+    int32_t top = app_nav_draw_title(&place.nav, NULL, true) + 8;
     int32_t inset = small_inset();
     int32_t caption_top = bottom_line_top();
     int32_t years_top = caption_top - 12 - gfx_font_cap_height(HOST_FONT_SMALL);
     host_chart_t chart = {
         .x = MARGIN, .y = top + 2, .width = gfx_width() - 2 * MARGIN, .height = years_top - 10 - (top + 2),
-        .kind = HOST_CHART_LINE, .flags = HOST_CHART_AXIS | HOST_CHART_FROM_ZERO | HOST_CHART_RANGE_RIGHT,
+        .kind = HOST_CHART_AREA, .flags = HOST_CHART_AXIS | HOST_CHART_FROM_ZERO | HOST_CHART_RANGE_RIGHT,
         .count = count,
     };
     ui_draw_chart(&chart, values);
