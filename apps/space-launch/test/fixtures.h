@@ -26,18 +26,25 @@ __attribute__((unused)) static char *fixture(const char *name, int32_t *length)
     return bytes;
 }
 
-/* A poll's answer from a fixture file, picked as the device picks it. */
+/* Deliver a response using the same persisted binding as an explicit request. */
+__attribute__((unused)) static void answer_text(int32_t poll, int32_t item, int32_t status, const char *body)
+{
+    state.request = poll;
+    state.item = item;
+    state.year = cache.year;
+    state.active_tag = HOST_REQUEST_FIRST;
+    if (poll == POLL_YEAR && item == 0) { cache.staging = (annual_t){ .year = cache.year, .total = -1 }; }
+    standin_handlers.on_data = app_on_data;
+    standin_data(state.active_tag, -1, status, body, (int32_t)strlen(body), 7, STANDIN_WHOLE, 0);
+}
+
+/* A response from a fixture file. */
 __attribute__((unused)) static void answer_file(int32_t poll, int32_t item, const char *name)
 {
     int32_t length;
     char *body = fixture(name, &length);
-    standin_picked(poll, item, 200, body, length);
+    answer_text(poll, item, 200, body);
     free(body);
-}
-
-__attribute__((unused)) static void answer_text(int32_t poll, int32_t item, int32_t status, const char *body)
-{
-    standin_picked(poll, item, status, body, (int32_t)strlen(body));
 }
 
 __attribute__((unused)) static int32_t flash_writes(void)
@@ -52,12 +59,12 @@ __attribute__((unused)) static void answer_all(void)
     answer_file(0, -1, "upcoming.json");
     answer_file(1, -1, "previous.json");
     answer_file(2, 0, "year-0.json");
-    answer_file(2, 1, "year-100.json");
-    answer_file(2, 2, "year-200.json");
-    answer_file(2, 3, "year-300.json");
+    answer_file(2, 100, "year-100.json");
+    answer_file(2, 200, "year-200.json");
     for (int32_t i = 0; i < 6; i++) {
         char body[64];
         snprintf(body, sizeof body, "{\"count\":%d,\"next\":null,\"previous\":null,\"results\":[]}", COUNTS[i]);
         answer_text(3, i, 200, body);
     }
+    answer_file(2, -1, "verify.json");
 }

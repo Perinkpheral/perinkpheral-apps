@@ -6,42 +6,37 @@
   "version": "0.1.0",
   "abi": 3,
   "writes_files": true,
-  "intents": ["started", "time_changed"],
-  "settings": [
-    { "key": "remind", "type": "choice", "title": "Reminder",
-      "options": ["Off", "15 min", "1 h"], "default": "Off" },
-    { "key": "year", "type": "number", "title": "Year", "hidden": true, "default": "2026" },
-    { "key": "pages", "type": "list", "title": "Pages", "hidden": true,
-      "default": ["0", "100", "200", "300"] },
-    { "key": "lsp", "type": "list", "title": "Providers", "hidden": true,
-      "default": ["121,124,141,147,257,265,44,266,285,1030",
-                  "88,189,184,194,259,272,274,1021,1040,1049,1080,17,263",
-                  "63,193,96,103,111,163,154,119",
-                  "115,27,159,1046,1051,1066,46",
-                  "31,190,1099",
-                  "98,37,1083,1002,1009"] }
+  "intents": [
+    "started",
+    "time_changed",
+    "network_up"
   ],
-  "polls": [
-    { "url": "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?format=json&mode=normal&limit=10&ordering=net&hide_recent_previous=false",
-      "every": 1800,
-      "headers": { "Accept": "application/json", "User-Agent": "perinkpheral-space-launch" },
-      "pick": ["results[*].id", "results[*].name", "results[*].net", "results[*].status.id",
-               "results[*].net_precision.id", "results[*].launch_service_provider.name",
-               "results[*].pad.location.name", "count"] },
-    { "url": "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=-net",
-      "every": 10800,
-      "headers": { "Accept": "application/json", "User-Agent": "perinkpheral-space-launch" },
-      "pick": ["results[*].id", "results[*].name", "results[*].net", "results[*].status.id",
-               "results[*].net_precision.id", "results[*].launch_service_provider.name",
-               "results[*].pad.location.name", "count"] },
-    { "url": "https://ll.thespacedevs.com/2.3.0/launches/previous/?offset={{pages}}&limit=100&format=json&mode=list&ordering=net&year={{year}}&status__ids=3,4,7&include_suborbital=false",
-      "every": 86400, "each": "pages",
-      "headers": { "Accept": "application/json", "User-Agent": "perinkpheral-space-launch" },
-      "pick": ["count", "results[*].net", "results[*].status.id"] },
-    { "url": "https://ll.thespacedevs.com/2.3.0/launches/previous/?lsp__id={{lsp}}&limit=1&format=json&mode=list&year={{year}}&status__ids=3,4,7&include_suborbital=false",
-      "every": 86400, "each": "lsp",
-      "headers": { "Accept": "application/json", "User-Agent": "perinkpheral-space-launch" },
-      "pick": ["count"] }
+  "settings": [
+    {
+      "key": "remind",
+      "type": "choice",
+      "title": "Reminder",
+      "options": [
+        "Off",
+        "15 min",
+        "1 h"
+      ],
+      "default": "Off"
+    },
+    {
+      "key": "lsp",
+      "type": "list",
+      "title": "Providers",
+      "hidden": true,
+      "default": [
+        "121,124,141,147,257,265,44,266,285,1030",
+        "88,189,184,194,259,272,274,1021,1040,1049,1080,17,263",
+        "63,193,96,103,111,163,154,119",
+        "115,27,159,1046,1051,1066,46",
+        "31,190,1099",
+        "98,37,1083,1002,1009"
+      ]
+    }
   ],
   "icon": [
     ".....#.....",
@@ -55,5 +50,8 @@
     "...#####...",
     "....#.#....",
     ".....#....."
+  ],
+  "hosts": [
+    "ll.thespacedevs.com"
   ]
 }

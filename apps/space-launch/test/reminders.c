@@ -25,7 +25,7 @@ int32_t queued_notice(const host_notice_t *notice)
 static void start(const char *remind)
 {
     standin_reset();
-    standin_handlers.on_picked = app_on_picked;
+    standin_handlers.on_data = app_on_data;
     standin_set("remind", remind);
     app_on_load();
     answer_file(POLL_UPCOMING, -1, "upcoming.json");
@@ -53,7 +53,7 @@ int main(void)
     int32_t length;
     char *body = fixture("upcoming.json", &length);
     memcpy(strstr(body, "2026-11-24T10:45:00Z"), "2026-11-24T11:45:00Z", 20);
-    standin_picked(POLL_UPCOMING, -1, 200, body, length);
+    answer_text(POLL_UPCOMING, -1, 200, body);
     free(body);
     standin_clock(ARIANE + HOUR - 15 * MINUTE);
     app_on_alarm(REMIND_ALARM);

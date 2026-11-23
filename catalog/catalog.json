@@ -631,8 +631,8 @@
       "files": [
         {
           "name": "app.wasm",
-          "size": 15273,
-          "sha256": "5afb02c1dd28fa60e32a83074c0ff782db3d868e2a5825d1b58765147bdff480"
+          "size": 27655,
+          "sha256": "c99a1ba08cd762b6154e22dd0d3a3b6cda8104a7fb30e28f4f800ec352746c25"
         },
         {
           "name": "history.bin",
@@ -646,17 +646,17 @@
         },
         {
           "name": "strings.ru",
-          "size": 884,
-          "sha256": "957b843466fe0ed44e7815639fd41f39219a18ea80769dd0d4dcfd67d4d0c9c6"
+          "size": 875,
+          "sha256": "c570f57f5e3374b09e2c788f9e5eba1ebe5e3ab73f62e73783014c044565801f"
         },
         {
           "name": "manifest.json",
-          "size": 3381,
-          "sha256": "ab01f3bb8680b75893467d0e523d7293325e72819e266ab164b0af853d274f3e"
+          "size": 1149,
+          "sha256": "a6a90856adf449dec39bbee44abb63fc7222d8cdb8fe63bfadfd6b6a63a4de58"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.1.51",
       "writes_files": true,
       "icon": [
         ".....#.....",

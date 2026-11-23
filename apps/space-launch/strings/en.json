@@ -28,5 +28,8 @@
   "months": "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec",
   "year_line": "{0}: launches {1}, success {2}, failures {3}",
   "history_line": "Orbital launches in {0}: {1}",
-  "back": "Back"
+  "back": "Back",
+  "please_wait": "Please wait",
+  "retry_later": "Retrying later",
+  "no_data": "No data"
 }

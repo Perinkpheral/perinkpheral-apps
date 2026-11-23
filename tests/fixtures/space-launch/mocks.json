@@ -47,6 +47,10 @@
     "status": 200,
     "body": "{\"count\": 4, \"next\": null, \"previous\": null, \"results\": []}"
   },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?offset=0&limit=1&format=json&mode=list&ordering=net&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "verify.json"
+  },
   "https://ll.thespacedevs.com/*": {
     "status": -1
   }

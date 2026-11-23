@@ -5,9 +5,25 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#define time_local_at local_for_test
+#define app_time_text text_for_test
 #include "../launch.c"
+#undef time_local_at
+#undef app_time_text
 #include "standin.h"
 #include "fixtures.h"
+
+int32_t time_local_at(int64_t, host_local_time_t *);
+int32_t app_time_text(int64_t, int32_t, char *, int32_t);
+static bool honolulu;
+int32_t local_for_test(int64_t moment, host_local_time_t *parts)
+{
+    return time_local_at(honolulu ? moment - 10 * HOUR - time_zone_offset() : moment, parts);
+}
+int32_t text_for_test(int64_t moment, int32_t style, char *text, int32_t size)
+{
+    return app_time_text(honolulu ? moment - 10 * HOUR - time_zone_offset() : moment, style, text, size);
+}
 
 static void draws(void)
 {
@@ -26,7 +42,7 @@ static void reload(void)
 static void navigation(void)
 {
     standin_reset();
-    standin_handlers.on_picked = app_on_picked;
+    standin_handlers.on_data = app_on_data;
     standin()->is_session_writable = true;
     app_on_load();
     app_on_focus();
@@ -166,7 +182,7 @@ static void no_clock(void)
     /* Until the clock is known: no year, the package's years, and every screen draws. */
     standin_reset();
     standin_clock(0);
-    standin_handlers.on_picked = app_on_picked;
+    standin_handlers.on_data = app_on_data;
     app_on_load();
     assert(cache.year == 0 && latest_year() == 2025);
     answer_file(POLL_UPCOMING, -1, "upcoming.json");
@@ -180,12 +196,50 @@ static void no_clock(void)
     draws();
 }
 
+static void precision_and_clock(void)
+{
+    standin_reset(); app_on_load();
+    char text[64];
+    launch_t launch = { .net = parse_moment("2026-12-01T00:00:00Z"), .precision = PRECISION_MONTH };
+    /* Assert UTC calendar periods even in a zone west of UTC. The local formatter
+     * intentionally cannot participate in coarse date formatting. */
+    honolulu = true;
+    say_day(&launch, HOST_TIME_DATE, text, sizeof text);
+    assert(!strcmp(text, "Dec 2026"));
+    launch.net = parse_moment("2026-01-01T00:00:00Z"); launch.precision = 14;
+    say_day(&launch, HOST_TIME_DATE, text, sizeof text); assert(!strcmp(text, "2026"));
+    launch.precision = 3;
+    say_day(&launch, HOST_TIME_NEAR_DAY, text, sizeof text); assert(!strcmp(text, "1 Jan 2026"));
+    launch.precision = PRECISION_UNKNOWN;
+    say_day(&launch, HOST_TIME_NEAR_DAY, text, sizeof text); assert(!strcmp(text, "Time unknown"));
+    seen_at = time_now(); launch.net = time_now() + HOUR;
+    say_in(&launch, time_now(), text, sizeof text); assert(!text[0]);
+    launch.precision = PRECISION_HOUR;
+    say_day(&launch, HOST_TIME_CLOCK, text, sizeof text);
+    assert(strlen(text) == 5 && !strcmp(text + 2, ":--"));
+    say_day(&launch, HOST_TIME_NEAR_DAY, text, sizeof text);
+    assert(strlen(text) == 5 && !strcmp(text + 2, ":--"));
+    honolulu = false;
+    standin_reset(); standin_clock(0); app_on_load(); assert(cache.year == 0);
+    standin_clock(1798762200); app_on_intent(HOST_INTENT_TIME_CHANGED); assert(cache.year == 2027);
+    standin_clock(1830297600); app_on_focus(); assert(cache.year == 2028);
+    standin_clock(3786912000LL); /* 2090, supported by the SDK */
+    app_on_intent(HOST_INTENT_TIME_CHANGED);
+    place.nav.screen = SCREEN_HISTORY; place.chosen_year[1] = 2090;
+    assert(year_shown(1) == FIRST_YEAR + HOST_CHART_VALUES_MAX - 1);
+    draws();
+    app_on_button(BTN_DOWN_PRESSED);
+    assert(year_shown(1) == FIRST_YEAR + HOST_CHART_VALUES_MAX - 1);
+    draws();
+}
+
 int main(void)
 {
     navigation();
     words();
     header();
     no_clock();
+    precision_and_clock();
     puts("space-launch: screens, the list's ends, the launch's page, years, sessions, words and no clock passed");
     return 0;
 }
