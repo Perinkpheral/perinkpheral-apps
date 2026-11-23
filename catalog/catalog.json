@@ -254,18 +254,13 @@
     {
       "name": "iss",
       "title": "ISS",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6559,
-          "sha256": "35f7a6c42dcc266cfe687cf176b6797ad49a5fd2f2bfcd842c7ee3858c67e08d"
-        },
-        {
-          "name": "land.bin",
-          "size": 10000,
-          "sha256": "18a444421f341e71d4fb35dacb9c89f41bf80f05d8b9f75fb1c5e0c5fd5639e6"
+          "size": 6528,
+          "sha256": "c680cfbfbd2cb3a393fb9e543dc2c190b459a366c4e16700a65ab9df5abad423"
         },
         {
           "name": "manifest.ru",
@@ -280,11 +275,11 @@
         {
           "name": "manifest.json",
           "size": 718,
-          "sha256": "fd2a0fcb93bc9aeda44f042115facb057f8fb4aa93fd94c8b9c8921dd03f8553"
+          "sha256": "80ec8f1bd694560681401abce7730c41cd4dde33e34f39be0e8367e7a7f87c97"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.61",
+      "firmware": "0.1.94",
       "icon": [
         "...........",
         "##.......##",

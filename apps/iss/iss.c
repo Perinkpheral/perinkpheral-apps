@@ -106,10 +106,11 @@ void app_on_picked(int32_t request, int32_t http_status)
 
 static void draw_world(void)
 {
-    static uint8_t pixels[MAP_WIDTH * MAP_HEIGHT / 8];
-    if (file_read("land.bin", 8, 0, pixels, sizeof pixels) != sizeof pixels) { return; }
-    gfx_set_color(HOST_INK);
-    gfx_draw_bitmap(0, 0, MAP_WIDTH, MAP_HEIGHT, pixels);
+    /* Stippled land, as the packaged map was, so the station's mark stays seen over it;
+     * the coastline keeps the continents when the user turns dithering off. */
+    host_map_t map = { .w = MAP_WIDTH, .h = MAP_HEIGHT, .projection = HOST_MAP_WORLD,
+                       .land = 4, .sea = HOST_PAPER, .flags = HOST_MAP_COASTLINE };
+    gfx_draw_map(&map);
 }
 
 static void draw_track(void)

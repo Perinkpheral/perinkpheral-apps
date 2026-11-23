@@ -20,7 +20,5 @@ The crosshair's dashed axes intersect at the position. The screen is always ligh
 night are not shown.
 The observed track uses thin four-pixel dashes with four-pixel gaps, continued across samples.
 
-`files/land.bin` is a raw, MSB-first 400×200 bitmap, 50 bytes per row, derived from
-[the source bitmap](assets/world-land-400x200.png). Natural Earth land is public domain.
-An ink pixel is retained only where both x and y are even, producing a fine stipple. The app reads
-this 10 KB package file into a bitmap and draws it.
+Perinkpheral OS's map service draws the world with solid ink land and paper sea.
+The service requires firmware 0.1.94 or later; the build computes the package's minimum.
