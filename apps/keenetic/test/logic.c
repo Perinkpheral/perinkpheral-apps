@@ -539,7 +539,7 @@ static void refresh_phase(void)
     int64_t prior_uptime = uptime_ms;
     const int seconds[] = {60, 300, 900};
     const char *every[] = {"1 min", "5 min", "15 min"};
-    const int buttons[] = {BTN_OK_PRESSED, BTN_DOWN_PRESSED};
+    const int buttons[] = {BTN_OK_PRESSED, BTN_DOWN_LONG_PRESSED}; /* a refresh, a screen switch */
     for (int rate = 0; rate < 3; rate++) for (int button = 0; button < 2; button++) {
         logged_in(true); setting("every", every[rate]); uptime_ms = 0;
         poll_fixture(BATCH, "v9-batch-sample-a.json");
@@ -647,17 +647,19 @@ static void four_pages(void)
     standin_draw(); int first = device_first;
     app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 3 && device_first == first + 1);
     app_on_button(BTN_UP_PRESSED); assert(device_first == first);
-    app_on_button(BTN_UP_PRESSED); assert(scene.page == 2);
-    app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 3);
-    device_first = hosts.count - shown_rows; app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 0);
-    app_on_button(BTN_UP_PRESSED); assert(scene.page == 3);
+    /* short presses stop at the list's ends; held ones switch screens */
+    app_on_button(BTN_UP_PRESSED); assert(scene.page == 3 && device_first == first);
+    app_on_button(BTN_UP_LONG_PRESSED); assert(scene.page == 2);
+    app_on_button(BTN_DOWN_LONG_PRESSED); assert(scene.page == 3 && device_first == 0);
+    device_first = hosts.count - shown_rows; app_on_button(BTN_DOWN_PRESSED);
+    assert(scene.page == 3 && device_first == hosts.count - shown_rows);
+    app_on_button(BTN_DOWN_LONG_PRESSED); assert(scene.page == 0);
+    app_on_button(BTN_UP_PRESSED); assert(scene.page == 3 && device_first == 0);
+    app_on_button(BTN_DOWN_PRESSED); app_on_button(BTN_DOWN_PRESSED);
     int saved_first = device_first;
     app_on_blur(); in_scene = false; app_on_load(); in_scene = true; app_on_focus();
-    assert(scene.page == 3 && device_first == saved_first && hosts.rows[saved_first].ip[0]);
-    app_on_button(BTN_UP_LONG_PRESSED); assert(scene.page == 3 && device_first == saved_first - shown_rows);
-    assert(!hosts.rows[device_first].ip[0]); standin_draw();
-    app_on_button(BTN_DOWN_LONG_PRESSED); assert(scene.page == 3 && device_first == saved_first);
-    app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 0);
+    assert(scene.page == 3 && device_first == saved_first && saved_first == 2 && hosts.rows[saved_first].ip[0]);
+    app_on_button(BTN_DOWN_LONG_PRESSED); assert(scene.page == 0);
     scene.pending = 0; int count = standin()->polls_run[HOSTS]; start(true); poll_fixture(BATCH, "v9-batch-1.json");
     assert(!scene.pending && standin()->polls_run[HOSTS] == count);
     app_on_button(BTN_DOWN_PRESSED); poll_fixture(BATCH, "v9-batch-1.json");
@@ -680,59 +682,41 @@ static void list_navigation(void)
     device_first = 0; standin_draw();
     assert(shown_rows == 3 && hosts.count == 32);
     int before = writes;
-    app_on_button(BTN_UP_LONG_PRESSED);
-    assert(scene.page == 3 && device_first == 0);
-    app_on_button(BTN_DOWN_LONG_PRESSED);
-    assert(scene.page == 3 && device_first == shown_rows);
-    app_on_button(BTN_DOWN_LONG_PRESSED);
-    assert(device_first == 2 * shown_rows);
-    app_on_button(BTN_UP_LONG_PRESSED);
-    assert(device_first == shown_rows);
-    device_first = 1;
-    app_on_button(BTN_UP_LONG_PRESSED);
-    assert(scene.page == 3 && device_first == 0);
     int last = hosts.count - shown_rows;
-    device_first = last - 1;
-    app_on_button(BTN_DOWN_LONG_PRESSED);
-    assert(scene.page == 3 && device_first == last);
-    app_on_button(BTN_DOWN_LONG_PRESSED);
-    assert(scene.page == 3 && device_first == last);
-    app_on_button(BTN_UP_LONG_PRESSED);
-    assert(device_first == last - shown_rows && writes == before);
-    device_first = 0;
+    /* short presses walk the rows and stop at both ends */
+    app_on_button(BTN_UP_PRESSED); assert(scene.page == 3 && device_first == 0);
     for (int row = 1; row <= last; row++) {
         app_on_button(BTN_DOWN_PRESSED);
         assert(scene.page == 3 && device_first == row);
     }
-    app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 0);
-    app_on_button(BTN_UP_PRESSED); assert(scene.page == 3 && device_first == last);
+    app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 3 && device_first == last);
     for (int row = last - 1; row >= 0; row--) {
         app_on_button(BTN_UP_PRESSED);
         assert(scene.page == 3 && device_first == row);
     }
-    app_on_button(BTN_UP_PRESSED); assert(scene.page == 2);
-    /* A restored middle viewport can still reach either exit without a reply. */
+    app_on_button(BTN_UP_PRESSED); assert(scene.page == 3 && device_first == 0 && writes == before);
+    /* held presses switch screens from anywhere in the list */
+    device_first = 5;
+    app_on_button(BTN_UP_LONG_PRESSED); assert(scene.page == 2);
+    app_on_button(BTN_DOWN_LONG_PRESSED); assert(scene.page == 3 && device_first == 0);
+    device_first = last;
+    app_on_button(BTN_DOWN_LONG_PRESSED); assert(scene.page == 0);
+    /* a restored middle viewport keeps its place and still steps */
     scene.page = 3; device_first = 5;
     app_on_blur(); in_scene = false; app_on_load(); in_scene = true; app_on_focus();
     assert(device_first == 5 && hosts.rows[5].ip[0] && !hosts.rows[4].ip[0]);
     app_on_button(BTN_UP_PRESSED); assert(scene.page == 3 && device_first == 4);
     standin_draw();
-    app_on_button(BTN_UP_LONG_PRESSED); assert(device_first == 1);
-    app_on_button(BTN_UP_LONG_PRESSED); assert(device_first == 0);
-    app_on_button(BTN_UP_PRESSED); assert(scene.page == 2);
-    scene.page = 3; device_first = 5;
-    while (device_first < last) app_on_button(BTN_DOWN_PRESSED);
-    app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 0);
-    /* Empty and single-viewport lists also leave on a short press only. */
+    /* empty and single-viewport lists: short presses stay, held ones switch */
     for (int count = 0; count <= shown_rows; count++) {
         hosts.count = count; scene.page = 3; device_first = 0;
-        app_on_button(BTN_UP_LONG_PRESSED); app_on_button(BTN_DOWN_LONG_PRESSED);
+        app_on_button(BTN_UP_PRESSED); app_on_button(BTN_DOWN_PRESSED);
         assert(scene.page == 3 && device_first == 0);
-        app_on_button(BTN_UP_PRESSED); assert(scene.page == 2);
+        app_on_button(BTN_UP_LONG_PRESSED); assert(scene.page == 2);
         scene.page = 3;
-        app_on_button(BTN_DOWN_PRESSED); assert(scene.page == 0);
+        app_on_button(BTN_DOWN_LONG_PRESSED); assert(scene.page == 0);
     }
-    puts("keenetic: short row steps and screen exits, long viewport steps, clamped ends and empty/short lists passed");
+    puts("keenetic: short row steps clamped at the ends, held screen switches and empty/short lists passed");
 }
 static void host_lists(void)
 {
@@ -834,7 +818,7 @@ static void network_loading(void)
     picked(BATCH, HOST_FAILED_NO_NETWORK, "");
     draw_recorded(); network_value(2, word(STR_LOADING));
     /* Leaving Devices clears the overlaid detail buffer back to pending fields. */
-    scene.page = 3; app_on_button(BTN_UP_PRESSED);
+    scene.page = 3; app_on_button(BTN_UP_LONG_PRESSED);
     draw_recorded();
     for (int row = 2; row < 9; row++) network_value(row, word(STR_LOADING));
     app_on_settings();
@@ -865,7 +849,7 @@ static void device_two_lines(void)
         assert(drawn_text[name].width == 356 && drawn_text[ip].width == 356);
     }
     device_scrollbar(56, 97);
-    app_on_button(BTN_DOWN_LONG_PRESSED); draw_recorded();
+    app_on_button(BTN_DOWN_PRESSED); app_on_button(BTN_DOWN_PRESSED); draw_recorded();
     assert(device_first == 2); device_scrollbar(121, 97);
     /* A shrinking list clamps to its start and gives the scrollbar's space back. */
     hosts.count = 1; draw_recorded(); assert(drawn_text_count == 5 && !drawn_rect_count && !device_first);

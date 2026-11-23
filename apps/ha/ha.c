@@ -361,7 +361,8 @@ void app_on_button(int32_t event)
         asked_by_press = true;
         ask(); /* "refresh" */
     } else if (page_count > 1 && list.count > 0 &&
-               (event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
+               (event == BTN_UP_PRESSED || event == BTN_DOWN_PRESSED)) {
+        /* Held UP/DOWN switch screens; short ones are the screen's, a row of its list. */
         if (app_list_button(&list, event) == APP_UI_CHANGED) {
             screen_redraw(HOST_REDRAW_NO_BLINK);
         }

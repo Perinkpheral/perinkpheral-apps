@@ -326,8 +326,9 @@ void app_on_settings(void)
 
 void app_on_button(int32_t event)
 {
-    if (event == BTN_UP_PRESSED) select_currency(-1);
-    else if (event == BTN_DOWN_PRESSED) select_currency(1);
+    /* Short and held alike: a currency is a screen, and held UP/DOWN switch screens everywhere. */
+    if (event == BTN_UP_PRESSED || event == BTN_UP_LONG_PRESSED) select_currency(-1);
+    else if (event == BTN_DOWN_PRESSED || event == BTN_DOWN_LONG_PRESSED) select_currency(1);
     else if (event == BTN_OK_PRESSED) {
         rotating = !rotating;
         kv_set("rotating", 8, &rotating, sizeof rotating);

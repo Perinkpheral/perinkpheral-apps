@@ -243,10 +243,13 @@ void app_on_settings(void)
 void app_on_button(int32_t event)
 {
     switch (event) {
+    /* Short and held alike: a ticker is a screen, and held UP/DOWN switch screens everywhere. */
     case BTN_UP_PRESSED:
+    case BTN_UP_LONG_PRESSED:
         select_ticker(-1);
         break;
     case BTN_DOWN_PRESSED:
+    case BTN_DOWN_LONG_PRESSED:
         select_ticker(1);
         break;
     case BTN_OK_PRESSED:

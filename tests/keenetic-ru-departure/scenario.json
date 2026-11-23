@@ -26,7 +26,7 @@
     "shot devices",
     "press 3",
     "shot devices-scroll",
-    "press 3L 3L 3L 3L 3L 3L 3L 3L 3L 3L 3",
+    "press 3L",
     "shot overview",
     "press 2",
     "wait 2",

@@ -64,7 +64,7 @@ int main(void)
     /* A page switch keeps a scrolled list intact until a complete replacement arrives. */
     answer("page|1|3\nlayout|list\nitem|A||1");
     list.first = 4; list.count = 12;
-    app_on_button(BTN_DOWN_PRESSED); asked(2);
+    app_on_button(BTN_DOWN_LONG_PRESSED); asked(2);
     assert(list.first == 4 && shown_page == 1);
     app_on_blur();
     standin()->is_session_writable = false;
@@ -117,9 +117,10 @@ int main(void)
 
     answer("page|1|3\nlayout|list\nitem|A||1");
     list.count = 12; list.first = 0;
-    app_on_button(BTN_DOWN_LONG_PRESSED);
+    /* a screen's list takes the short presses; held ones switch screens */
+    app_on_button(BTN_DOWN_PRESSED);
     assert(list.first > 0);
-    app_on_button(BTN_DOWN_PRESSED); asked(2);
+    app_on_button(BTN_DOWN_LONG_PRESSED); asked(2);
     answer("page|2|3\nhero|22|sunny");
     app_on_blur();
     standin_forget_session();

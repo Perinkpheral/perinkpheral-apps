@@ -362,8 +362,9 @@ void app_on_settings(void)
 void app_on_button(int32_t event)
 {
     switch (event) {
-    case BTN_UP_PRESSED: session.metal = (session.metal + METALS - 1) % METALS; break;
-    case BTN_DOWN_PRESSED: session.metal = (session.metal + 1) % METALS; break;
+    /* Short and held alike: a metal is a screen, and held UP/DOWN switch screens everywhere. */
+    case BTN_UP_PRESSED: case BTN_UP_LONG_PRESSED: session.metal = (session.metal + METALS - 1) % METALS; break;
+    case BTN_DOWN_PRESSED: case BTN_DOWN_LONG_PRESSED: session.metal = (session.metal + 1) % METALS; break;
     case BTN_OK_PRESSED: ask(); break;
     default: return;
     }

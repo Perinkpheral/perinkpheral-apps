@@ -13,16 +13,16 @@
   "steps": [
     "wait 1",
     "shot screen-1",
-    "press 3",
+    "press 3L",
     "wait 1",
     "shot screen-2",
-    "press 1",
+    "press 1L",
     "wait 1",
     "shot screen-1-back",
-    "press 1",
+    "press 1L",
     "wait 1",
     "shot screen-3",
-    "press 3",
+    "press 3L",
     "wait 1",
     "shot screen-1-wrap"
   ]

@@ -554,15 +554,15 @@ void app_on_button(int32_t event)
         int last = hosts.count - shown_rows;
         if (last < 0) last = 0;
         bool short_press = event == BTN_UP_PRESSED || event == BTN_DOWN_PRESSED;
-        if (scene.page == 3 && (!short_press ||
-            (step < 0 ? device_first > 0 : device_first < last))) {
-            device_first += step * (short_press ? 1 : shown_rows);
+        /* Held UP/DOWN switch screens; on Devices the short ones are its list's and stop at its ends. */
+        if (scene.page == 3 && short_press) {
+            device_first += step;
             if (device_first < 0) device_first = 0;
             if (device_first > last) device_first = last;
         } else {
             if (scene.page == 3) keenetic_clear(facts, sizeof facts);
             scene.page = (scene.page + step + 4) % 4;
-            if (scene.page == 3) device_first = step < 0 ? last : 0;
+            if (scene.page == 3) device_first = 0;
             start(false);
         }
         screen_redraw(HOST_REDRAW_SOON);
@@ -592,7 +592,9 @@ __attribute__((noinline)) static void page_title(int id)
         text(margin, margin, HOST_UI_TEXT, word(id), 320);
     char page[] = "1/4";
     page[0] += scene.page;
-    ui_draw_text(gfx_width() - margin - app_text_width(HOST_FONT_SMALL, page), margin,
+    /* On the title's baseline, as app_nav_draw_title() puts it. */
+    ui_draw_text(gfx_width() - margin - app_text_width(HOST_FONT_SMALL, page),
+                 margin + gfx_font_ascent(HOST_FONT_TEXT) - gfx_font_ascent(HOST_FONT_SMALL),
                  HOST_UI_CAPTION, page, 3, 48);
 }
 static void caption(int x, int y, const char *value, int width)
