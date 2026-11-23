@@ -285,6 +285,18 @@ static void protocol(void)
         poll_fixture(BATCH, "v9-batch-sample-a.json");
         assert(!control.blocked && scene.status == 200 && !control.renewing);
     }
+    /* firmware 0.1.92 and later: the refusal keeps its status through the host's picking */
+    logged_in(true);
+    char *page = load("router/system-no-cookie.body.html");
+    standin_picked(BATCH, -1, 401, page, (int32_t)strlen(page));
+    assert(last_method == HOST_HTTP_GET && strstr(last_url, "/auth") && !cookie[0]);
+    challenge(); recorded_answer("login-renewed", NULL);
+    poll_fixture(BATCH, "v9-batch-sample-a.json");
+    assert(!control.blocked && scene.status == 200 && !control.renewing);
+    /* a success whose page is not JSON is still no answer, and no reason to log in */
+    logged_in(true); requests = sends;
+    standin_picked(BATCH, -1, 200, page, (int32_t)strlen(page)); free(page); no_headers();
+    assert(sends == requests && scene.status == HOST_FAILED_NO_ANSWER && cookie[0]);
     /* an answer that is not JSON without the challenge is no reason to log in */
     logged_in(true); requests = sends;
     picked(BATCH, HOST_FAILED_NO_ANSWER, "<html>");
