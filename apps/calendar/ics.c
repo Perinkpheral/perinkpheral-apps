@@ -11,6 +11,7 @@
 
 #define SECONDS_PER_DAY 86400
 #define DAYS_PER_WEEK   7
+#define STEPS_MAX 40000 /* maximum recurrence periods expanded */
 /* The interpreter needs about four bytes for every byte of code that runs:
  * what is called from many places is kept one function, not a copy in each. */
 #define KEPT_ONE __attribute__((noinline))
@@ -24,7 +25,7 @@ enum { FREQ_NONE, FREQ_DAILY, FREQ_WEEKLY, FREQ_MONTHLY, FREQ_YEARLY };
 KEPT_ONE static int32_t weekday_of(int32_t days)
 {
     int32_t weekday = (days + 3) % DAYS_PER_WEEK;
-    return weekday < 0 ? weekday + DAYS_PER_WEEK : weekday;
+    return weekday + (weekday < 0) * DAYS_PER_WEEK;
 }
 
 KEPT_ONE static int32_t days_in_month(int32_t year, int32_t month)
@@ -38,15 +39,12 @@ KEPT_ONE static int32_t days_in_month(int32_t year, int32_t month)
 KEPT_ONE static int32_t nth_weekday_of(int32_t year, int32_t month, int32_t nth, int32_t weekday)
 {
     int32_t first = app_days_from_date(year, month, 1), length = days_in_month(year, month);
-    if (nth > 0) {
-        int32_t day = first + (weekday - weekday_of(first) + DAYS_PER_WEEK) % DAYS_PER_WEEK +
-                      (nth - 1) * DAYS_PER_WEEK;
-        return day < first + length ? day : -1;
-    }
-    int32_t last = first + length - 1;
-    int32_t day = last - (weekday_of(last) - weekday + DAYS_PER_WEEK) % DAYS_PER_WEEK +
-                  (nth + 1) * DAYS_PER_WEEK;
-    return day >= first ? day : -1;
+    int32_t direction = nth > 0 ? 1 : -1;
+    int32_t edge = nth > 0 ? first : first + length - 1;
+    int32_t shift = (direction * (weekday - weekday_of(edge)) + DAYS_PER_WEEK) % DAYS_PER_WEEK +
+                    (direction * nth - 1) * DAYS_PER_WEEK;
+    int32_t day = edge + direction * shift;
+    return day >= first && day < first + length ? day : -1;
 }
 
 /* ---- text ---- */
@@ -70,7 +68,8 @@ KEPT_ONE static uint32_t number_of(const char *text, int32_t length)
     return hash != 0 ? hash : 1;
 }
 
-KEPT_ONE static int32_t digits(const char *text, int32_t count)
+/* Only the two- and four-digit date/clock fields use this reader. */
+KEPT_ONE static int32_t digits(const char *text, int32_t count, int32_t maximum)
 {
     int32_t value = 0;
     for (int32_t i = 0; i < count; i++) {
@@ -79,23 +78,32 @@ KEPT_ONE static int32_t digits(const char *text, int32_t count)
         }
         value = value * 10 + (text[i] - '0');
     }
-    return value;
+    return value <= maximum ? value : -1;
 }
 
-/* A number with its sign, and where it ends. */
-KEPT_ONE static int32_t signed_number(const char **text)
+/* A number with its sign, and where it ends. The cap is at most INT32_MAX + 1,
+ * so the next decimal digit fits in int64_t before saturation. */
+KEPT_ONE static int64_t signed_number(const char **text, int64_t maximum)
 {
     const char *at = *text;
     bool        is_negative = *at == '-';
     if (*at == '-' || *at == '+') {
         at++;
     }
-    int32_t value = 0;
+    int64_t value = 0;
     while (is_digit(*at)) {
-        value = value * 10 + (*at++ - '0');
+        value = value * 10 + (uint8_t)*at++ - '0';
+        if (value > maximum) { value = maximum; }
     }
     *text = at;
     return is_negative ? -value : value;
+}
+
+/* Optional signed selectors outside their RFC range are ignored. */
+KEPT_ONE static int32_t selector_of(const char **text, int32_t maximum)
+{
+    int32_t value = (int32_t)signed_number(text, INT32_MAX);
+    return value >= -maximum && value <= maximum ? value : 0;
 }
 
 /* The value of `name=` among parameters or rule parts separated by ';',
@@ -163,26 +171,40 @@ static int32_t property_of(const char *name)
 
 /* ---- moments ---- */
 
+/* Fixed-width clock fields are checked in order, so a short value is never
+ * read past its terminator. Offset seconds cannot be leap seconds. */
+KEPT_ONE static int32_t clock_of(const char *value, int32_t length, int32_t second_max)
+{
+    int32_t hours = digits(value, 2, 23);
+    if (hours < 0) { return -1; }
+    int32_t minutes = digits(value + 2, 2, 59);
+    if (minutes < 0) { return -1; }
+    int32_t seconds = length == 6 ? digits(value + 4, 2, second_max) : 0;
+    return seconds < 0 ? -1 : hours * 3600 + minutes * 60 + seconds;
+}
+
 /* "20261113", "20261113T150000" or "20261113T150000Z". */
 KEPT_ONE static void moment_of(ics_moment_t *moment, const char *value, const char *parameters)
 {
     *moment = (ics_moment_t){ 0 };
-    int32_t      year = digits(value, 4), month = digits(value + 4, 2), day = digits(value + 6, 2);
-    if (year < 0 || month < 1 || month > 12 || day < 1 || day > 31) {
-        return;
-    }
+    int32_t year = digits(value, 4, 9999);
+    if (year < 0) { return; }
+    int32_t month = digits(value + 4, 2, 12);
+    if (month < 1) { return; }
+    int32_t day = digits(value + 6, 2, days_in_month(year, month));
+    if (day < 1) { return; }
     moment->days = app_days_from_date(year, month, day);
-    moment->is_date = value[8] != 'T';
+    const char *end = value + 8;
+    moment->is_date = *end != 'T';
     if (!moment->is_date) {
-        int32_t hour = digits(value + 9, 2), minute = digits(value + 11, 2);
-        int32_t second = digits(value + 13, 2);
-        if (hour < 0 || minute < 0) {
-            return;
-        }
-        moment->seconds = hour * 3600 + minute * 60 + (second > 0 ? second : 0);
-        moment->is_utc = value[15] == 'Z';
+        moment->seconds = clock_of(end + 1, 6, 60);
+        if (moment->seconds < 0) { return; }
+        end += 7;
+        moment->is_utc = *end == 'Z';
+        end += moment->is_utc;
     }
-    int32_t     length;
+    if (*end != '\0' && *end != ',' && *end != ';') { return; }
+    int32_t length;
     const char *zone = part_named(parameters, "TZID=", &length);
     if (zone != NULL && !moment->is_utc) {
         moment->zone = number_of(zone, length);
@@ -273,8 +295,6 @@ static bool is_taken_out(const ics_t *ics, int64_t start)
 
 /* ---- an event that repeats ---- */
 
-#define STEPS_MAX 40000 /* a rule that makes more than this before the window is somebody's mistake */
-
 typedef struct {
     ics_t  *ics;
     int64_t duration;
@@ -308,11 +328,8 @@ static void repeat(ics_t *ics, int64_t duration)
 {
     run_t run = { .ics = ics, .duration = duration, .until = INT64_MAX };
     if (ics->rule_until.is_set) {
-        ics_moment_t until = ics->rule_until;
-        if (until.is_date) {
-            until.seconds = SECONDS_PER_DAY - 1; /* the whole of that day */
-        }
-        run.until = unix_of(ics, &until);
+        run.until = unix_of(ics, &ics->rule_until) +
+                    (ics->rule_until.is_date ? SECONDS_PER_DAY - 1 : 0); /* the whole of that day */
     }
     int32_t interval = ics->interval > 0 ? ics->interval : 1;
     int32_t first = ics->start.days;
@@ -332,9 +349,10 @@ static void repeat(ics_t *ics, int64_t duration)
         }
         uint8_t weekdays = ics->weekdays;
         if (weekly && weekdays == 0) { weekdays = (uint8_t)(1 << weekday_of(first)); }
-        for (int32_t i = 0; i < STEPS_MAX && !run.is_over; i++) {
-            for (int32_t day = 0; day < span; day++) {
-                int32_t days = start + i * step + day;
+        int32_t last_day = app_days_from_date(9999, 12, 31);
+        for (int32_t i = 0; i < STEPS_MAX && !run.is_over && start <= last_day; i++, start += step) {
+            for (int32_t day = 0; day < span && start + day <= last_day; day++) {
+                int32_t days = start + day;
                 if (weekdays == 0 || (weekdays & (1 << weekday_of(days)))) {
                     occur(&run, days);
                 }
@@ -348,9 +366,10 @@ static void repeat(ics_t *ics, int64_t duration)
         app_date_from_days(first, &year, &month, &day);
         int32_t months = ics->frequency == FREQ_YEARLY ? 12 * interval : interval;
         int32_t wanted_day = ics->month_day != 0 ? ics->month_day : day;
-        for (int32_t i = 0; i < STEPS_MAX / 10 && !run.is_over; i++) {
-            int32_t month_index = (month - 1) + i * months;
+        int32_t month_index = month - 1;
+        for (int32_t i = 0; i < STEPS_MAX / 10 && !run.is_over; i++, month_index += months) {
             int32_t its_year = year + month_index / 12, its_month = month_index % 12 + 1;
+            if (its_year > 9999) { break; }
             int32_t length = days_in_month(its_year, its_month);
             int32_t first_day = app_days_from_date(its_year, its_month, 1);
             int32_t its_day = wanted_day > 0 ? wanted_day : length + 1 + wanted_day;
@@ -394,7 +413,9 @@ static void finish_event(ics_t *ics)
     if (duration < 0) {
         duration = 0;
     }
+    int64_t kept_original = start;
     if (ics->recurrence_id.is_set) {
+        kept_original = NOT_AN_ORIGINAL;
         /* One occurrence of a repeating event, moved or cancelled: where
          * the rule had it is remembered, and what it is now is an event
          * of its own. */
@@ -405,18 +426,12 @@ static void finish_event(ics_t *ics)
             ics->overrides[ics->override_count].original = original;
             ics->override_count++;
         }
-        if (!ics->is_cancelled) {
-            keep(ics, start, start + duration, NOT_AN_ORIGINAL, ics->start.is_date);
-        }
-        return;
-    }
-    if (ics->is_cancelled) {
-        return;
-    }
-    if (ics->has_rule && ics->frequency != FREQ_NONE) {
+    } else if (!ics->is_cancelled && ics->has_rule && ics->frequency != FREQ_NONE) {
         repeat(ics, duration);
-    } else {
-        keep(ics, start, start + duration, start, ics->start.is_date);
+        return;
+    }
+    if (!ics->is_cancelled) {
+        keep(ics, start, start + duration, kept_original, ics->start.is_date);
     }
 }
 
@@ -441,64 +456,69 @@ KEPT_ONE static void take_text(char *text, int32_t capacity, char *value)
     app_text_copy(text, capacity, value);
 }
 
-KEPT_ONE static int32_t rule_number(const char *rule, const char *name, int32_t otherwise)
-{
-    int32_t length;
-    const char *part = part_named(rule, name, &length);
-    return part != NULL ? signed_number(&part) : otherwise;
-}
-
 static int32_t frequency_of(const char *part)
 {
     static const char NAMES[] = "DAILY\0WEEKLY\0MONTHLY\0YEARLY\0";
     return ics_name_index(part, NAMES, true) + FREQ_DAILY;
 }
 
-/* "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20270101T000000Z" */
+/* Read each RRULE field once. Unknown parts retain the plain-frequency fallback. */
 static void take_rule(ics_t *ics, const char *rule)
 {
-    int32_t     length;
-    const char *part = part_named(rule, "FREQ=", &length);
+    static const char NAMES[] = "FREQ=\0INTERVAL=\0COUNT=\0UNTIL=\0BYMONTHDAY=\0BYDAY=\0BYSETPOS=\0";
     ics->has_rule = true;
-    /* Positional rules retain the plain-frequency fallback. */
-    ics->has_set_position = part_named(rule, "BYSETPOS=", &length) != NULL;
-    ics->frequency = frequency_of(part);
-    ics->interval = rule_number(rule, "INTERVAL=", ics->interval);
-    ics->rule_count = rule_number(rule, "COUNT=", ics->rule_count);
-    if ((part = part_named(rule, "UNTIL=", &length)) != NULL) {
-        moment_of(&ics->rule_until, part, "");
-        /* An end written without a zone is in the event's own. */
-        ics->rule_until.zone = ics->start.zone;
-    }
-    ics->month_day = (int8_t)rule_number(rule, "BYMONTHDAY=", ics->month_day);
-    if ((part = part_named(rule, "BYDAY=", &length)) != NULL) {
-        const char *end = part + length;
-        while (part < end) {
-            int32_t nth = signed_number(&part);
-            int32_t weekday = part + 1 < end ? weekday_named(part) : -1;
-            if (weekday >= 0) {
-                ics->weekdays |= (uint8_t)(1 << weekday);
-                if (nth != 0) {
-                    ics->nth_weekday = (int8_t)nth;
-                }
-            }
-            while (part < end && *part != ',') {
-                part++;
-            }
-            part++;
+    while (*rule != '\0') {
+        const char *end = rule, *part = rule;
+        while (*end != '\0' && *end != ';') { end++; }
+        int32_t field = ics_name_index(rule, NAMES, true);
+        static const uint8_t VALUE_AT[] = { 5, 9, 6, 6, 11, 6, 9 };
+        if (field < 0) { rule = *end == ';' ? end + 1 : end; continue; }
+        part += VALUE_AT[field];
+        switch (field) {
+        case 0: ics->frequency = frequency_of(part); break;
+        /* Bound steps by the four-digit-year calendar and COUNT by the
+         * maximum occurrences across the bounded expansion loops. */
+        case 1:
+        case 2: {
+            int32_t number = (int32_t)signed_number(&part, field == 1 ? 3660000 : STEPS_MAX * DAYS_PER_WEEK);
+            number -= number == 0; /* zero is invalid; keep the missing-field default distinct */
+            *(field == 1 ? &ics->interval : &ics->rule_count) = number;
+            break;
         }
+        case 3:
+            moment_of(&ics->rule_until, part, "");
+            ics->rule_until.zone = ics->start.zone;
+            break;
+        case 4: {
+            ics->month_day = (int8_t)selector_of(&part, 31);
+            break;
+        }
+        case 5:
+            while (part < end) {
+                int32_t nth = selector_of(&part, 53);
+                int32_t weekday = part + 1 < end ? weekday_named(part) : -1;
+                if (weekday >= 0) {
+                    ics->weekdays |= (uint8_t)(1 << weekday);
+                    if (nth != 0) { ics->nth_weekday = (int8_t)nth; }
+                }
+                while (part < end && *part != ',') { part++; }
+                if (part < end) { part++; }
+            }
+            break;
+        case 6: ics->has_set_position = true; break;
+        }
+        rule = *end == ';' ? end + 1 : end;
     }
+    if (ics->interval < 0 || ics->rule_count < 0) { ics->frequency = FREQ_NONE; }
 }
 
 /* "+0300", "-0530", "+013000" as seconds east of UTC. */
 static int32_t offset_of(const char *value)
 {
-    int32_t sign = *value == '-' ? -1 : 1;
-    if (*value == '-' || *value == '+') {
-        value++;
-    }
-    int32_t hours = digits(value, 2), minutes = digits(value + 2, 2);
-    return hours < 0 || minutes < 0 ? 0 : sign * (hours * 3600 + minutes * 60);
+    int32_t length = app_text_length(value), sign = *value == '-' ? -1 : 1;
+    if ((length != 5 && length != 7) || (*value != '-' && *value != '+')) { return 0; }
+    int32_t seconds = clock_of(value + 1, length - 1, 59);
+    return seconds < 0 ? 0 : sign * seconds;
 }
 
 enum { COMPONENT_CALENDAR, COMPONENT_EVENT, COMPONENT_ZONE, COMPONENT_DAYLIGHT, COMPONENT_STANDARD };
@@ -534,22 +554,22 @@ static void zone_line(ics_t *ics, int32_t property, const char *value, int32_t c
     } else if (property == PROP_DTSTART) {
         ics_moment_t moment;
         moment_of(&moment, value, "");
+        if (!moment.is_set) { return; }
         transition->seconds = moment.seconds;
         /* The day it changed, in case no rule says when it changes. */
-        int32_t month = digits(value + 4, 2), day = digits(value + 6, 2);
-        if (month >= 1 && day >= 1 && transition->nth == 0) {
-            transition->month = (int8_t)month;
-            transition->weekday = (int8_t)day;
+        if (transition->nth == 0) {
+            transition->month = (int8_t)digits(value + 4, 2, 12);
+            transition->weekday = (int8_t)digits(value + 6, 2, 31);
         }
     } else if (property == PROP_RRULE) {
         int32_t     length;
         const char *month = part_named(value, "BYMONTH=", &length);
         const char *day = part_named(value, "BYDAY=", &length);
         if (month != NULL && day != NULL) {
-            int32_t its_month = signed_number(&month);
-            int32_t nth = signed_number(&day);
+            int32_t its_month = selector_of(&month, 12);
+            int32_t nth = selector_of(&day, 53);
             int32_t weekday = weekday_named(day);
-            if (its_month >= 1 && its_month <= 12 && nth != 0 && weekday >= 0) {
+            if (its_month >= 1 && nth != 0 && weekday >= 0) {
                 transition->month = (int8_t)its_month;
                 transition->nth = (int8_t)nth;
                 transition->weekday = (int8_t)weekday;
@@ -571,24 +591,27 @@ static void begin_event(ics_t *ics)
 /* "P1D", "PT1H30M", "P1W": what an event lasts when it has no end. */
 static int32_t duration_of(const char *value)
 {
-    int32_t seconds = 0;
+    int64_t seconds = 0;
     bool    in_time = false;
     for (const char *at = value; *at != '\0';) {
         if (*at == 'T') {
             in_time = true;
             at++;
         } else if (is_digit(*at)) {
-            int32_t amount = signed_number(&at);
-            static const char UNITS[] = "WDHMS";
+            int64_t amount = signed_number(&at, (int64_t)INT32_MAX + 1);
+            static const char UNITS[] = "W\0D\0H\0M\0S\0";
             static const int32_t FACTORS[] = { 7 * SECONDS_PER_DAY, SECONDS_PER_DAY, 3600, 60, 1 };
-            for (int32_t i = 0; i < 5; i++) {
-                if (*at == UNITS[i] && (*at != 'M' || in_time)) { seconds += amount * FACTORS[i]; }
+            int32_t unit = ics_name_index(at, UNITS, true);
+            if (unit >= 0 && (unit != 3 || in_time)) {
+                /* The capped amount times at most one week fits in int64_t. */
+                seconds += amount * FACTORS[unit];
+                if (seconds > INT32_MAX) { return 0; }
             }
         } else {
             at++;
         }
     }
-    return seconds;
+    return (int32_t)seconds;
 }
 
 static void event_line(ics_t *ics, int32_t property, const char *parameters, char *value)
@@ -674,13 +697,12 @@ static void take_line(ics_t *ics)
     static const char COMPONENTS[] = "VCALENDAR\0VEVENT\0VTIMEZONE\0DAYLIGHT\0STANDARD\0";
     int32_t component = property == PROP_BEGIN || property == PROP_END
                             ? ics_name_index(value, COMPONENTS, false) : -1;
-    if (!ics->in_event && !ics->in_zone && property == PROP_END &&
-        component == COMPONENT_CALENDAR) {
-        ics->complete = true;
-    } else if (ics->in_event) {
+    if (ics->in_event) {
         event_line(ics, property, parameter_text, value);
     } else if (ics->in_zone) {
         zone_line(ics, property, value, component);
+    } else if (property == PROP_END && component == COMPONENT_CALENDAR) {
+        ics->complete = true;
     } else if (property == PROP_CALNAME) {
         take_text(ics->name, sizeof ics->name, value);
     } else if (property == PROP_BEGIN && component == COMPONENT_EVENT) {
