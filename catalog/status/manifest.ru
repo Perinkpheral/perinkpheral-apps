@@ -1,1 +1,0 @@
-{"title":"Статус сервисов","description":"Отслеживание популярных сервисов","settings":{"services":{"title":"Сервисы","help":"Хост страницы статуса: www.githubstatus.com"},"pace":{"title":"Обновление","options":{"1 min":"1 мин","5 min":"5 мин","15 min":"15 мин","30 min":"30 мин"}}}}

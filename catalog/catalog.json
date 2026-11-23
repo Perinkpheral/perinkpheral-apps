@@ -624,56 +624,6 @@
       }
     },
     {
-      "name": "status",
-      "title": "Service status",
-      "version": "0.2.3",
-      "abi": 3,
-      "files": [
-        {
-          "name": "app.wasm",
-          "size": 6629,
-          "sha256": "3f39bf51bc6039cb9ac19b6b5217c2c4d25fd17e185bab9b6abf99dc3ca62d85"
-        },
-        {
-          "name": "manifest.ru",
-          "size": 375,
-          "sha256": "10ebc65c442c75294df1cbd601232cfe52cfe3e7ceedd44d878c803dd9f19e51"
-        },
-        {
-          "name": "strings.ru",
-          "size": 204,
-          "sha256": "4af8f1d3e67fb74e1d682fee02722e75244d7cb926a2dadc6f94b709bc57228e"
-        },
-        {
-          "name": "manifest.json",
-          "size": 1129,
-          "sha256": "2f407af0cff7b6ce085b916933a3fa7219e3066e25b4e7bab3587e8e87133797"
-        }
-      ],
-      "author": "Perinkpheral",
-      "firmware": "0.1.30",
-      "icon": [
-        "...........",
-        "....###....",
-        "...#...#...",
-        "..#.....#..",
-        "..#..#..#..",
-        "..#..#..#..",
-        "..#.....#..",
-        "...#...#...",
-        "....###....",
-        "...........",
-        "..........."
-      ],
-      "description": "Status of popular services",
-      "translations": {
-        "ru": {
-          "title": "\u0421\u0442\u0430\u0442\u0443\u0441 \u0441\u0435\u0440\u0432\u0438\u0441\u043e\u0432",
-          "description": "\u041e\u0442\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u043d\u0438\u0435 \u043f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u044b\u0445 \u0441\u0435\u0440\u0432\u0438\u0441\u043e\u0432"
-        }
-      }
-    },
-    {
       "name": "stocks",
       "title": "Stocks",
       "version": "0.2.13",

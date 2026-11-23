@@ -4,7 +4,6 @@ Fixed offline inputs used by simulator mocks and retained application design exa
 Paths in `mocks.json` are relative to the scenario directory.
 
 - `iss.json`: one position response for ISS scenarios.
-- `*status.json`: Statuspage responses shared by service-status scenarios.
 - `air-*.json`: Open-Meteo/CAMS examples retained with the air-quality design brief.
 - `cbr-daily.json`, `metals/`: Bank of Russia reference responses.
 
