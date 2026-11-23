@@ -43,6 +43,23 @@ static void identity_and_dates(void)
     assert(retry_date("Mon, 32 Nov 2026 18:00:00 GMT")==0);
 
 }
+static void utc_boundaries(void)
+{
+    for(int year=2026;year<=2100;year++) for(int month=1;month<=12;month++) {
+        if(year==2100 && month>1)break;
+        int64_t day=(int64_t)app_days_from_date(year,month,1)*86400000;
+        char text[32],expected[32];
+        utc_text(text,day);
+        snprintf(expected,sizeof expected,"%04d-%02d-01T00:00:00.000",year,month);
+        assert(!strcmp(text,expected));
+        if(day>HOST_TIME_MIN*1000) {
+            int32_t y,m,d;app_date_from_days(day/86400000-1,&y,&m,&d);
+            utc_text(text,day-1);
+            snprintf(expected,sizeof expected,"%04d-%02d-%02dT23:59:59.999",y,m,d);
+            assert(!strcmp(text,expected));
+        }
+    }
+}
 static void coordinates(void)
 {
     standin_reset();
@@ -51,4 +68,4 @@ static void coordinates(void)
     app_on_load();assert(placed && latitude==-59940000 && longitude==180000000);
     assert(app_setting_is("lat","-59.940000") && app_setting_is("lon","180.000000"));
 }
-int main(void) { geography(); identity_and_dates(); coordinates(); puts("earthquakes: sphere distances, relevance boundaries, aliases and UTC cursors"); return 0; }
+int main(void) { geography(); identity_and_dates(); utc_boundaries(); coordinates(); puts("earthquakes: sphere distances, relevance boundaries, aliases and UTC cursors"); return 0; }

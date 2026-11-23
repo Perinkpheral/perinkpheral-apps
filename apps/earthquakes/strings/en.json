@@ -1,16 +1,21 @@
 {
   "nearby": "Nearby",
   "worldwide": "Worldwide",
-  "latest": "Latest 8",
   "back": "Back",
   "km": "km",
   "depth": "Depth",
-  "checked": "Checked",
   "no_events": "No events",
   "offline": "Offline",
   "stale": "Stale",
   "wait": "Loading",
   "decimal": ".",
   "earthquake": "Earthquake",
-  "earlier": "Earlier"
+  "north": "N",
+  "south": "S",
+  "east": "E",
+  "west": "W",
+  "offset": "{0} km {1}",
+  "from_you": "{1} from you",
+  "set_location": "Set location",
+  "location_help": "Choose Place in app settings"
 }

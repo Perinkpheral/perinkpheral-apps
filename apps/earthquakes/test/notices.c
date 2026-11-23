@@ -30,14 +30,14 @@ static void suppression(void)
 {
     setup(); post(1,50,true); assert(standin()->notices==0);
     post(2,50,false); assert(standin()->notices==1);
-    state.observed=(time_now()-60)*1000;post(2,70,false); assert(standin()->notices==1); /* revision */
+    post(2,70,false); assert(standin()->notices==1); /* revision */
     event_t alias=event(20,70);strcpy(alias.aliases,",notice2,notice20,");observe(&alias,false);try_notice();
-    assert(standin()->notices==1);state.observed=0;
+    assert(standin()->notices==1);
     post(3,59,false);assert(standin()->notices==1);
     post(4,60,false);assert(standin()->notices==2);
     post(5,70,false);assert(standin()->notices==2);
     standin_pass((COOLDOWN+1)*1000LL);post(6,50,false);assert(standin()->notices==3);
-    assert(strstr(standin()->last_notice.detail,"U.S. Geological Survey"));
+    assert(strstr(standin()->last_notice.detail,"USGS"));
 }
 static void spatial_suppression(void)
 {
@@ -71,4 +71,29 @@ static void queue_and_storage(void)
     }
     post(99,70,false);assert(!standin()->notices); /* saturation is silent */
 }
-int main(void) { suppression();spatial_suppression();queue_and_storage();puts("earthquakes: baseline, revisions, aliases, cooldown, escalation, queue, crash intent, clock and saturation");return 0; }
+static void late_publication(void)
+{
+    setup();
+    event_t minor=event(1,35);minor.time=(time_now()-60)*1000;
+    observe(&minor,false);try_notice();assert(!standin()->notices);
+    event_t late=event(2,60);late.time=(time_now()-300)*1000;
+    observe(&late,false);try_notice();assert(standin()->notices==1);
+    /* Equal origin timestamps are distinct reports, even after a reload. */
+    setup();minor=event(1,35);observe(&minor,false);save_cache();app_on_load();
+    late=event(2,60);late.time=minor.time;
+    observe(&late,false);try_notice();assert(standin()->notices==1);
+    /* A revision remains silent after its report leaves both cached pages. */
+    standin_pass((COOLDOWN+1)*1000LL);late.time=(time_now()-10)*1000;
+    observe(&late,true);late.updated++;late.mag=70;
+    observe(&late,false);try_notice();assert(standin()->notices==1);
+}
+static void rejected_windows(void)
+{
+    setup();full=true;post(1,50,false);
+    standin_pass((FRESH+1)*1000LL);try_notice();
+    full=false;post(2,50,false);assert(standin()->notices==1);
+    setup();post(1,50,false);full=true;post(2,60,false);
+    standin_pass((FRESH+1)*1000LL);try_notice();
+    full=false;post(3,60,false);assert(standin()->notices==2);
+}
+int main(void) { suppression();spatial_suppression();queue_and_storage();late_publication();rejected_windows();puts("earthquakes: baseline, revisions, aliases, cooldown, escalation, queue, crash intent, clock and saturation");return 0; }

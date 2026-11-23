@@ -2,10 +2,10 @@
   "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&latitude=37.01&longitude=26.96&maxradiuskm=1000&minmagnitude=3&orderby=time&limit=8": {
     "file": "../fixtures/earthquakes/near.json"
   },
-  "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&minmagnitude=4.5&starttime=2026-01-01&orderby=time&limit=8&offset=1": {
+  "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&minmagnitude=4.5&starttime=2026-01-01&orderby=time&limit=8&endtime=2100-01-01T00*": {
     "file": "../fixtures/earthquakes/world.json"
   },
-  "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&minmagnitude=4.5&starttime=2026-01-01&orderby=time&limit=8&offset=9": {
+  "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&minmagnitude=4.5&starttime=2026-01-01&orderby=time&limit=8&endtime=2026-11-23T06*": {
     "file": "../fixtures/earthquakes/history.json"
   }
 }

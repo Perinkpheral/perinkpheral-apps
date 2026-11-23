@@ -30,6 +30,7 @@ static void nav_title(const app_nav_t *nav)
 }
 #define BATCH 8
 #define LEDGER 32
+#define SEEN 31
 #define HISTORY_DAYS 120
 #define COOLDOWN 21600
 #define FRESH 1800
@@ -50,16 +51,25 @@ typedef struct {
 typedef struct {
     uint32_t boot;
     int32_t seed, failures[2], status;
-    int64_t success[2], not_before, pause_until, observed, cache_seconds;
+    int64_t success[2], not_before, pause_until, near_until, cache_seconds;
     int32_t pending; /* 1 retryable, 2 persisted delivery intent (never replay) */
     event_t notice;
 } state_t;
 typedef struct {
+    char id[32], aliases[64];
+    int64_t until;
+} identity_t;
+typedef struct {
     uint32_t version, checksum;
     state_t control;
     int32_t count[2], browse_page;
+    int64_t browse_end;
+    int32_t browse_offset, request_page;
     event_t events[2][BATCH]; /* nearby and the current Worldwide page */
     ledger_t ledger[LEDGER];
+    identity_t seen[SEEN];
+    struct { char id[32], aliases[64]; } boundary[BATCH];
+    int32_t boundary_count;
 } cache_t;
 typedef struct {
     app_nav_t nav;
@@ -76,11 +86,12 @@ static int32_t latitude, longitude, radius_km, minimum, refresh;
 static uint32_t saved_checksum;
 static int64_t success[2];
 
+_Static_assert(offsetof(event_t, aliases) == 32 && offsetof(identity_t, aliases) == 32, "identity prefix");
 _Static_assert(sizeof(cache_t) <= 8192, "cache must occupy two blocks");
 /* One checksummed snapshot holds data and notification intent. Seven settings
- * at their full byte limits plus the two query keys fit even if invalid
+ * at their full byte limits plus the three query keys fit even if invalid
  * numeric settings are supplied outside the linked Place picker. */
-_Static_assert(1344 + 2 * 96 <= HOST_KV_TOTAL_MAX, "KV budget");
+_Static_assert(1344 + 3 * 96 <= HOST_KV_TOTAL_MAX, "KV budget");
 APP_SESSION_FITS(scene_t);
 
 __attribute__((noinline)) static const char *word(int32_t id) { return app_string(id); }
@@ -124,11 +135,12 @@ static bool save_cache(void)
 static void load_cache(void)
 {
     if (file_read("cache", 5, 0, &cache, sizeof cache) != sizeof cache ||
-        cache.version != 1 || cache.checksum != checksum(&cache) ||
+        cache.version != 2 || cache.checksum != checksum(&cache) ||
         cache.count[0] < 0 || cache.count[0] > BATCH ||
         cache.count[1] < 0 || cache.count[1] > BATCH) {
         zero(&cache, sizeof cache);
-        cache.version = 1;
+        cache.version = 2;
+        cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1;
     }
     saved_checksum = cache.checksum;
 }
@@ -189,19 +201,24 @@ static bool alias_span(const char *aliases, const char *id, int32_t size)
 }
 static bool token(const char *aliases, const char *id)
 { return id[0] && alias_span(aliases, id, app_text_length(id)); }
-static bool same_event(const event_t *a, const event_t *b)
+/* All three identity-bearing structs start with the same 96-byte key. */
+static bool same_identity(const void *a, const void *b)
 {
-    if (app_text_equal(a->id, b->id) || token(a->aliases, b->id) || token(b->aliases, a->id)) { return true; }
-    for (const char *p = a->aliases; *p;) {
+    const char *id = a, *other_id = b;
+    const char *aliases = id + 32, *other_aliases = other_id + 32;
+    if (app_text_equal(id, other_id) || token(aliases, other_id) || token(other_aliases, id)) { return true; }
+    for (const char *p = aliases; *p;) {
         if (*p == ',') { p++; continue; }
         const char *start = p;
         while (*p && *p != ',') { p++; }
-        if (alias_span(b->aliases, start, (int32_t)(p - start))) { return true; }
+        if (alias_span(other_aliases, start, (int32_t)(p - start))) { return true; }
     }
     return false;
 }
+static bool same_event(const event_t *a, const event_t *b)
+{ return same_identity(a, b); }
 static void fill(char *, int32_t, const char *, int32_t, const char *, const char *);
-static void copy_text(char *out, int32_t size, const char *text)
+__attribute__((noinline)) static void copy_text(char *out, int32_t size, const char *text)
 { fill(out, size, "{1}", 0, text, NULL); }
 static bool setting_number(const char *, int32_t, int32_t *);
 static void coordinate_text(char out[16], int32_t value)
@@ -253,7 +270,7 @@ static void cancel_browse(void)
 }
 static void reset_configuration(void)
 {
-    state.seed = 1; state.pending = 0; state.observed = 0; scene.page = 0; cancel_browse();
+    state.seed = 1; state.pending = 0; zero(cache.seen, sizeof cache.seen); scene.page = 0; cancel_browse();
     cache.count[0] = 0;
     zero(cache.ledger, sizeof cache.ledger);
     success[0] = state.success[0] = 0;
@@ -398,7 +415,9 @@ static void revise_notice(const event_t *e)
         copy_bytes(&state.notice, e, sizeof *e);
     }
 }
-static void when_text(char out[32], int64_t at);
+static void time_string(char out[32], int64_t at, int32_t style);
+#define when_text(out, at) time_string(out, at, HOST_TIME_NEAR)
+static bool notice_cluster(const event_t *e, bool commit);
 static void try_notice(void)
 {
     if (state.pending != 1) { return; }
@@ -413,20 +432,19 @@ static void try_notice(void)
     summary(notice.second, &state.notice);
     char when[48];
     when_text(when, state.notice.time / 1000);
-    fill(notice.detail, sizeof notice.detail, "U.S. Geological Survey  {1}", 0, when, NULL);
-    state.pending = notification_post(&notice) == HOST_OK ? 0 : 1;
+    fill(notice.detail, sizeof notice.detail, "USGS  {1}", 0, when, NULL);
+    if (notification_post(&notice) == HOST_OK) {
+        notice_cluster(&state.notice, true);
+        state.pending = 0;
+    } else { state.pending = 1; }
 
     save_cache();
 }
-/* A timestamp watermark is deliberately conservative: a late report older
- * than an already observed event is visible but never interrupts. It also
- * keeps revisions silent without a second identity/observation database. */
-static void observe(const event_t *e, bool seed)
+/* Only delivered notices consume cluster windows or the escalation allowance.
+ * A persisted delivery intent is conservatively committed on crash recovery. */
+static bool notice_cluster(const event_t *e, bool commit)
 {
     int64_t now = time_now();
-    if (seed || e->time <= state.observed ||
-        (uint64_t)(now - e->time / 1000) > FRESH || !relevant(e) ||
-        !notices_on || (state.pending && e->mag <= state.notice.mag)) { return; }
     int32_t free = -1, cluster = -1;
     bool escalated = false;
     for (int32_t i = 0; i < LEDGER; i++) {
@@ -437,7 +455,8 @@ static void observe(const event_t *e, bool seed)
             if (cluster < 0 || cache.ledger[cluster].mag < l->mag) { cluster = i; }
         }
     }
-    if (free < 0 || (cluster >= 0 && (escalated || e->mag < cache.ledger[cluster].mag + 10))) { return; }
+    if (free < 0 || (cluster >= 0 && (escalated || e->mag < cache.ledger[cluster].mag + 10))) { return false; }
+    if (!commit) { return true; }
     ledger_t *l = &cache.ledger[free];
     l->until = cluster >= 0 ? cache.ledger[cluster].until : now + COOLDOWN;
     l->escalated = cluster >= 0;
@@ -445,6 +464,27 @@ static void observe(const event_t *e, bool seed)
     if (cluster >= 0) for (int32_t i = 0; i < LEDGER; i++) {
         if (cache.ledger[i].until > now && cluster_near(e, &cache.ledger[i])) { cache.ledger[i].escalated = 1; }
     }
+    return true;
+}
+/* Remember observed identities throughout the freshness window, independently
+ * of origin-time ordering and of the two replaceable pages. Saturation seeds
+ * silently rather than evicting identities that could interrupt twice. */
+static void observe(const event_t *e, bool seed)
+{
+    int64_t now = time_now();
+    int32_t free = -1;
+    for (int32_t i = 0; i < SEEN; i++) {
+        identity_t *seen = &cache.seen[i];
+        if (seen->until <= now) { free = i; continue; }
+        if (same_identity(e, seen)) { return; }
+    }
+    if ((uint64_t)(now - e->time / 1000) > FRESH || free < 0) { return; }
+    identity_t *seen = &cache.seen[free];
+    copy_text(seen->id, sizeof seen->id, e->id);
+    copy_text(seen->aliases, sizeof seen->aliases, e->aliases);
+    seen->until = e->time / 1000 + FRESH + 1;
+    if (seed || !relevant(e) || !notices_on ||
+        (state.pending && e->mag <= state.notice.mag) || !notice_cluster(e, false)) { return; }
     copy_bytes(&state.notice, e, sizeof *e); state.pending = 1;
 }
 
@@ -506,6 +546,8 @@ static void pace(int32_t request, bool ok)
     /* Waiting the full max-age is conservative when an Age header is present. */
     int64_t ttl = header_seconds("Cache-Control", "max-age=");
     if (request && ok) { state.cache_seconds = ttl > 900 ? ttl : 900; }
+    if (!request) { state.near_until = ttl ? now + ttl : 0; }
+    if (state.near_until - now > ttl) { ttl = state.near_until - now; }
     if (ttl > retry) { retry = ttl; }
     if (retry > delay) { delay = retry > 86400 ? 86400 : (int32_t)retry; }
     poll_set_interval(0, delay > refresh ? delay : 0);
@@ -523,6 +565,7 @@ static void selection(void)
     scene.list.count = shown_count();
     if (scene.list.selected >= scene.list.count) { scene.list.selected = 0; }
 }
+static void browse(int32_t page);
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request < 0 || request > 1 || (request == 0 && !placed)) { return; }
@@ -533,7 +576,8 @@ void app_on_picked(int32_t request, int32_t http_status)
     event_t fresh[BATCH]; zero(fresh, sizeof fresh);
     bool ok = http_status == 204 || (http_status == 200 && extract(fresh, &n));
     if (ok) {
-        bool seed = state.seed || stale(0);
+        int32_t accepted = 0;
+        bool seed = state.seed;
         for (int32_t i = 0; i < n; i++) {
             bool known = false;
             for (int32_t slot = 0; slot < 2; slot++) for (int32_t j = 0; j < cache.count[slot]; j++) {
@@ -543,22 +587,35 @@ void app_on_picked(int32_t request, int32_t http_status)
                 if (old->updated > fresh[i].updated) { copy_bytes(&fresh[i], old, sizeof *old); }
                 else { copy_bytes(old, &fresh[i], sizeof *old); }
             }
-            if (!request && !known) { observe(&fresh[i], seed); }
+            if (!request) { observe(&fresh[i], seed || known); }
             revise_notice(&fresh[i]);
+            bool boundary = false;
+            if (request) for (int32_t j = 0; j < cache.boundary_count; j++) {
+                boundary |= same_identity(&fresh[i], &cache.boundary[j]);
+            }
+            if (!boundary) { copy_bytes(&fresh[accepted++], &fresh[i], sizeof fresh[i]); }
         }
+        if (request && n == BATCH && !accepted) {
+            cache.browse_offset += BATCH;
+            pace(1, true); save_cache(); browse(requested_page); return;
+        }
+        n = accepted;
         copy_bytes(cache.events[request], fresh, sizeof fresh); cache.count[request] = n;
         if (request) {
             cache.browse_page = requested_page;
         } else {
             state.seed = 0;
-            if (n && fresh[0].time > state.observed) { state.observed = fresh[0].time; }
         }
     }
     bool good = ok || (http_status == 304 && success[request]);
     if (good) {
         int64_t now = time_now();
         success[request] = now;
-        if (request || (uint64_t)(now - state.success[request]) >= 3600) { state.success[request] = now; }
+        if (!request) {
+            int32_t grace = refresh * 3 > 900 ? refresh * 3 : 900;
+            alarm_set(1, grace + 1);
+        }
+        if ((uint64_t)(now - state.success[request]) >= 3600) { state.success[request] = now; }
     }
     pace(request, good);
     save_cache();
@@ -567,17 +624,56 @@ void app_on_picked(int32_t request, int32_t http_status)
     if (request || checksum(&cache) != before) { screen_redraw(HOST_REDRAW_NORMAL); }
 }
 
-/* The provider pages eight reports at a time within 120 days. Only the
- * current page is cached; a moving feed can shift offset boundaries. */
+/* Latest uses the platform's date ceiling, so it remains live without a
+ * changing timestamp in every snapshot. Older pages retain their boundary.
+ * Pages use a time boundary instead of an offset into the moving feed.
+ * Boundary identities are removed after an inclusive query, so deleting a
+ * boundary report cannot skip the following event. Offset advances only
+ * when a complete reply consists of already displayed equal-time reports. */
+static void utc_text(char out[32], int64_t millis)
+{
+    int32_t days = millis / 86400000;
+    int32_t y = 1970 + days / 366, m = 12;
+    while (app_days_from_date(y + 1, 1, 1) <= days) { y++; }
+    int32_t start;
+    while ((start = app_days_from_date(y, m, 1)) > days) { m--; }
+    int32_t d = days - start + 1;
+    int32_t part = millis % 86400000;
+    int32_t values[] = { y, m, d, part / 3600000, part / 60000 % 60, part / 1000 % 60, part % 1000 };
+    static const char separators[] = "--T::.";
+    char *p = out;
+    for (int32_t i = 0; i < 7; i++) {
+        int32_t div = i == 0 ? 1000 : i == 6 ? 100 : 10;
+        for (; div; div /= 10) { *p++ = '0' + values[i] / div % 10; }
+        if (i < 6) { *p++ = separators[i]; }
+    }
+    *p = 0;
+}
 static void browse(int32_t page)
 {
     if (requesting) { page = requested_page; }
     if (!time_now() || page > 1000 || time_now() < state.not_before) { return; }
-    char text[16];
-    FILL(text, "{0}", page * BATCH + 1, NULL, NULL);
+    char text[32];
+    if (!requesting && page != cache.request_page) {
+        if (page && cache.count[1]) {
+            int32_t n = cache.count[1];
+            int64_t end = cache.events[1][n - 1].time;
+            if (end != cache.browse_end) { cache.browse_offset = 1; }
+            cache.browse_end = end;
+            cache.boundary_count = 0;
+            for (int32_t i = 0; i < n; i++) if (cache.events[1][i].time == end) {
+                int32_t j = cache.boundary_count++;
+                copy_bytes(&cache.boundary[j], &cache.events[1][i], sizeof cache.boundary[j]);
+            }
+        } else { cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1; cache.boundary_count = 0; }
+    }
+    utc_text(text, cache.browse_end);
+    if (kv_set("end", 3, text, app_text_length(text)) < 0) { return; }
+    FILL(text, "{0}", cache.browse_offset, NULL, NULL);
     if (kv_set("offset", 6, text, app_text_length(text)) < 0) { return; }
     if (cache.browse_page != page) { scene.list.selected = scene.list.first = 0; }
-    scene.page = requested_page = page; requesting = true;
+    scene.page = requested_page = cache.request_page = page; requesting = true;
+    save_cache();
     if (poll_run(1) < 0) { cancel_browse(); pace(1, false); save_cache(); }
 }
 static void history_page(int32_t direction)
@@ -596,16 +692,16 @@ static void maybe_browse(void)
 void app_on_load(void)
 {
     zero(&scene, sizeof scene); scene.nav.screens = 2;
-    scene.list.top = 42; scene.list.height = 170;
+    scene.list.top = 32; scene.list.height = 184;
     load_cache(); settings();
     int32_t offset = 0;
     requesting = setting_number("offset", 0, &offset) && (uint32_t)(offset - 1) <= 8000;
-    requested_page = (uint32_t)(offset - 1) / BATCH;
+    requested_page = cache.request_page;
     for (int32_t i = 0; i < 2; i++) { success[i] = state.success[i]; }
     if (state.boot != time_boot_id()) {
         state.boot = time_boot_id(); state.seed = 1; state.pending = 0;
     }
-    if (state.pending == 2) { state.pending = 0; }
+    if (state.pending == 2) { notice_cluster(&state.notice, true); state.pending = 0; }
     if (!requesting) { cancel_browse(); }
     provider_pause(); save_cache();
 }
@@ -627,6 +723,7 @@ void app_on_intent(int32_t intent)
 {
     if (intent == HOST_INTENT_STARTED || intent == HOST_INTENT_TIME_CHANGED) {
         state.seed = 1; state.pending = 0;
+        if (success[0]) { alarm_set(1, (refresh * 3 > 900 ? refresh * 3 : 900) + 1); }
         provider_pause(); save_cache();
         screen_redraw(HOST_REDRAW_NORMAL);
     }
@@ -634,6 +731,7 @@ void app_on_intent(int32_t intent)
 void app_on_updated(void) { app_on_intent(HOST_INTENT_STARTED); }
 void app_on_alarm(int32_t id)
 {
+    if (id == 1) { state.seed = 1; save_cache(); return; }
     if (id != 0) { return; }
     provider_pause();
     if (!state.pause_until) { poll_run(0); }
@@ -725,9 +823,9 @@ static void event_map(host_map_t *map, const event_t *e, bool label)
     if (label) { marker(map, latitude, longitude, true); }
 
 }
-static void when_text(char out[32], int64_t at)
+static void time_string(char out[32], int64_t at, int32_t style)
 {
-    int32_t n = time_text(at, HOST_TIME_NEAR, out, 31);
+    int32_t n = time_text(at, style, out, 31);
     out[n > 0 ? n : 0] = 0;
 }
 static void draw_main(void)
@@ -736,23 +834,56 @@ static void draw_main(void)
     int32_t i = notable();
     const event_t *e = i < 0 ? NULL : &cache.events[0][i];
     char line[128], a[64], b[32];
-    if (!placed) { ui_draw_reason(HOST_FAILED_NOT_READY); return; }
+    if (!placed) {
+        draw_text(16, 96, HOST_UI_TEXT, word(STR_SET_LOCATION), 368);
+        draw_text(16, 132, HOST_UI_CAPTION, word(STR_LOCATION_HELP), 368);
+        return;
+    }
     host_map_t map = { .x = 0, .y = 44, .w = 400, .h = 180 };
     event_map(&map, e, true);
     gfx_draw_rect(0, 224, 400, 1, HOST_RECT_FILLED);
     if (e) {
         summary(a, e); when_text(b, e->time / 1000);
         FILL(line, "{1}, {2}", 0, a, b);
-    } else { copy_text(line, sizeof line, word(success[0] ? STR_NO_EVENTS : state.status < 0 ? STR_OFFLINE : STR_WAIT)); }
+    } else { copy_text(line, sizeof line, word(state.status < 0 ? STR_OFFLINE : success[0] ? STR_NO_EVENTS : STR_WAIT)); }
     draw_text(16, 231, HOST_UI_TEXT, line, 368);
-    if (state.status < 0 || stale(0)) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status < 0 ? STR_OFFLINE : STR_STALE), 180); }
+    if (e && (state.status < 0 || stale(0))) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status < 0 ? STR_OFFLINE : STR_STALE), 180); }
+}
+/* USGS generated distance/direction prefixes are not part of a proper name. */
+static const char *place_name(const event_t *e, char localized[128])
+{
+    localized[0] = 0;
+    const char *p = e->place;
+    int32_t km = 0;
+    if (*p < '0' || *p > '9') { return p; }
+    while (*p >= '0' && *p <= '9') {
+        if (km > 1000000) { return e->place; }
+        km = km * 10 + *p++ - '0';
+    }
+    if (!app_text_starts(p, " km ")) { return e->place; }
+    p += 4;
+    const char *start = p;
+    while (*p == 'N' || *p == 'S' || *p == 'E' || *p == 'W') {
+        if (p - start == 3) { return e->place; }
+        p++;
+    }
+    if (p == start || !app_text_starts(p, " of ")) { return e->place; }
+    char direction[16];
+    int32_t n = 0;
+    for (const char *at = start; at < p; at++) {
+        const char *d = word(*at == 'N' ? STR_NORTH : *at == 'S' ? STR_SOUTH : *at == 'E' ? STR_EAST : STR_WEST);
+        while (*d) { direction[n++] = *d++; }
+    }
+    direction[n] = 0;
+    fill(localized, 128, word(STR_OFFSET), km, direction, p + 4);
+    return p + 4;
 }
 static void draw_list(void)
 {
     nav_title(&scene.nav);
-    char line[128], a[32], b[32];
-    FILL(line, "{1}  {2}", 0, word(scene.scope ? STR_WORLDWIDE : STR_NEARBY), word(scene.page ? STR_EARLIER : STR_LATEST));
-    draw_text(16, 16, HOST_UI_TEXT, line, 304);
+    char line[128], a[32], b[32], location[128];
+    /* Compact filter content, rather than a repeated screen title. */
+    draw_text(16, 10, HOST_UI_CAPTION, word(scene.scope ? STR_WORLDWIDE : STR_NEARBY), 304);
     selection();
     int32_t count = shown_count();
     int32_t first = ui_list_first(&scene.list), visible = ui_list_visible(&scene.list);
@@ -760,35 +891,51 @@ static void draw_list(void)
     event_t *events = shown_events();
     for (int32_t i = first; i < first + visible && i < count; i++) {
         magnitude(a, &events[i]); when_text(b, events[i].time / 1000);
-        FILL(line, "{1} {2}", 0, a, events[i].place);
+        FILL(line, "{1} {2}", 0, a, place_name(&events[i], location));
         ui_draw_list_row(&scene.list, i, line, app_text_length(line), b, app_text_length(b), HOST_ICON_NONE);
     }
     if (!count) {
-        if (scene.scope == 0 && !placed) { ui_draw_reason(HOST_FAILED_NOT_READY); return; }
-        if (!ui_draw_reason(state.status)) { draw_text(16, 100, HOST_UI_TEXT, word(success[scene.scope] ? STR_NO_EVENTS : STR_WAIT), 368); }
+        if (scene.scope == 0 && !placed) {
+            draw_text(16, 96, HOST_UI_TEXT, word(STR_SET_LOCATION), 368);
+            draw_text(16, 132, HOST_UI_CAPTION, word(STR_LOCATION_HELP), 368);
+            return;
+        }
+        draw_text(16, 100, HOST_UI_TEXT, word(state.status < 0 ? STR_OFFLINE : success[scene.scope] ? STR_NO_EVENTS : STR_WAIT), 368);
     }
-    int32_t caption = scene.scope && requesting ? STR_WAIT : state.status < 0 ? STR_OFFLINE : stale(scene.scope) ? STR_STALE : STR_CHECKED;
-    FILL(line, "{1}  U.S. Geological Survey", 0, word(caption), NULL);
+    int32_t caption = scene.scope && requesting ? STR_WAIT : state.status < 0 ? STR_OFFLINE : stale(scene.scope) ? STR_STALE : -1;
+    if (caption >= 0 && count) { FILL(line, "{1}  USGS", 0, word(caption), NULL); }
+    else { copy_text(line, sizeof line, "USGS"); }
     draw_text(16, 225, HOST_UI_CAPTION, line, 368);
 }
 static void draw_detail(void)
 {
     const event_t *e = &scene.detail;
-    char text[128], a[48];
+    char text[128], a[48], location[128];
+    const char *name = place_name(e, location);
+    int32_t distance = placed ? from_place(e) : UNKNOWN;
+    bool inset = placed && distance <= 2000000;
+    int32_t width = inset ? 180 : 368;
     magnitude(text, e);
     draw_text(16, 4, e->mag == 100 ? HOST_UI_TITLE : HOST_UI_VALUE, text, 180);
-    ui_draw_text_lines(16, 84, HOST_UI_TEXT, e->place, app_text_length(e->place), 180, 2);
-    host_map_t map = { .x = 208, .y = 12, .w = 176, .h = 146 };
-    event_map(&map, e, false);
-    gfx_draw_rect(207, 11, 178, 148, HOST_RECT_OUTLINE);
-    quantity(text, placed ? (from_place(e) + 500) / 1000 : UNKNOWN);
-    draw_text(16, 138, HOST_UI_CAPTION, text, 180);
+    if (location[0]) { draw_text(16, 68, HOST_UI_CAPTION, location, width); }
+    ui_draw_text_lines(16, 84, HOST_UI_TEXT, name, app_text_length(name), width, 2);
+    if (inset) {
+        host_map_t map = { .x = 208, .y = 12, .w = 176, .h = 146 };
+        event_map(&map, e, false);
+        gfx_draw_rect(207, 11, 178, 148, HOST_RECT_OUTLINE);
+    }
+    quantity(a, placed ? (distance + 500) / 1000 : UNKNOWN);
+    FILL(text, word(STR_FROM_YOU), 0, a, NULL);
+    draw_text(16, 144, HOST_UI_CAPTION, text, width);
     quantity(a, e->depth);
     FILL(text, "{1} {2}", 0, word(STR_DEPTH), a);
-    draw_text(16, 156, HOST_UI_CAPTION, text, 180);
-    when_text(text, e->time / 1000);
-    draw_text(16, 174, HOST_UI_CAPTION, text, 368);
-    draw_text(16, 196, HOST_UI_CAPTION, "U.S. Geological Survey", 368);
+    draw_text(16, 164, HOST_UI_CAPTION, text, width);
+    char date[32], clock[32];
+    time_string(date, e->time / 1000, HOST_TIME_DATE);
+    time_string(clock, e->time / 1000, HOST_TIME_CLOCK);
+    FILL(text, "{1}  {2}", 0, date, clock);
+    draw_text(16, 184, HOST_UI_CAPTION, text, 368);
+    draw_text(16, 204, HOST_UI_CAPTION, "USGS", 368);
     app_draw_actions(NULL, word(STR_BACK));
 }
 void app_on_draw(void)

@@ -27,6 +27,11 @@ int main(void)
     pace(0,false);assert(state.not_before==1795460400LL);
     standin_pass((1795460400LL-time_now())*1000);retry_text=NULL;cache_control="public, Max-Age=\"600\"";response_age="120";
     pace(0,true);assert(standin()->poll_interval[0]==600);
+    standin_pass(10000);cache_control="max-age=60";pace(1,true);
+    assert(standin()->poll_interval[0]==590);
+    save_cache();app_on_load();standin_pass(10000);pace(1,true);
+    assert(standin()->poll_interval[0]==580);
+    standin_pass(580000);
     state.not_before=0;cache_control=response_age=NULL;state.not_before=0;pace(0,true);assert(standin()->poll_interval[0]==0);state.not_before=0;
     pace(0,false);assert(standin()->poll_interval[0]==300);
     standin_pass(300000);pace(0,false);assert(standin()->poll_interval[0]==900);

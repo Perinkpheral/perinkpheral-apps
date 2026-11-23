@@ -1,6 +1,6 @@
 {
   "name": "earthquakes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "title": "Earthquakes",
   "author": "Perinkpheral",
   "description": "Recent earthquakes worldwide, with optional nearby notices",
@@ -92,7 +92,7 @@
       ]
     },
     {
-      "url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&minmagnitude=4.5&starttime=2026-01-01&orderby=time&limit=8&offset={{offset}}",
+      "url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&minmagnitude=4.5&starttime=2026-01-01&orderby=time&limit=8&endtime={{end}}&offset={{offset}}",
       "every": 86400,
       "pick": [
         "type",
@@ -128,5 +128,6 @@
     ".......#...",
     "...........",
     "..........."
-  ]
+  ],
+  "firmware": "0.1.95"
 }

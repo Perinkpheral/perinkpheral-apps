@@ -11,7 +11,7 @@ static void setup(void)
     standin_reset();
     standin_handlers = (standin_handlers_t){.on_load=app_on_load, .on_focus=app_on_focus,
         .on_blur=app_on_blur, .on_picked=app_on_picked,
-        .on_draw=app_on_draw, .on_button=app_on_button, .on_back=app_on_back};
+        .on_draw=app_on_draw, .on_alarm=app_on_alarm, .on_button=app_on_button, .on_back=app_on_back};
     standin_load(); standin_focus();
 }
 static void feed(int poll, const char *name, int status)
@@ -77,9 +77,14 @@ static void paging(void)
     maybe_browse();assert(!requesting); /* reuse a fresh page without a write */
     assert(standin()->file_writes==files && scene.list.selected==3);
     scene.list.selected=7;history_page(1);
-    assert(requesting && requested_page==1 && app_setting_is("offset","9"));
+    assert(requesting && requested_page==1 && app_setting_is("offset","1"));
+    char boundary[32], expected[32];
+    utc_text(expected,cache.events[1][7].time);
+    app_setting("end",boundary,sizeof boundary);assert(!strcmp(boundary,expected));
+    /* Insertion/removal before this boundary no longer shifts page 2. */
+    assert(cache.browse_end==cache.events[1][7].time);
     /* A second navigation cannot retarget an in-flight response. */
-    history_page(1);assert(requested_page==1 && app_setting_is("offset","9"));
+    history_page(1);assert(requested_page==1 && app_setting_is("offset","1"));
     standin_leave();standin_load();standin_focus();
     assert(requesting && requested_page==1 && scene.scope==1 && scene.page==1);
     feed(1,"history",200);assert(!requesting && scene.page==1 && shown_count()==8);
@@ -91,9 +96,82 @@ static void paging(void)
     scene.page=1000;int polls=standin()->polls_run[1];history_page(1);
     assert(standin()->polls_run[1]==polls);
 }
+static void background_liveness(void)
+{
+    setup();standin_set("notify","On");settings();feed(0,"near",200);
+    standin_leave();
+    int files=standin()->file_writes;
+    for(int minute=1;minute<=25;minute++) {
+        standin_pass(60000);standin_load();feed(0,"near",200);standin_terminate();
+        assert(!state.seed);
+    }
+    /* No minute-by-minute freshness writes, yet a fresh report can notify
+       after the old hourly checkpoint is beyond the UI stale threshold. */
+    assert(standin()->file_writes==files);
+    standin_load();event_t e=cache.events[0][0];
+    strcpy(e.id,"late-background");strcpy(e.aliases,",late-background,");
+    e.mag=60;e.time=(time_now()-60)*1000;e.updated=e.time;
+    char body[1024];
+    int size=snprintf(body,sizeof body,
+        "{\"type\":\"FeatureCollection\",\"features\":[{\"id\":\"late-background\","
+        "\"properties\":{\"ids\":\",late-background,\",\"place\":\"Pánormos, Greece\","
+        "\"mag\":6,\"time\":%lld,\"updated\":%lld,\"type\":\"earthquake\"},"
+        "\"geometry\":{\"coordinates\":[26.5913,36.86,15]}}]}",
+        (long long)e.time,(long long)e.updated);
+    standin_picked(0,-1,200,body,size);assert(standin()->notices==1);
+    standin_pass(901000);standin_alarm(1);assert(state.seed);
+    standin_load();feed(0,"new",200);assert(standin()->notices==1);
+}
+static void hourly_world_checkpoint(void)
+{
+    setup();scene.scope=scene.nav.screen=1;maybe_browse();feed(1,"world",200);
+    assert(cache.browse_end==HOST_TIME_MAX*1000);int files=standin()->file_writes;
+    for(int i=1;i<=3;i++) { standin_pass(900000);maybe_browse();feed(1,"world",200); }
+    assert(standin()->file_writes==files);
+    standin_pass(900000);feed(1,"world",200);
+    assert(standin()->file_writes==files+1);
+}
+static void model_reply(const event_t *events, int count)
+{
+    char body[8192];int used=snprintf(body,sizeof body,"{\"type\":\"FeatureCollection\",\"features\":[");
+    for(int i=0;i<count;i++) {
+        const event_t *e=&events[i];
+        used+=snprintf(body+used,sizeof body-(size_t)used,
+            "%s{\"id\":\"%s\",\"properties\":{\"ids\":\",%s,\",\"place\":\"Model\","
+            "\"mag\":4.5,\"time\":%lld,\"updated\":%lld,\"type\":\"earthquake\"},"
+            "\"geometry\":{\"coordinates\":[26.5913,36.86,15]}}",
+            i?",":"",e->id,e->id,(long long)e->time,(long long)e->updated);
+    }
+    used+=snprintf(body+used,sizeof body-(size_t)used,"]}");
+    standin_picked(1,-1,200,body,used);
+}
+static void changing_boundary(void)
+{
+    event_t older[BATCH], inclusive[BATCH];
+    setup();feed(1,"history",200);memcpy(older,cache.events[1],sizeof older);
+    setup();feed(1,"world",200);scene.nav.screen=scene.scope=1;
+    inclusive[0]=cache.events[1][7];memcpy(inclusive+1,older,7*sizeof *older);
+    history_page(1);model_reply(inclusive,BATCH);
+    assert(shown_count()==7 && !strcmp(shown_events()[0].id,older[0].id));
+    /* Inclusive overlap stays removed on a refresh after unloading. */
+    standin_leave();standin_load();standin_focus();
+    requesting=true;requested_page=1;model_reply(inclusive,BATCH);
+    assert(shown_count()==7 && !strcmp(shown_events()[0].id,older[0].id));
+    /* A deleted/filtered boundary is absent: E9 must still be first. */
+    setup();feed(1,"world",200);scene.nav.screen=scene.scope=1;
+    history_page(1);model_reply(older,BATCH);
+    assert(shown_count()==8 && !strcmp(shown_events()[0].id,older[0].id));
+    /* Eight equal-time reports do not trap the browser on an empty page. */
+    setup();feed(1,"world",200);scene.nav.screen=scene.scope=1;
+    for(int i=0;i<BATCH;i++)cache.events[1][i].time=cache.events[1][7].time;
+    memcpy(inclusive,cache.events[1],sizeof inclusive);
+    history_page(1);model_reply(inclusive,BATCH);
+    assert(requesting && app_setting_is("offset","9"));
+    model_reply(older,BATCH);assert(shown_count()==8 && !requesting);
+}
 int main(void)
 {
-    atomic_answers(); cache_recovery(); paging();
+    atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
     puts("earthquakes: atomic extraction, nulls, failures, unchanged data, cache recovery and history");
     return 0;
 }
