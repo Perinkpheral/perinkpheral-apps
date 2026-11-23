@@ -315,8 +315,82 @@ static void test_calendar_names(void)
     CHECK(ics.name[0] == '\0');
 }
 
+/* Untrusted numeric fields must be bounded before arithmetic or narrowing. */
+static void test_numeric_bounds(void)
+{
+    static const struct { const char *rule; int count; } rules[] = {
+        { "FREQ=DAILY;COUNT=4444444444", 2 }, /* verified UBSan reproducer */
+        { "FREQ=DAILY;COUNT=2147483647", 2 },
+        { "FREQ=DAILY;COUNT=99999999999999999999999999999999999999", 2 },
+        { "FREQ=DAILY;COUNT=-4444444444", 1 },
+        { "FREQ=DAILY;COUNT=0", 1 },
+        { "FREQ=DAILY;INTERVAL=0", 1 },
+        { "FREQ=DAILY;COUNT=1", 1 },
+        { "FREQ=DAILY;COUNT=2", 2 },
+        { "FREQ=DAILY;INTERVAL=2147483647", 1 },
+        { "FREQ=WEEKLY;INTERVAL=4444444444", 1 },
+        { "FREQ=MONTHLY;INTERVAL=4444444444", 1 },
+        { "FREQ=YEARLY;INTERVAL=4444444444", 1 },
+        { "FREQ=DAILY;INTERVAL=-4444444444", 1 },
+        { "FREQ=MONTHLY;BYMONTHDAY=4444444444", 1 },
+        { "FREQ=MONTHLY;BYDAY=-4444444444WE", 1 },
+    };
+    char text[512];
+    for (unsigned i = 0; i < sizeof rules / sizeof rules[0]; i++) {
+        snprintf(text, sizeof text, "BEGIN:VCALENDAR\nBEGIN:VEVENT\n"
+                 "DTSTART:20261118T120000Z\nRRULE:%s\nEND:VEVENT\nEND:VCALENDAR\n", rules[i].rule);
+        CHECK(read_file(text, utc(2026, 11, 18, 0, 0), 2, 0, 1) == rules[i].count);
+    }
+    CHECK(ics.nth_weekday == 0);
+    /* Leap dates and the leap second are valid; every invalid field is refused. */
+    static const char *const invalid[] = {
+        "", "2", "2026111", "202611180", "20261118T12", "20261118X120000",
+        "20261318", "20260018", "20261100", "20261131", "20260229",
+        "20261118T240000Z", "20261118T126000Z", "20261118T120061Z",
+        "20261118T1200xxZ", "44444444444444444444444444444444",
+    };
+    for (unsigned i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        ics_moment_t moment;
+        moment_of(&moment, invalid[i], "");
+        CHECK(!moment.is_set);
+        snprintf(text, sizeof text, "BEGIN:VCALENDAR\nBEGIN:VTIMEZONE\nTZID:bad\n"
+                 "BEGIN:STANDARD\nDTSTART:%s\nEND:STANDARD\nEND:VTIMEZONE\n"
+                 "BEGIN:VEVENT\nDTSTART:%s\nEND:VEVENT\nEND:VCALENDAR\n", invalid[i], invalid[i]);
+        CHECK(read_file(text, utc(2026, 11, 18, 0, 0), 2, 0, 1) == 0);
+    }
+    ics_moment_t moment;
+    moment_of(&moment, "20240229T235960Z", "");
+    CHECK(moment.is_set && moment.seconds == 86400);
+    moment_of(&moment, "99991231", "");
+    CHECK(moment.is_set);
+    CHECK(offset_of("+235959") == 86399 && offset_of("-0530") == -19800);
+    static const char *const offsets[] = { "", "+", "+03", "+2400", "-0060", "+000060", "+9999999999999999" };
+    for (unsigned i = 0; i < sizeof offsets / sizeof offsets[0]; i++) { CHECK(offset_of(offsets[i]) == 0); }
+    CHECK(duration_of("PT2147483647S") == INT32_MAX);
+    CHECK(duration_of("P24855DT11647S") == INT32_MAX);
+    CHECK(duration_of("P24855DT11648S") == 0);
+    CHECK(duration_of("P4444444444W") == 0);
+    CHECK(duration_of("PT9999999999999999999999999999H") == 0);
+    snprintf(text, sizeof text, "BEGIN:VCALENDAR\nBEGIN:VTIMEZONE\nTZID:large\nBEGIN:DAYLIGHT\n"
+             "DTSTART:20260329T020000\nTZOFFSETTO:+999999\n"
+             "RRULE:FREQ=YEARLY;BYMONTH=4444444444;BYDAY=-4444444444SU\n"
+             "END:DAYLIGHT\nEND:VTIMEZONE\nBEGIN:VEVENT\nDTSTART:20261118T120000Z\n"
+             "DURATION:P4444444444W\nRRULE:FREQ=DAILY;COUNT=4444444444\nEND:VEVENT\nEND:VCALENDAR\n");
+    CHECK(read_file(text, utc(2026, 11, 18, 0, 0), 2, 0, 7) == 2);
+    CHECK(ics.rule_count == STEPS_MAX * DAYS_PER_WEEK && ics.duration_s == 0);
+    CHECK(ics.zones[0].daylight.month == 3 && ics.zones[0].daylight.nth == 0);
+    CHECK(read_file("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:99991231T120000Z\n"
+                    "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU\nEND:VEVENT\nEND:VCALENDAR\n",
+                    utc(9999, 12, 31, 0, 0), 2, 0, 1) == 1);
+    /* A nonmatching weekday used to run every iteration, even past year 9999. */
+    CHECK(read_file("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:99991231T120000Z\n"
+                    "RRULE:FREQ=DAILY;INTERVAL=2147483647;BYDAY=MO\nEND:VEVENT\nEND:VCALENDAR\n",
+                    utc(9999, 12, 31, 0, 0), 2, 0, 1) == 0);
+}
+
 int main(void)
 {
+    test_numeric_bounds();
     test_calendar_names();
     test_monthly_weekdays();
     test_monthly_set_position();

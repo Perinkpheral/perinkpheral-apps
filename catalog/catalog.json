@@ -54,13 +54,13 @@
     {
       "name": "calendar",
       "title": "Calendar",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 15101,
-          "sha256": "cc0f53e271fcc0c852ca6a8ea0989c6455752300b3b1c19f154e0beeda95bf33"
+          "size": 15229,
+          "sha256": "cb1081212b3c828c88fbd8ff92c731687122b0ad2368f4e13fe0c22ffa2c3e07"
         },
         {
           "name": "manifest.ru",
@@ -75,7 +75,7 @@
         {
           "name": "manifest.json",
           "size": 1887,
-          "sha256": "37220659c96d846a7488938888d522e9539824de40997c118fad69724b535073"
+          "sha256": "ceee472b08f8d62133260e251cfffb014245f4c4daeba80fc0e33cd657938643"
         }
       ],
       "author": "Perinkpheral",
