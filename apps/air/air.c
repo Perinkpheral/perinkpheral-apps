@@ -45,7 +45,7 @@ static bool    state_unsaved; /* the store refused the last write of it */
 static int32_t status, saved_status;
 static bool urgent;
 
-/* The poller paces scheduled requests; explicit refreshes share its server cooldown.
+/* Scheduled polls and explicit refreshes share the server cooldown.
  * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
 typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
 static cooldown_t cooldown, saved_cooldown;
@@ -63,8 +63,44 @@ static void load_cooldown(void)
     saved_cooldown = cooldown;
 }
 
+static void pace_polls(void);
+
+static void restore_cooldown(void)
+{
+    cooldown_t live;
+    if (app_session_load(&live, sizeof live) && live.boot == cooldown.boot && live.retry_at > cooldown.retry_at) {
+        cooldown = live;
+        save_cooldown();
+        pace_polls();
+    }
+}
+
+/* The override survives instance replacement. A changed resolved interval is
+ * required to move the deadline, even for two identical refusals or when the
+ * configured refresh is already longer than Retry-After. */
+static void pace_polls(void)
+{
+    int64_t remaining = cooldown.retry_at - time_uptime_ms();
+    int32_t result;
+    if (remaining > 0) {
+        int64_t seconds = (remaining + 999) / 1000;
+        int32_t normal = app_setting_seconds("every", 30 * 60);
+        if (seconds < normal) { seconds = normal; }
+        if (seconds < 10) { seconds = 10; }
+        if (seconds > 86400) { seconds = 86400; }
+        result = poll_set_interval(0, seconds == 86400 ? 86399 : (int32_t)seconds + 1);
+        if (result == HOST_OK) { result = poll_set_interval(0, (int32_t)seconds); }
+    } else {
+        result = poll_set_interval(0, 0);
+    }
+    if (result != HOST_OK) {
+        log_write(HOST_LOG_WARN, "Poll cooldown save failed", sizeof "Poll cooldown save failed" - 1);
+    }
+}
+
 static void receive_cooldown(int32_t status)
 {
+    restore_cooldown();
     host_answer_info_t info = {0};
     answer_info(&info, sizeof info);
     int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
@@ -73,6 +109,7 @@ static void receive_cooldown(int32_t status)
         if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
     }
     save_cooldown();
+    pace_polls();
 }
 
 static const struct { int32_t name, icon; } IRRITANTS[AIR_IRRITANTS] = {
@@ -135,6 +172,7 @@ static const char *index_word(int32_t index, bool us)
 void app_on_load(void)
 {
     load_cooldown();
+    if (time_uptime_ms() >= cooldown.retry_at) { pace_polls(); }
     int32_t length = kv_get("state", 5, &state, sizeof state);
     if (length == offsetof(state_t, updated_at) && state.version == PREVIOUS_STATE_VERSION) {
         state.version = STATE_VERSION;
@@ -146,10 +184,22 @@ void app_on_load(void)
     saved_status = status;
 }
 
-void app_on_focus(void) { show_header(); }
+void app_on_focus(void) { restore_cooldown(); show_header(); }
+
+void app_on_blur(void)
+{
+    save_cooldown();
+    if (!app_session_save(&cooldown, sizeof cooldown)) {
+        log_write(HOST_LOG_WARN, "Air cooldown session save failed", sizeof "Air cooldown session save failed" - 1);
+    }
+}
+
+void app_on_terminate(void) { save_cooldown(); }
 
 void app_on_settings(void)
 {
+    restore_cooldown();
+    pace_polls();
     if (state.has_data && !same_place(&state)) {
         state = (state_t){ .version = STATE_VERSION };
         app_state_forget("state");
