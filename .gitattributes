@@ -1,3 +1,1 @@
 tests/keenetic/fixtures/** -text
-# Unified diffs mark empty context lines with a single space.
-tools/checks/*.patch whitespace=-blank-at-eol

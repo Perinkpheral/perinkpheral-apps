@@ -1,5 +1,0 @@
-{
-  "at": 1795456800,
-  "network_recovery_seconds": 180,
-  "mocks": {"https://example.test/value": {"body": "{\"value\":1}"}}
-}

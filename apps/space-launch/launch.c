@@ -708,7 +708,6 @@ static void fetch(void)
     persist();
     int64_t now = time_now(), wait = state.cooldown > state.next_send ? state.cooldown : state.next_send;
     if (state.active_poll) { return; }
-    for (int32_t i = 0; i < POLLS; i++) { if (!close_gate(i)) { return; } }
     if (!now) { return; }
     if (wait > now) { return; }
     if (cache_dirty || state_dirty) { return; }
@@ -718,6 +717,7 @@ static void fetch(void)
         if (state.due[candidate] <= now) { kind = candidate; break; }
     }
     if (kind < 0) { return; }
+    for (int32_t i = 0; i < POLLS; i++) { if (!close_gate(i)) { return; } }
     if (kind == POLL_YEAR && !cache.staging.year) {
         clear_record(&cache.staging, sizeof cache.staging);
         cache.staging.year = cache.year;
@@ -784,11 +784,15 @@ static void finish_answer(int32_t status)
     if (status != HTTP_OK) {
         state.due[kind] = now + HOUR;
         if (kind == POLL_YEAR) { clear_record(&cache.staging, sizeof cache.staging); cache_dirty = true; }
-    } else if (kind < POLL_YEAR) {
-        state.due[kind] = now + (kind == POLL_UPCOMING ? 30 * MINUTE : 3 * HOUR);
-        if (kind == POLL_UPCOMING) { state.seen = seen_at = now; state.revision = cache.revision; }
+    } else {
+        close_gate(kind);
+        if (kind < POLL_YEAR) {
+            state.due[kind] = now + (kind == POLL_UPCOMING ? 30 * MINUTE : 3 * HOUR);
+            if (kind == POLL_UPCOMING) { state.seen = seen_at = now; state.revision = cache.revision; }
+        } else if (cache.staging.year && !cache.pages_have) { state.status[kind] = 0; }
     }
-    if (kind == POLL_YEAR && cache.staging.year && !cache.pages_have && status == HTTP_OK) { state.status[kind] = 0; }
+    /* A failed binding remains ready for a host retry until another endpoint is chosen.
+     * Backoff governs new requests, not acceptance of a complete response already coming. */
     state.active_poll = 0;
     state_dirty = true;
     persist();
@@ -810,7 +814,7 @@ void app_on_picked(int32_t poll, int32_t status)
         state_dirty = true;
         persist();
         if (poll + 1 != state.active_poll) { screen_redraw(HOST_REDRAW_NORMAL); return; }
-    } else if (poll + 1 != state.active_poll) { return; }
+    } else if (poll != state.request || (!state.active_poll && status != HTTP_OK)) { return; }
     finish_answer(status);
 }
 

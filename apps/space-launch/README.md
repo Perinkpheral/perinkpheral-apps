@@ -41,11 +41,15 @@ update.
 All requests go to `ll.thespacedevs.com`, version 2.3.0, through three picked manifest
 polls. One persisted binding is outstanding at a time, without an expiring clock lease.
 Required header templates keep every other poll closed, including automatic reconnects.
-The application closes the gate after delivery and spaces requests five minutes apart.
-Installation followed by `started` in the same boot retains its queued binding; a new boot
+The application closes the gate after a successful delivery and spaces new requests five
+minutes apart. Installation followed by `started` in the same boot retains its queued binding; a new boot
 clears it. The fetch alarm reschedules an outstanding poll under the same binding because a
 background poll that cannot start may have no callback. Perinkpheral OS coalesces pending
-polls; any queued repeat reads the closed gate after delivery. Due endpoints take turns, and a failed endpoint waits an hour before retrying.
+polls; any queued repeat reads the closed gate after success. Due endpoints take turns, and
+the scheduler waits an hour before requesting a failed endpoint again. Until another endpoint
+is chosen, the failed binding remains ready for a host retry: a complete answer is accepted
+immediately, including across an unload. A complete answer for the last binding is also
+accepted during cooldown, without shortening the wait or enabling a new request.
 
 | Request | Address | Interval |
 |---|---|---|
@@ -124,17 +128,17 @@ GCAT's count.
 
 `test/network.c` (validation, global cooldown, complete paging beyond 400 and year bindings),
 `test/persistence.c` (torn banks, write retries, rejected posts and delivery receipts), `test/reminders.c`
-and `test/screens.c` run with `tools/app-check apps`. The simulator
+and `test/screens.c` run with the unmodified SDK's `app-check apps`. The simulator
 scenarios `tests/space-launch-*` use the answers in
 [tests/fixtures/space-launch](../../tests/fixtures/space-launch).
 
-The catalog's [checker compatibility shim](../../tools/checks/README.md) gives this
-application's generic network recovery assertions a two-hour window. It advances
-alarms and compares recovery with a successful control at the same time, covering
-the closed gates, one-hour failure backoff and endpoint rotation both on and off
-screen. Immediate-recovery checks remain the default for other applications.
-`test/network.c` additionally checks delayed responses, clock corrections, endpoint
-fairness, global cooldown and unchanged payloads.
+The SDK's generic network checks require a complete answer after any failure to show
+exactly what that answer alone would show. `test/network.c` also compares frames after
+transport failures, incomplete picked JSON, HTTP errors and 429, on screen and across
+an unload, without advancing time or manufacturing a new request binding. It verifies
+that accepting the answer does not bypass the scheduler or clear a global cooldown.
+Other regressions cover delayed responses, clock corrections, endpoint fairness,
+complete annual paging, global cooldown and unchanged payloads.
 
 The 32-bit QEMU arena harness measured a 73,512-byte (71.79 KiB) interpreter peak across all
 nine simulator scenarios and six supplementary paths, with no failed allocations in the

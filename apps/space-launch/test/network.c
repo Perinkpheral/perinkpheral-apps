@@ -122,6 +122,39 @@ static void delayed_success(void)
     assert(sends() == before + 1 && state.request == POLL_PREVIOUS);
 }
 
+static void recovery(void)
+{
+    int32_t length;
+    char *body = fixture("upcoming.json", &length);
+    standin_reset(); app_on_load(); app_on_focus();
+    standin_handlers.on_picked = app_on_picked;
+    standin_picked(POLL_UPCOMING, -1, 200, body, length);
+    uint64_t whole = standin_screen(standin_draw());
+    static const int32_t FAILURES[] = { -1, -2, -3, -4, -5, -6, -7, -8, 503, 404, 304, 200, 429 };
+    for (int away = 0; away < 2; away++) {
+        for (size_t i = 0; i < sizeof FAILURES / sizeof FAILURES[0]; i++) {
+            standin_reset(); app_on_load(); app_on_focus();
+            standin_handlers.on_picked = app_on_picked;
+            /* Truncation invalidates even the values picked before the final bracket. */
+            standin_picked(POLL_UPCOMING, -1, FAILURES[i], body, length - 2);
+            assert(!cache.count[0] && state.status[0] != 200);
+            int32_t before = sends();
+            if (away) { app_on_terminate(); app_on_load(); }
+            app_on_settings(); app_on_alarm(FETCH_ALARM);
+            assert(sends() == before && state.due[0] == AT + HOUR);
+            assert(standin_poll_ready(0, -1) == (FAILURES[i] != 429));
+            /* No helper may manufacture a new binding, open its gate or advance time. */
+            standin_picked(POLL_UPCOMING, -1, 200, body, length);
+            assert(cache.count[0] == 10 && state.status[0] == 200);
+            assert(sends() == before && !standin_poll_ready(0, -1));
+            if (away) { app_on_terminate(); app_on_load(); app_on_focus(); }
+            assert(standin_screen(standin_draw()) == whole);
+            if (FAILURES[i] == 429) { assert(state.cooldown == AT + HOUR); }
+        }
+    }
+    free(body);
+}
+
 static void restarted_gate(void)
 {
     standin_reset(); app_on_load();
@@ -264,7 +297,7 @@ static void freshness(void)
 }
 int main(void)
 {
-    records(); throttle(); install_then_start(); delayed_success(); restarted_gate(); clock_and_fairness(); annual(); details(); freshness(); scheduler_alarm(); unknown_provider();
+    records(); throttle(); install_then_start(); delayed_success(); recovery(); restarted_gate(); clock_and_fairness(); annual(); details(); freshness(); scheduler_alarm(); unknown_provider();
     puts("space-launch: validation, serialization, cooldown, clocks, fairness, UUID paging and KV freshness passed");
     return 0;
 }

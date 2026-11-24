@@ -4,6 +4,5 @@
   "store": {
     "remind": "15 min"
   },
-  "mocks": "../../../tests/fixtures/space-launch/mocks.json",
-  "network_recovery_seconds": 7200
+  "mocks": "../../../tests/fixtures/space-launch/mocks.json"
 }

@@ -5,7 +5,7 @@ compiler. The tools are the firmware repository's; `../perinkpheral-os` below is
 of it.
 
 ```sh
-PERINKPHERAL=../perinkpheral-os tools/app-check apps
+../perinkpheral-os/tools/perinkpheral app-check apps
 ../perinkpheral-os/tools/perinkpheral sim-test tests
 ```
 
@@ -18,10 +18,6 @@ folder and find what is in it.
 undefined-behaviour sanitizers, against the SDK's stand-in host, and runs the SDK's
 capability checks on it. The checks know no application. A new application is checked by
 doing nothing.
-
-Use the catalog's `tools/app-check` wrapper so local runs and CI use the same
-[bounded network recovery support](../tools/checks/README.md). It patches only a
-temporary view of the SDK checker and runs every applicable check.
 
 | Capability | Runs on an application that | What it holds the application to |
 |---|---|---|
