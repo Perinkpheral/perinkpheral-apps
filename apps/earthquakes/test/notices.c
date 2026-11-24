@@ -96,4 +96,23 @@ static void rejected_windows(void)
     standin_pass((FRESH+1)*1000LL);try_notice();
     full=false;post(3,60,false);assert(standin()->notices==2);
 }
-int main(void) { suppression();spatial_suppression();queue_and_storage();late_publication();rejected_windows();puts("earthquakes: baseline, revisions, aliases, cooldown, escalation, queue, crash intent, clock and saturation");return 0; }
+static void expired_candidate(void)
+{
+    setup();full=true;post(1,70,false);
+    standin_pass((FRESH+1)*1000LL);
+    /* The new reply is observed before try_notice gets its next turn. */
+    event_t fresh=event(2,60);observe(&fresh,false);
+    full=false;try_notice();
+    assert(standin()->notices==1 && !state.pending);
+    assert(!strcmp(state.notice.id,"notice2"));
+}
+static void revised_escalation(void)
+{
+    setup();post(1,50,false);full=true;post(2,60,false);
+    event_t revised=state.notice;revised.mag=55;revised.updated++;
+    revise_notice(&revised);full=false;try_notice();
+    assert(standin()->notices==1 && !state.pending);
+    /* Rejected/revised intent must leave the real escalation available. */
+    post(3,60,false);assert(standin()->notices==2);
+}
+int main(void) { expired_candidate();revised_escalation();suppression();spatial_suppression();queue_and_storage();late_publication();rejected_windows();puts("earthquakes: baseline, revisions, aliases, cooldown, escalation, queue, crash intent, clock and saturation");return 0; }

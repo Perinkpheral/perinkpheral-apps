@@ -1,0 +1,302 @@
+{
+  "date": "2026-11-24",
+  "app_version": "0.1.2",
+  "module": {
+    "path": "catalog/earthquakes/app.wasm",
+    "bytes": 16191,
+    "sha256": "f974e6efa42bd131fbcaae24f520a14020c59290717f956e408444040714d490"
+  },
+  "sources": {
+    "apps/earthquakes/earthquakes.c": "278661228049dc0976366ce8adac5f56c47a74a78a86756abd050efcf09e56e8",
+    "apps/earthquakes/manifest.json": "994977e284631e96a5ce194f5eeb671b256a1ae756fb38f7f75a6918677da594",
+    "apps/earthquakes/strings/en.json": "5de4ff0a6c3517774818716667655b8b9e1a68f5122b9a88db4a82d5b2c2771e",
+    "apps/earthquakes/strings/ru.json": "3079b75bf5f3c9eec00c1a0ae81a7821a81e10b9736fa074f4e8ad07091228bb"
+  },
+  "harness": {
+    "commit": "26f42ed4dacf324db2fe3eb91112c21abf7c9717",
+    "target": "32-bit ARM Linux under Docker/QEMU",
+    "binary": "tools/simulator/build/arena-launch80/perinkpheral-sim",
+    "pointer_bytes": 4,
+    "combined_capacity_bytes": 147456,
+    "linear_memory_bytes": 65536,
+    "interpreter_capacity_bytes": 81920,
+    "code_page_alignment_bytes": 512,
+    "native_stack_limit_bytes": 6144,
+    "allocator": "ESP-IDF multi_heap/TLSF, including moving realloc overlap"
+  },
+  "sdk_commit": "3dde7efb74fb629028604b0f3070296f70e7d3b4",
+  "runtime": {
+    "scenarios": 21,
+    "combined_peak_bytes": 138964,
+    "interpreter_peak_bytes": 73428,
+    "interpreter_limit_bytes": 73728,
+    "headroom_bytes": 300,
+    "allocation_failures": 0,
+    "includes": [
+      "map scratch",
+      "allocator metadata",
+      "moving realloc overlap",
+      "termination handlers"
+    ],
+    "results": [
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-empty-en-departure",
+        "notifications": 0,
+        "peak": 128848,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-empty-en-jersey",
+        "notifications": 0,
+        "peak": 128848,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-empty-ru-departure",
+        "notifications": 0,
+        "peak": 128848,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-empty-ru-jersey",
+        "notifications": 0,
+        "peak": 128848,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-en-departure",
+        "notifications": 0,
+        "peak": 135648,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-en-jersey",
+        "notifications": 0,
+        "peak": 135648,
+        "failures": 0
+      },
+      {
+        "app": "notice-app",
+        "scenario": "earthquakes-notice-en-departure",
+        "notifications": 1,
+        "peak": 122576,
+        "failures": 0
+      },
+      {
+        "app": "notice-app",
+        "scenario": "earthquakes-notice-en-jersey",
+        "notifications": 1,
+        "peak": 122576,
+        "failures": 0
+      },
+      {
+        "app": "notice-app",
+        "scenario": "earthquakes-notice-ru-departure",
+        "notifications": 1,
+        "peak": 122576,
+        "failures": 0
+      },
+      {
+        "app": "notice-app",
+        "scenario": "earthquakes-notice-ru-jersey",
+        "notifications": 1,
+        "peak": 122576,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-notification-measure",
+        "notifications": 1,
+        "peak": 138964,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-offline-en-departure",
+        "notifications": 0,
+        "peak": 128812,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-offline-en-jersey",
+        "notifications": 0,
+        "peak": 128812,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-offline-ru-departure",
+        "notifications": 0,
+        "peak": 128812,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-offline-ru-jersey",
+        "notifications": 0,
+        "peak": 128812,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-ru-departure",
+        "notifications": 0,
+        "peak": 135648,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-ru-jersey",
+        "notifications": 0,
+        "peak": 135648,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-unset-en-departure",
+        "notifications": 0,
+        "peak": 124604,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-unset-en-jersey",
+        "notifications": 0,
+        "peak": 124604,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-unset-ru-departure",
+        "notifications": 0,
+        "peak": 124604,
+        "failures": 0
+      },
+      {
+        "app": "earthquakes",
+        "scenario": "earthquakes-unset-ru-jersey",
+        "notifications": 0,
+        "peak": 124604,
+        "failures": 0
+      }
+    ]
+  },
+  "eager_compile_probe": {
+    "pointer_bytes": 4,
+    "area_bytes": 147456,
+    "compile_peak": 132984,
+    "peak_with_scratch": 141180,
+    "failures": 0,
+    "complete": true
+  },
+  "supplemental_scenario": {
+    "app": "apps/earthquakes",
+    "at": 1795456800,
+    "tz": "Europe/Nicosia",
+    "language": "en",
+    "font": "jersey",
+    "glyphs": "glyphs",
+    "store": {
+      "place": "Panormos",
+      "lat": "37.01",
+      "lon": "26.96",
+      "radius": "1000",
+      "minmag": "3",
+      "notify": "On",
+      "every": "1 min"
+    },
+    "mocks": "../earthquakes/mocks.json",
+    "steps": [
+      "wait 8",
+      "press 3",
+      "press 2L",
+      "wait 8",
+      "press 2",
+      "press 4",
+      "press 3",
+      "press 3",
+      "press 3",
+      "press 3",
+      "press 3",
+      "press 3",
+      "press 3",
+      "press 3",
+      "wait 8",
+      "press 2",
+      "press 4",
+      "press 2L",
+      "press 1L",
+      "malform-quake",
+      "forward 60",
+      "wait 8",
+      "restore-quake",
+      "inject-quake",
+      "forward 360",
+      "wait 8",
+      "press 2",
+      "press 1L",
+      "shot combined",
+      "background",
+      "forward 600",
+      "foreground",
+      "wait 8"
+    ]
+  },
+  "supplemental_actions": {
+    "malform-quake": "Replace the isolated Nearby response file with an empty object.",
+    "restore-quake": "Restore the captured Nearby response.",
+    "inject-quake": "Clone its first report as measurement-new with magnitude 7 and origin/revision at the test clock plus 30 seconds; retain eight reports."
+  },
+  "notes": [
+    "All network traffic is confined to simulator loopback mocks.",
+    "Subtract only the 65536-byte linear page from a combined runtime peak.",
+    "The compile-all sweep is a distinct sizing measurement, not a scenario runtime peak.",
+    "The first eight-review regression assertions also fail against the original production source."
+  ],
+  "regression_baseline": {
+    "commit": "27a5dbe3ca6cd94f4ae8af85436f1fcab50ab2a6",
+    "original_production_sha256": "6fb7a489c6f0989a2d9a189e73a8c22d62e352a10cb5b8d41a18f2708b784b4c",
+    "assertion_failures": 8,
+    "tests": [
+      "expired_candidate",
+      "revised_escalation",
+      "equal_time_history",
+      "world_deadline",
+      "unchanged_headers",
+      "status_scopes",
+      "map_markers",
+      "source_clearance"
+    ],
+    "optional_lifecycle_callback": "The original module has no termination export; its callback is left unset."
+  },
+  "validation": {
+    "app_check": {
+      "applications": 19,
+      "checks": 125,
+      "failed": 0
+    },
+    "full_sim_test": {
+      "scenarios": 132,
+      "pictures": 435,
+      "failed": 0,
+      "jobs": 3
+    },
+    "final_earthquakes_sim_test": {
+      "scenarios": 20,
+      "pictures": 80,
+      "failed": 0,
+      "jobs": 3,
+      "update": false
+    },
+    "pictures_inspected": 80,
+    "updated_references": 40,
+    "catalog_applications": 19
+  }
+}

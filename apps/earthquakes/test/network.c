@@ -169,9 +169,37 @@ static void changing_boundary(void)
     assert(requesting && app_setting_is("offset","9"));
     model_reply(older,BATCH);assert(shown_count()==8 && !requesting);
 }
+static void equal_time_history(void)
+{
+    setup();feed(1,"world",200);scene.nav.screen=scene.scope=1;
+    event_t reports[24];zero(reports,sizeof reports);
+    int64_t at=cache.events[1][0].time;
+    for(int i=0;i<24;i++) {
+        snprintf(reports[i].id,sizeof reports[i].id,"tie-%02d",i);
+        reports[i].time=at-(i<6?i*1000:i<16?6000:(i-9)*1000);
+        reports[i].updated=at;
+    }
+    requesting=true;requested_page=0;model_reply(reports,8);
+    for(int page=1,next=8;page<=3;page++) {
+        history_page(1);assert(requesting);
+        int start=0;
+        while(start<24 && reports[start].time>cache.browse_end)start++;
+        start+=cache.browse_offset-1;
+        int n=24-start;if(n>8)n=8;
+        model_reply(reports+start,n);
+        assert(!requesting && shown_count()>0);
+        for(int i=0;i<shown_count();i++) {
+            assert(next<24 && !strcmp(shown_events()[i].id,reports[next].id));next++;
+        }
+        /* Refresh uses the same boundary and does not repeat earlier pages. */
+        requesting=true;requested_page=page;model_reply(reports+start,n);
+        standin_leave();standin_load();standin_focus();
+    }
+    assert(shown_events()[shown_count()-1].time<reports[15].time);
+}
 int main(void)
 {
-    atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
+    equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
     puts("earthquakes: atomic extraction, nulls, failures, unchanged data, cache recovery and history");
     return 0;
 }

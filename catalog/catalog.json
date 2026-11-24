@@ -205,13 +205,13 @@
     {
       "name": "earthquakes",
       "title": "Earthquakes",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 15454,
-          "sha256": "5850ab676724f064e9f2784295dbd4c56832ef53a4ae3d0b3c06cb63b6774e95"
+          "size": 16191,
+          "sha256": "f974e6efa42bd131fbcaae24f520a14020c59290717f956e408444040714d490"
         },
         {
           "name": "manifest.ru",
@@ -220,13 +220,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 316,
-          "sha256": "b2873f787fbec78065e9a6680a5523b3e1dab306750e6b4dfe27d0ab95a41fe3"
+          "size": 367,
+          "sha256": "2ccfd222bfc01adb9c291344320058da4bade38cfcade5f833400fcd7505da5d"
         },
         {
           "name": "manifest.json",
           "size": 3094,
-          "sha256": "6fd31a0a77f911fc2da5d8ab10054beacc535b67680f80c87e9c86e7e3e19bc1"
+          "sha256": "994977e284631e96a5ce194f5eeb671b256a1ae756fb38f7f75a6918677da594"
         }
       ],
       "author": "Perinkpheral",
