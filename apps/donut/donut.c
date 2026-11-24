@@ -440,7 +440,10 @@ void app_on_blur(void)
         .draw_ms_worst = draw_ms_worst, .intervals = intervals,
         .draw_ms_total = draw_ms_total, .interval_ms_total = interval_ms_total,
     };
-    app_session_save(&kept, sizeof kept);
+    if (!app_session_save(&kept, sizeof kept)) {
+        static const char message[] = "Could not save resume state; returning may reset this screen.";
+        log_write(HOST_LOG_WARN, message, sizeof message - 1);
+    }
 }
 
 void app_on_settings(void)

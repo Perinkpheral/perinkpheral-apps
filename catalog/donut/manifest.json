@@ -3,7 +3,7 @@
   "title": "donut.c",
   "author": "Perinkpheral",
   "description": "The famous spinning torus",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "abi": 3,
   "fullscreen": true,
   "settings": [

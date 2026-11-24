@@ -199,7 +199,10 @@ void app_on_blur(void)
         .random_state = random_state, .running = running
     };
     for (int32_t index = 0; index < FIELD_BYTES; index++) { saved.field[index] = fields[current][index]; }
-    session_set(&saved, sizeof saved);
+    if (session_set(&saved, sizeof saved) != HOST_OK) {
+        static const char message[] = "Could not save resume state; returning may reset this screen.";
+        log_write(HOST_LOG_WARN, message, sizeof message - 1);
+    }
 }
 void app_on_settings(void)
 {

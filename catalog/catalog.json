@@ -155,13 +155,13 @@
     {
       "name": "donut",
       "title": "donut.c",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6143,
-          "sha256": "ff0e5e1b1179b850e04d84afacfab5da03db791574031a2a4453139a2cf425dc"
+          "size": 6245,
+          "sha256": "22ee83dde381aa4cbcee6ed2f7fbaca0ab5baabdd2c30c0095488317ca1eedc4"
         },
         {
           "name": "manifest.ru",
@@ -176,7 +176,7 @@
         {
           "name": "manifest.json",
           "size": 684,
-          "sha256": "cc2bffc61f3695af6582c9fdfdfe00fddf43bbf45812ba190f4ae5a4b24c0271"
+          "sha256": "f86be8e322aa6973a5a90b7a02643fb55069eed84e13b53141c1f0d68c02dd5c"
         }
       ],
       "author": "Perinkpheral",
@@ -405,13 +405,13 @@
     {
       "name": "kit",
       "title": "UI Kit",
-      "version": "0.1.18",
+      "version": "0.1.19",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 8259,
-          "sha256": "9994b50c81d8278c7a2b7309b9ea92d249af06e8c5de66f3e333d24b7da5d8ed"
+          "size": 8361,
+          "sha256": "88a31395c80bcc96e5c8ff8a245bad11bd4c183910f91bf623365516f6857cce"
         },
         {
           "name": "manifest.ru",
@@ -426,7 +426,7 @@
         {
           "name": "manifest.json",
           "size": 411,
-          "sha256": "153616e1843d47d6db7dc92d23b9dd04f8de59adfffdcefd392ff40cc4f0eb85"
+          "sha256": "d864f622f3e7ac8d0476cabfac792cc80b953bd8b7e17be043ba02ff78e6c59b"
         }
       ],
       "author": "Perinkpheral",
@@ -455,13 +455,13 @@
     {
       "name": "life",
       "title": "Life",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 5968,
-          "sha256": "80e6274a4b6e3c81ccff09da9072aa1211cce925df5a02abb310fd51b9a34b1f"
+          "size": 6070,
+          "sha256": "34fd6675dc48ddfce55bc6bcc890ff36375a56ed0e11ea60ac4817613005698e"
         },
         {
           "name": "manifest.ru",
@@ -476,7 +476,7 @@
         {
           "name": "manifest.json",
           "size": 883,
-          "sha256": "cd8fbc61035af56d86325bffa9aca27e2cb6b9d7264b947a65ffe66b892ba53a"
+          "sha256": "9cd4c6c2ac2ca72c82a6f8e1916db7c2733a0876b2bdf0bcc7a8afc9bea8d56e"
         }
       ],
       "author": "Perinkpheral",
@@ -613,13 +613,13 @@
     {
       "name": "rates",
       "title": "Exchange rates",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 15740,
-          "sha256": "969ed041bfaa52fba5cf612e5a78ba3197064916b8102bf6646abe66a84dd35a"
+          "size": 16060,
+          "sha256": "40d927f592bde9b82586fd310044091e63714470417403c4097e8d784f242a89"
         },
         {
           "name": "manifest.ru",
@@ -633,13 +633,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 105,
-          "sha256": "bce5307fe9f9487cdf27106f2db1373c8a47a5aaae9e05bb8135eade1d1453cd"
+          "size": 147,
+          "sha256": "fd3b4ffc26de803d1cc340e80093a6479e5fb1b846fb2b1a64dde8966710fb7a"
         },
         {
           "name": "manifest.json",
           "size": 1340,
-          "sha256": "af10c6b7232721e4161542121645ce4a161ae57711ebf696382538409f414e7d"
+          "sha256": "fc3f04b179e3a97c08aae85c74d80c084b9e138687c3c069f867961748fa9909"
         }
       ],
       "author": "Perinkpheral",
