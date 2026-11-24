@@ -140,7 +140,7 @@ that accepting the answer does not bypass the scheduler or clear a global cooldo
 Other regressions cover delayed responses, clock corrections, endpoint fairness,
 complete annual paging, global cooldown and unchanged payloads.
 
-The 32-bit QEMU arena harness measured a 73,512-byte (71.79 KiB) interpreter peak across all
+The 32-bit QEMU arena harness measured a 73,508-byte (71.79 KiB) interpreter peak across all
 nine simulator scenarios and six supplementary paths, with no failed allocations in the
 80 KiB arena. A compile-all probe measured 73,512 bytes. Firmware 0.1.95 is required.
 [Measurement details and hashes](test/arena.json) record the harness, scenarios and limitations.

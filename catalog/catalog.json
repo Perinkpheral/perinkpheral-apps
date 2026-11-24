@@ -677,8 +677,8 @@
       "files": [
         {
           "name": "app.wasm",
-          "size": 18349,
-          "sha256": "a89c125afc0c2f82873c83515673acef2bc3ffd0b28c3b097ce1abffe78479ac"
+          "size": 18361,
+          "sha256": "417f3b795170b26741098fdcf02b709363d250c543d4cdf2fc2c3b5f71b527ba"
         },
         {
           "name": "history.bin",
