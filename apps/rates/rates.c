@@ -12,7 +12,7 @@
 #define CURRENCIES_MAX 8
 #define PICKERS 3
 #define PER_PICKER 3
-#define FIELDS 4
+#define FIELDS 5
 #define PATHS (PER_PICKER * FIELDS + 1)
 
 typedef struct {
@@ -94,7 +94,7 @@ static void begin_reading(void)
     count = currency_count();
     active_pickers = count > 0 ? (count + PER_PICKER - 1) / PER_PICKER : 1;
     for (int32_t group = 0; group < active_pickers; group++) {
-        static const char *const fields[] = { ".Value", ".Nominal", ".Name", ".ID" };
+        static const char *const fields[] = { ".Value", ".Nominal", ".Name", ".ID", "" };
         path_refs[group][0] = paths[group][0];
         app_text_copy(paths[group][0], sizeof paths[group][0], "Date");
         for (int32_t slot = 0; slot < PER_PICKER; slot++) {
@@ -136,6 +136,8 @@ static bool save_history_requests(void)
     return true;
 }
 
+static const rate_t *rate_for(int32_t index);
+
 static bool take_response(void)
 {
     for (int32_t group = 0; group < active_pickers; group++) {
@@ -152,15 +154,20 @@ static bool take_response(void)
         const char *nominal = json_pick_value(pick, p + 1);
         const char *name = json_pick_value(pick, p + 2);
         const char *id = json_pick_value(pick, p + 3);
-        int32_t nominal_value = 0;
-        if (!value || !nominal || !history_amount(value, 4, &rate->value)
-
-            || !history_amount(nominal, 0, &nominal_value)
-            || nominal_value < 1 || rate->value < 0) {
-            rate->nominal = 0;
-        } else rate->nominal = (int32_t)nominal_value;
-        if (name) { app_text_copy(rate->name, sizeof rate->name, name); }
-        if (id) { app_text_copy(rate->id, sizeof rate->id, id); }
+        /* A wholly absent, never-seen code can be unsupported. A known quote
+         * disappearing, a scalar record, or a partial record is a bad answer. */
+        if (json_pick_value(pick, p + 4)) return false;
+        if (!value && !nominal && !name && !id) {
+            const rate_t *previous = rate_for(i);
+            if (previous && previous->nominal) return false;
+            continue;
+        }
+        if (!value || !nominal || !id || !history_valid_id(id) ||
+            !history_amount(value, 4, &rate->value) || rate->value <= 0 ||
+            !history_amount(nominal, 0, &rate->nominal) || rate->nominal < 1) return false;
+        if (name && !app_text_equal(name, "null") && !app_text_equal(name, "true") &&
+            !app_text_equal(name, "false")) app_text_copy(rate->name, sizeof rate->name, name);
+        app_text_copy(rate->id, sizeof rate->id, id);
     }
     bool changed = !same_bytes(&state, &incoming, sizeof state);
     state = incoming;
@@ -323,6 +330,7 @@ void app_on_load(void)
     if (!app_state_load("state", &state, sizeof state, SNAPSHOT_VERSION)) state = (state_t){ .version = SNAPSHOT_VERSION };
     if (kv_get("status", 6, &status, sizeof status) != sizeof status) status = 0;
     saved_status = status;
+    state_unsaved = false;
     navigation = (navigation_t){0};
     if (kv_get("rotating", 8, &rotating, sizeof rotating) != sizeof rotating) rotating = 0;
     saved_rotating = rotating;
@@ -377,7 +385,10 @@ void app_on_blur(void)
 {
     navigation.rotating = rotating;
     navigation.saved_rotating = saved_rotating;
-    app_session_save(&navigation, sizeof navigation);
+    if (!app_session_save(&navigation, sizeof navigation)) {
+        static const char message[] = "Could not save resume state; returning may reset this screen.";
+        log_write(HOST_LOG_WARN, message, sizeof message - 1);
+    }
 }
 
 void app_on_settings(void)
@@ -495,6 +506,10 @@ static void draw_centered(int32_t center, int32_t y, int32_t font, const char *t
 void app_on_draw(void)
 {
     int32_t width = gfx_width(), height = gfx_height();
+    if (state_unsaved || status != saved_status || rotating != saved_rotating) {
+        draw_centered(width / 2, height / 2, HOST_FONT_TEXT, app_string(STR_SAVE_FAILED));
+        return;
+    }
     if (!currency_count()) { ui_draw_reason(HOST_FAILED_NOT_READY); return; }
     const rate_t *rate = rate_for(navigation.index);
     if (!rate || rate->nominal < 1) {

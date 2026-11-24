@@ -110,7 +110,10 @@ APP_SESSION_FITS(session_t);
 void app_on_blur(void)
 {
     session_t kept = { page, contents, units, settings, facts, unit_set, pace, when, bar_value };
-    app_session_save(&kept, sizeof kept);
+    if (!app_session_save(&kept, sizeof kept)) {
+        static const char message[] = "Could not save resume state; returning may reset this screen.";
+        log_write(HOST_LOG_WARN, message, sizeof message - 1);
+    }
 }
 
 void app_on_focus(void)
