@@ -30,6 +30,62 @@
 #include "host_api.h"
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
+/* Scheduled polls and explicit refreshes share the server cooldown.
+ * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
+typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
+static cooldown_t cooldown, saved_cooldown;
+static void restore_cooldown(void);
+
+static void save_cooldown(void)
+{
+    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
+        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
+}
+
+static void load_cooldown(void)
+{
+    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown ||
+        cooldown.boot != time_boot_id()) { cooldown = (cooldown_t){ .boot = time_boot_id() }; }
+    saved_cooldown = cooldown;
+}
+
+/* The override survives instance replacement. A changed resolved interval is
+ * required to move the deadline, even for two identical refusals or when the
+ * configured refresh is already longer than Retry-After. */
+static void pace_polls(void)
+{
+    int64_t remaining = cooldown.retry_at - time_uptime_ms();
+    int32_t result;
+    if (remaining > 0) {
+        int64_t seconds = (remaining + 999) / 1000;
+        int32_t normal = app_setting_seconds("every", 5 * 60);
+        if (seconds < normal) { seconds = normal; }
+        if (seconds < 10) { seconds = 10; }
+        if (seconds > 86400) { seconds = 86400; }
+        result = poll_set_interval(0, seconds == 86400 ? 86399 : (int32_t)seconds + 1);
+        if (result == HOST_OK) { result = poll_set_interval(0, (int32_t)seconds); }
+    } else {
+        result = poll_set_interval(0, 0);
+    }
+    if (result != HOST_OK) {
+        log_write(HOST_LOG_WARN, "Poll cooldown save failed", sizeof "Poll cooldown save failed" - 1);
+    }
+}
+
+static void receive_cooldown(int32_t status)
+{
+    restore_cooldown();
+    host_answer_info_t info = {0};
+    answer_info(&info, sizeof info);
+    int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
+    if (delay > 0) {
+        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
+        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
+    }
+    save_cooldown();
+    pace_polls();
+}
+
 /* The request tag follows the pairing even across an unload. */
 static uint32_t pairing(void)
 {
@@ -135,6 +191,12 @@ static bool asked_by_press;
  * token are Perinkpheral OS's to put into the request. */
 static void ask(void)
 {
+    save_cooldown();
+    if (time_uptime_ms() < cooldown.retry_at) {
+        asked_by_press = false;
+        current_page = shown_page;
+        return;
+    }
     if (!focused) { restore_page(); }
     last_ask_ms = time_uptime_ms();
     follow_pairing();
@@ -207,6 +269,8 @@ static void accept_answer(void)
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
                  int32_t http_status)
 {
+    /* A superseded page's refusal still paces the application's requests. */
+    if (flags & (HOST_DATA_FIRST | HOST_DATA_FAILED)) { receive_cooldown(http_status); }
     /* The OS discards manifest-poll replies invalidated by a settings change. */
     if (request == 0 && (!source_ready || source.pairing != pairing())) { follow_pairing(); }
     if (!source_ready || source.pairing != pairing() || (request != 0 && request != request_screen())) {
@@ -244,6 +308,8 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 
 void app_on_load(void)
 {
+    load_cooldown();
+    if (time_uptime_ms() >= cooldown.retry_at) { pace_polls(); }
     focused = false;
     current_page = page_count = shown_page = 1;
     last_ask_ms = -1;
@@ -294,8 +360,22 @@ void app_on_updated(void)
 typedef struct {
     int32_t first, count, page, shown;
     int64_t last_ask_ms;
+    cooldown_t cooldown;
 } place_t;
 APP_SESSION_FITS(place_t);
+
+static void restore_cooldown(void)
+{
+    place_t place;
+    if (app_session_load(&place, sizeof place) && place.cooldown.boot == cooldown.boot &&
+        place.cooldown.retry_at > cooldown.retry_at) {
+        cooldown = place.cooldown;
+        save_cooldown();
+        pace_polls();
+    }
+}
+
+void app_on_terminate(void) { save_cooldown(); }
 
 /* The screen to ask for: the one of the session, or, opened anew, the one the kept picture is of -
  * the screen the user left it on. Starting at the first while the second is drawn made it show
@@ -311,8 +391,9 @@ static void restore_page(void)
 
 void app_on_blur(void)
 {
+    save_cooldown();
     place_t place = { .first = list.first, .count = list.count, .page = current_page, .shown = shown_page,
-                      .last_ask_ms = last_ask_ms };
+                      .last_ask_ms = last_ask_ms, .cooldown = cooldown };
     if (!app_session_save(&place, sizeof place)) {
         log_write(HOST_LOG_WARN, "HA session save failed", app_text_length("HA session save failed"));
     }
@@ -321,6 +402,7 @@ void app_on_blur(void)
 
 void app_on_focus(void)
 {
+    restore_cooldown();
     restore_page();
     focused = true;
     place_t place;
@@ -337,6 +419,8 @@ void app_on_focus(void)
 
 void app_on_settings(void)
 {
+    restore_cooldown();
+    pace_polls();
     if (screen_pairing != pairing()) {
         screen_pairing = pairing();
         screen_length = 0;

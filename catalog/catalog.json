@@ -46,8 +46,8 @@
       "description": "Harmful particles, UV and the strongest irritants",
       "translations": {
         "ru": {
-          "title": "\u041a\u0430\u0447\u0435\u0441\u0442\u0432\u043e \u0432\u043e\u0437\u0434\u0443\u0445\u0430",
-          "description": "\u0412\u0440\u0435\u0434\u043d\u044b\u0435 \u0447\u0430\u0441\u0442\u0438\u0446\u044b, \u0423\u0424 \u0438 \u0433\u043b\u0430\u0432\u043d\u044b\u0435 \u0440\u0430\u0437\u0434\u0440\u0430\u0436\u0438\u0442\u0435\u043b\u0438"
+          "title": "Качество воздуха",
+          "description": "Вредные частицы, УФ и главные раздражители"
         }
       }
     },
@@ -97,8 +97,8 @@
       "description": "Calendar events",
       "translations": {
         "ru": {
-          "title": "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c",
-          "description": "\u0421\u043e\u0431\u044b\u0442\u0438\u044f \u0438\u0437 \u043a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044f"
+          "title": "Календарь",
+          "description": "События из календаря"
         }
       }
     },
@@ -147,8 +147,8 @@
       "description": "Large clock with the date",
       "translations": {
         "ru": {
-          "title": "\u0427\u0430\u0441\u044b",
-          "description": "\u041a\u0440\u0443\u043f\u043d\u044b\u0435 \u0447\u0430\u0441\u044b \u0441 \u0434\u0430\u0442\u043e\u0439"
+          "title": "Часы",
+          "description": "Крупные часы с датой"
         }
       }
     },
@@ -198,7 +198,7 @@
       "translations": {
         "ru": {
           "title": "donut.c",
-          "description": "\u0422\u043e\u0442 \u0441\u0430\u043c\u044b\u0439 \u0432\u0440\u0430\u0449\u0430\u044e\u0449\u0438\u0439\u0441\u044f \u0442\u043e\u0440"
+          "description": "Тот самый вращающийся тор"
         }
       }
     },
@@ -248,8 +248,8 @@
       "description": "Recent earthquakes worldwide, with optional nearby notices",
       "translations": {
         "ru": {
-          "title": "\u0417\u0435\u043c\u043b\u0435\u0442\u0440\u044f\u0441\u0435\u043d\u0438\u044f",
-          "description": "\u0417\u0435\u043c\u043b\u0435\u0442\u0440\u044f\u0441\u0435\u043d\u0438\u044f \u0432 \u043c\u0438\u0440\u0435 \u0438 \u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f \u043e \u0441\u043e\u0431\u044b\u0442\u0438\u044f\u0445 \u0440\u044f\u0434\u043e\u043c"
+          "title": "Землетрясения",
+          "description": "Землетрясения в мире и уведомления о событиях рядом"
         }
       }
     },
@@ -298,7 +298,7 @@
       "description": "Home Assistant dashboard",
       "translations": {
         "ru": {
-          "description": "\u041f\u0430\u043d\u0435\u043b\u044c Home Assistant"
+          "description": "Панель Home Assistant"
         }
       }
     },
@@ -347,8 +347,8 @@
       "description": "International Space Station over a world map",
       "translations": {
         "ru": {
-          "title": "\u041c\u041a\u0421",
-          "description": "\u041c\u041a\u0421 \u043d\u0430 \u043c\u0438\u0440\u043e\u0432\u043e\u0439 \u043a\u0430\u0440\u0442\u0435"
+          "title": "МКС",
+          "description": "МКС на мировой карте"
         }
       }
     },
@@ -398,7 +398,7 @@
       "translations": {
         "ru": {
           "title": "Keenetic",
-          "description": "\u0422\u0440\u0430\u0444\u0438\u043a, \u0441\u0438\u0441\u0442\u0435\u043c\u0430, \u0441\u0435\u0442\u044c \u0438 \u0443\u0441\u0442\u0440\u043e\u0439\u0441\u0442\u0432\u0430 \u0440\u043e\u0443\u0442\u0435\u0440\u0430"
+          "description": "Трафик, система, сеть и устройства роутера"
         }
       }
     },
@@ -447,8 +447,8 @@
       "description": "Interface elements for app developers",
       "translations": {
         "ru": {
-          "title": "\u041a\u0438\u0442 UI",
-          "description": "\u042d\u043b\u0435\u043c\u0435\u043d\u0442\u044b \u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430 \u0434\u043b\u044f \u0440\u0430\u0437\u0440\u0430\u0431\u043e\u0442\u0447\u0438\u043a\u043e\u0432"
+          "title": "Кит UI",
+          "description": "Элементы интерфейса для разработчиков"
         }
       }
     },
@@ -497,8 +497,8 @@
       "description": "Conway's Game of Life",
       "translations": {
         "ru": {
-          "title": "\u0416\u0438\u0437\u043d\u044c",
-          "description": "\u0418\u0433\u0440\u0430 \"\u0416\u0438\u0437\u043d\u044c\" \u041a\u043e\u043d\u0432\u0435\u044f"
+          "title": "Жизнь",
+          "description": "Игра \"Жизнь\" Конвея"
         }
       }
     },
@@ -555,8 +555,8 @@
       "description": "Bank of Russia prices of precious metals",
       "translations": {
         "ru": {
-          "title": "\u041c\u0435\u0442\u0430\u043b\u043b\u044b \u0411\u0430\u043d\u043a\u0430 \u0420\u043e\u0441\u0441\u0438\u0438",
-          "description": "\u0426\u0435\u043d\u044b \u0411\u0430\u043d\u043a\u0430 \u0420\u043e\u0441\u0441\u0438\u0438 \u043d\u0430 \u0434\u0440\u0430\u0433\u043e\u0446\u0435\u043d\u043d\u044b\u0435 \u043c\u0435\u0442\u0430\u043b\u043b\u044b"
+          "title": "Металлы Банка России",
+          "description": "Цены Банка России на драгоценные металлы"
         }
       }
     },
@@ -605,8 +605,8 @@
       "description": "Work and breaks in turns",
       "translations": {
         "ru": {
-          "title": "\u041f\u043e\u043c\u043e\u0434\u043e\u0440\u043e",
-          "description": "\u0420\u0430\u0431\u043e\u0442\u0430 \u0438 \u043f\u0435\u0440\u0435\u0440\u044b\u0432\u044b \u043f\u043e \u043e\u0447\u0435\u0440\u0435\u0434\u0438"
+          "title": "Помодоро",
+          "description": "Работа и перерывы по очереди"
         }
       }
     },
@@ -664,8 +664,8 @@
       "description": "Exchange rates of the Bank of Russia",
       "translations": {
         "ru": {
-          "title": "\u041a\u0443\u0440\u0441\u044b \u0432\u0430\u043b\u044e\u0442",
-          "description": "\u041a\u0443\u0440\u0441\u044b \u0432\u0430\u043b\u044e\u0442 \u0426\u0411 \u0420\u0424"
+          "title": "Курсы валют",
+          "description": "Курсы валют ЦБ РФ"
         }
       }
     },
@@ -720,8 +720,8 @@
       "description": "Space launches, upcoming and past",
       "translations": {
         "ru": {
-          "title": "\u041a\u043e\u0441\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u043f\u0443\u0441\u043a\u0438",
-          "description": "\u041a\u043e\u0441\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u043f\u0443\u0441\u043a\u0438: \u0431\u043b\u0438\u0436\u0430\u0439\u0448\u0438\u0435 \u0438 \u043f\u0440\u043e\u0448\u0435\u0434\u0448\u0438\u0435"
+          "title": "Космические пуски",
+          "description": "Космические пуски: ближайшие и прошедшие"
         }
       }
     },
@@ -779,8 +779,8 @@
       "description": "Stock prices",
       "translations": {
         "ru": {
-          "title": "\u0410\u043a\u0446\u0438\u0438",
-          "description": "\u041a\u043e\u0442\u0438\u0440\u043e\u0432\u043a\u0438 \u0430\u043a\u0446\u0438\u0439"
+          "title": "Акции",
+          "description": "Котировки акций"
         }
       }
     },
@@ -829,8 +829,8 @@
       "description": "Stopwatch",
       "translations": {
         "ru": {
-          "title": "\u0421\u0435\u043a\u0443\u043d\u0434\u043e\u043c\u0435\u0440",
-          "description": "\u0421\u0435\u043a\u0443\u043d\u0434\u043e\u043c\u0435\u0440"
+          "title": "Секундомер",
+          "description": "Секундомер"
         }
       }
     },
@@ -880,8 +880,8 @@
       "description": "Sunrise, sunset and the moon's phase",
       "translations": {
         "ru": {
-          "title": "\u0421\u043e\u043b\u043d\u0446\u0435 \u0438 \u041b\u0443\u043d\u0430",
-          "description": "\u0412\u043e\u0441\u0445\u043e\u0434, \u0437\u0430\u043a\u0430\u0442 \u0438 \u0444\u0430\u0437\u0430 \u041b\u0443\u043d\u044b"
+          "title": "Солнце и Луна",
+          "description": "Восход, закат и фаза Луны"
         }
       }
     },
@@ -930,8 +930,8 @@
       "description": "Countdown",
       "translations": {
         "ru": {
-          "title": "\u0422\u0430\u0439\u043c\u0435\u0440",
-          "description": "\u041e\u0431\u0440\u0430\u0442\u043d\u044b\u0439 \u043e\u0442\u0441\u0447\u0451\u0442"
+          "title": "Таймер",
+          "description": "Обратный отсчёт"
         }
       }
     },
@@ -980,8 +980,8 @@
       "description": "Weather now and for three days",
       "translations": {
         "ru": {
-          "title": "\u041f\u043e\u0433\u043e\u0434\u0430",
-          "description": "\u041f\u043e\u0433\u043e\u0434\u0430 \u0441\u0435\u0439\u0447\u0430\u0441 \u0438 \u043d\u0430 \u0442\u0440\u0438 \u0434\u043d\u044f"
+          "title": "Погода",
+          "description": "Погода сейчас и на три дня"
         }
       }
     }
