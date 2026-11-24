@@ -18,11 +18,14 @@ int32_t kv_set(const char *, int32_t, const void *, int32_t);
 int32_t kv_get(const char *, int32_t, void *, int32_t);
 int32_t alarm_set_every(int32_t, int32_t, int32_t);
 int32_t notification_post(const host_notice_t *);
-static bool no_kv, no_read, no_alarm, outage_on_accept;
+static bool no_kv, no_read, no_alarm, outage_on_accept, outage_on_refusal;
 static int capacity, other_repeating;
 int32_t limited_notice(const host_notice_t *notice)
 {
-    if (capacity == 0) { return HOST_ERR_NO_SPACE; }
+    if (capacity == 0) {
+        if (outage_on_refusal) { standin()->refuse_writes = HOST_ERR_FAILED; }
+        return HOST_ERR_NO_SPACE;
+    }
     capacity--;
     int32_t result = notification_post(notice);
     if (outage_on_accept && result == HOST_OK) { standin()->refuse_writes = HOST_ERR_FAILED; }
@@ -58,7 +61,7 @@ static void reload(void)
 }
 static void setup(void)
 {
-    no_kv = no_read = no_alarm = outage_on_accept = false;
+    no_kv = no_read = no_alarm = outage_on_accept = outage_on_refusal = false;
     capacity = 100; other_repeating = 0;
     standin_handlers = (standin_handlers_t){ .on_load = app_on_load,
         .on_alarm = app_on_alarm, .on_terminate = app_on_terminate, .on_updated = app_on_updated };
@@ -134,6 +137,42 @@ static void acceptance_outage(bool journal_only)
         if (standin_alarm_due(id)) { standin_alarm(id); }
     }
     assert(standin()->notices == 1);
+}
+
+static bool refusal_outage(bool journal_only, bool update)
+{
+    /* Begin the outage inside the refusing host call, after any preflight
+     * write. Neither store recovers until termination and a fresh delivery
+     * have finished; screen timers cannot carry this retry. */
+    setup(); no_kv = journal_only; capacity = 0; outage_on_refusal = true;
+    schedule_reminder();
+    standin_pass(1000); assert(standin_alarm_due(0));
+    standin_alarm(0);
+    assert(standin()->notices == 0);
+    assert(standin()->refuse_writes == HOST_ERR_FAILED);
+    reload();
+    assert(standin()->timer_due_ms[RETRY_TIMER] == 0);
+    if (update) { standin_updated(); reload(); }
+    standin_pass(60000);
+    for (int id = 0; id < HOST_ALARM_COUNT; id++) {
+        if (standin_alarm_due(id)) { standin_alarm(id); }
+    }
+    assert(standin()->notices == 0);
+    reload();
+    standin()->refuse_writes = HOST_OK; no_kv = outage_on_refusal = false;
+    capacity = 1;
+    standin_pass(60000);
+    for (int id = 0; id < HOST_ALARM_COUNT; id++) {
+        if (standin_alarm_due(id)) { standin_alarm(id); }
+    }
+    bool recovered = standin()->notices == 1;
+    reload(); app_on_alarm(0);
+    recovered &= standin()->notices == 1;
+    if (!recovered) {
+        fprintf(stderr, "refused notice lost: receipt=%s, update=%s\n",
+                journal_only ? "journal" : "kv", update ? "yes" : "no");
+    }
+    return recovered;
 }
 
 int main(void)
@@ -227,5 +266,11 @@ int main(void)
     full_repeating_pool(false, true);
     full_repeating_pool(true, false);
     full_repeating_pool(true, true);
-    puts("calendar: acceptance-boundary outages, queue retries, update/unload recovery and repeating-pool exhaustion passed");
+    /* Run every refusal variant even when one loses its notice. */
+    bool recovered = refusal_outage(false, false);
+    recovered &= refusal_outage(true, false);
+    recovered &= refusal_outage(false, true);
+    recovered &= refusal_outage(true, true);
+    assert(recovered);
+    puts("calendar: acceptance/refusal-boundary outages, queue retries, update/unload recovery and repeating-pool exhaustion passed");
 }
