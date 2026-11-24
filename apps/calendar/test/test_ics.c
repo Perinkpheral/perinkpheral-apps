@@ -34,10 +34,17 @@ static ics_event_t events[ICS_EVENTS_MAX];
 
 #define MSK (3 * 3600)
 
+static int32_t device_offset;
+static int64_t fixed_local(int32_t days, int32_t seconds)
+{
+    return (int64_t)days * 86400 + seconds - device_offset;
+}
+
 /* The file in pieces of `piece` bytes, as the network would give it. */
 static int32_t read_file(const char *text, int64_t from, int days, int32_t offset, int piece)
 {
-    ics_begin(&ics, events, from, from + (int64_t)days * 86400, offset);
+    device_offset = offset;
+    ics_begin(&ics, events, from, from + (int64_t)days * 86400, fixed_local);
     int32_t length = (int32_t)strlen(text);
     for (int32_t at = 0; at < length; at += piece) {
         ics_feed(&ics, text + at, length - at < piece ? length - at : piece);
