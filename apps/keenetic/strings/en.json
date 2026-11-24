@@ -20,7 +20,6 @@
   "dns": "DNS 1",
   "link": "Link (Mbit/s)",
   "via": "Via",
-  "devices": "Active devices",
   "empty": "No active devices",
   "loading": "Loading...",
   "dns2": "DNS 2",

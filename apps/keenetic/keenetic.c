@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include "host_api.h"
 #include "app_draw.h"
+#include "app_nav.h"
 #include "app_state.h"
 #include "app_text.h"
 #include "auth.h"
@@ -16,8 +17,9 @@
 enum { BATCH, INTERFACES, LINKS, HOSTS, POLLS };
 enum { AUTH, LOGIN, RENEW = 8 };
 enum { REFRESH = 0, WATCHDOG = 1, CHECKPOINT_SECONDS = 900 };
+enum { device_top = HOST_UI_MARGIN, device_row_height = 68, device_track_height = 202 };
 enum { shown_rows = 3, WAN_FACTS = 0x10f, LINK_FACTS = 0xc4 };
-_Static_assert(162 * shown_rows / KEENETIC_HOSTS_MAX >= 12, "kit scrollbar minimum thumb");
+_Static_assert(device_track_height * shown_rows / KEENETIC_HOSTS_MAX >= 12, "kit scrollbar minimum thumb");
 typedef struct {
     int32_t version, epoch, blocked, renewing, auth;
 } control_t;
@@ -131,7 +133,8 @@ static void header(void)
              : scene.snapshot.has_data && scene.snapshot.reading.internet == 0 ? STR_NO_INTERNET
                                                                                : -1;
     const char *text = id < 0 ? "Keenetic" : word(id);
-    header_set_text(HOST_HEADER_LEFT, text, app_text_length(text));
+    app_nav_t nav = { .screens = 4, .screen = scene.page };
+    app_nav_set_header(&nav, text, true);
 }
 /* Share scheduling and setting lookup to keep the interpreter code within its budget. */
 __attribute__((noinline)) static void schedule(int32_t seconds)
@@ -594,6 +597,7 @@ void app_on_button(int32_t event)
             if (scene.page == 3) keenetic_clear(facts, sizeof facts);
             scene.page = (scene.page + step + 4) % 4;
             if (scene.page == 3) device_first = 0;
+            header();
             start(false);
         }
         screen_redraw(HOST_REDRAW_SOON);
@@ -615,18 +619,6 @@ __attribute__((noinline)) static void number(char *out, int cap, int64_t value, 
 __attribute__((noinline)) static void text(int x, int y, int style, const char *value, int width)
 {
     ui_draw_text(x, y, style, value, app_text_length(value), width);
-}
-__attribute__((noinline)) static void page_title(int id)
-{
-    const int margin = HOST_UI_MARGIN;
-    if (id >= 0)
-        text(margin, margin, HOST_UI_TEXT, word(id), 320);
-    char page[] = "1/4";
-    page[0] += scene.page;
-    /* On the title's baseline, as app_nav_draw_title() puts it. */
-    ui_draw_text(gfx_width() - margin - app_text_width(HOST_FONT_SMALL, page),
-                 margin + gfx_font_ascent(HOST_FONT_TEXT) - gfx_font_ascent(HOST_FONT_SMALL),
-                 HOST_UI_CAPTION, page, 3, 48);
 }
 static void caption(int x, int y, const char *value, int width)
 {
@@ -689,7 +681,6 @@ static void traffic_chart(int top, int bottom)
 }
 static void overview(void)
 {
-    page_title(-1);
     int margin = HOST_UI_MARGIN, width = gfx_width() - 2 * margin;
     int row = margin;
     char down[32], up[32], speed[96], connections[80];
@@ -755,11 +746,9 @@ static void system_page(void)
     app_draw_cells(cells, NULL, icons, 4);
     gfx_draw_rect(width, HOST_UI_MARGIN, 1, gfx_height() - 2 * HOST_UI_MARGIN, HOST_RECT_FILLED);
     gfx_draw_rect(HOST_UI_MARGIN, height, gfx_width() - 2 * HOST_UI_MARGIN, 1, HOST_RECT_FILLED);
-    page_title(-1);
 }
 static void network_page(void)
 {
-    page_title(-1);
     fact(16, STR_INTERFACE, scene.snapshot.reading.wan);
     fact(38, STR_INTERNET, word(scene.snapshot.reading.internet == 1 ? STR_REACHABLE :
                                 scene.snapshot.reading.internet == 0 ? STR_NO_INTERNET : STR_NO_DATA));
@@ -778,7 +767,6 @@ static void network_page(void)
 }
 static void devices_page(void)
 {
-    page_title(STR_DEVICES);
     int last = hosts.count - shown_rows;
     if (last < 0) last = 0;
     if (device_first > last) device_first = last;
@@ -786,7 +774,7 @@ static void devices_page(void)
                            detail_status ? STR_NO_CONTACT : STR_LOADING), gfx_width() - 32);
     int width = gfx_width() - 2 * HOST_UI_MARGIN - (hosts.count > shown_rows ? 12 : 0);
     for (int i = device_first; i < hosts.count && i < device_first + shown_rows; i++) {
-        int y = 56 + (i - device_first) * 56;
+        int y = device_top + (i - device_first) * device_row_height;
         const char *name = hosts.rows[i].ip[0] ? hosts.rows[i].name : word(STR_LOADING);
         text(HOST_UI_MARGIN, y, HOST_UI_TEXT, name, width);
         caption(HOST_UI_MARGIN, y + 28, hosts.rows[i].ip, width);
@@ -795,10 +783,10 @@ static void devices_page(void)
      * keeps the thumb >= 15 px, above the kit's 12 px minimum. The list
      * remains read-only, as in V10/V11; each scroll step is a device. */
     if (hosts.count > shown_rows) {
-        int height = 162 * shown_rows / hosts.count;
+        int height = device_track_height * shown_rows / hosts.count;
         int x = gfx_width() - 9;
-        gfx_draw_rect(x + 2, 56, 1, 162, HOST_RECT_FILLED);
-        gfx_draw_rect(x, 56 + (162 - height) * device_first / last, 5, height, HOST_RECT_FILLED);
+        gfx_draw_rect(x + 2, device_top, 1, device_track_height, HOST_RECT_FILLED);
+        gfx_draw_rect(x, device_top + (device_track_height - height) * device_first / last, 5, height, HOST_RECT_FILLED);
     }
     char count[48];
     number(count, sizeof count / 2, hosts.count, 0, " / ");

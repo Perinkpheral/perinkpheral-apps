@@ -21,6 +21,7 @@
 
 #include "app_days.h"
 #include "app_draw.h"
+#include "app_nav.h"
 #include "app_state.h"
 #include "app_text.h"
 #include "host_api.h"
@@ -944,6 +945,7 @@ void app_on_button(int32_t event)
 {
     if (!place.nav.depth && (event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
         place.nav.screen = (place.nav.screen + (event == BTN_UP_LONG_PRESSED ? SCREENS - 1 : 1)) % SCREENS;
+        update_header();
         screen_redraw(HOST_REDRAW_SOON);
         return;
     }
@@ -953,6 +955,7 @@ void app_on_button(int32_t event)
         if (event == BTN_OK_PRESSED && !place.nav.depth && row_count > 0) {
             place.selected_id = rows[selected]->id; /* the page stays with it while the list changes */
             place.nav.depth = 1;
+            update_header();
             screen_redraw(HOST_REDRAW_NORMAL);
         } else if (by != 0 && selected + by >= 0 && selected + by < row_count) {
             place.selected_id = rows[selected + by]->id;
@@ -975,6 +978,7 @@ void app_on_back(void)
         screen_leave();
     } else {
         place.nav.depth = 0;
+        update_header();
         screen_redraw(HOST_REDRAW_NORMAL);
     }
 }
@@ -996,7 +1000,8 @@ static void update_header(void)
         host_text_argument_t arg = { .text = when, .length = app_text_length(when) };
         fill(line, sizeof line, STR_UPDATED, &arg, 1);
     }
-    header_set_text(HOST_HEADER_LEFT, line, app_text_length(line));
+    app_nav_t nav = { .screens = SCREENS, .screen = place.nav.screen, .depth = place.nav.depth };
+    app_nav_set_header(&nav, line, true);
 }
 
 __attribute__((noinline)) static int32_t status_word(const launch_t *launch, int64_t now)
@@ -1080,18 +1085,6 @@ static void say_in(const launch_t *launch, int64_t now, char *out, int32_t size)
 #define KIT_BAR_INSET   8
 #define KIT_SCROLL_ROOM 12
 
-/* The accepted counter shares the text baseline; no screen title is drawn. */
-static int32_t screen_top(void)
-{
-    char counter[] = "1/4";
-    counter[0] += place.nav.screen;
-    int32_t right = gfx_width() - MARGIN;
-    int32_t width = gfx_text_width(HOST_FONT_SMALL, counter, 3);
-    int32_t top = MARGIN + gfx_font_ascent(HOST_FONT_TEXT) - gfx_font_ascent(HOST_FONT_SMALL);
-    ui_draw_text(right - width, top, HOST_UI_CAPTION, counter, 3, width);
-    return MARGIN + ui_text_height(HOST_UI_TEXT);
-}
-
 static int32_t top_of(int32_t font, int32_t baseline)
 {
     return baseline - gfx_font_ascent(font);
@@ -1145,7 +1138,7 @@ static void draw_row(int32_t row, int32_t top, int32_t right, int64_t now)
 
 static void draw_launches(int64_t now)
 {
-    int32_t top = screen_top() + 2;
+    int32_t top = MARGIN + 2;
     int32_t pitch = (gfx_height() - top) / ROWS;
     int32_t right = gfx_width() - (row_count > ROWS ? KIT_SCROLL_ROOM : 0);
     for (int32_t row = place.first; row < place.first + ROWS && row < row_count; row++) {
@@ -1264,7 +1257,7 @@ __attribute__((noinline)) static void draw_countries(void)
         }
         order[at] = i;
     }
-    int32_t top = screen_top() + 4;
+    int32_t top = MARGIN + 4;
     int32_t pitch = (gfx_height() - top - 4) / (COUNTRIES + 1);
     int32_t name_width = 0, number_width = app_text_width(HOST_FONT_TEXT | HOST_FONT_TABULAR, "000");
     for (int32_t i = 0; i <= COUNTRIES; i++) {
@@ -1301,7 +1294,7 @@ __attribute__((noinline)) static int32_t chart_frame(host_chart_t *chart, int32_
     int32_t cap = gfx_font_cap_height(HOST_FONT_SMALL);
     int32_t caption = bottom_line_top(), labels = caption - 12 - cap;
     chart->x = MARGIN;
-    chart->y = screen_top() + 8 + (history_chart ? 2 : cap + 6);
+    chart->y = MARGIN + 8 + (history_chart ? 2 : cap + 6);
     int32_t year = cache.last_year;
     if (year >= FIRST_YEAR + history_count &&
         (history_chart ? year < FIRST_YEAR + count : year == year_shown(0))) {

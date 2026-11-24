@@ -28,14 +28,6 @@ __attribute__((noinline)) static void paper_rect(int32_t x, int32_t y, int32_t w
     gfx_set_color(HOST_INK);
 }
 
-/* Two top-level screens and one event view use app_nav state. */
-static void nav_title(const app_nav_t *nav)
-{
-    const char *count = nav->screen ? "2/2" : "1/2";
-    int32_t width = ui_text_width(HOST_UI_CAPTION, count, 3);
-    paper_rect(380 - width, 12, width + 8, ui_text_height(HOST_UI_CAPTION) + 8);
-    ui_draw_text(384 - width, 16, HOST_UI_CAPTION, count, 3, width);
-}
 #define BATCH 8
 #define LEDGER 32
 #define SEEN 31
@@ -89,6 +81,7 @@ static cache_t cache;
 #define state (cache.control)
 static scene_t scene;
 static bool placed, notices_on, requesting;
+static char header_place[HOST_HEADER_TEXT_MAX + 1];
 static int32_t requested_page;
 static int32_t latitude, longitude, radius_km, minimum, refresh;
 static uint32_t saved_checksum;
@@ -240,6 +233,11 @@ static void coordinate_text(char out[16], int32_t value)
     }
     *out = 0;
 }
+static void update_header(void)
+{
+    app_nav_set_header(&scene.nav, placed ? header_place : " ", true);
+}
+
 static void settings(void)
 {
     char place[256], text[64];
@@ -262,8 +260,8 @@ static void settings(void)
     app_setting("every", text, sizeof text);
     refresh = text[0] == '5' ? 300 : text[0] == '1' && text[1] == '5' ? 900 : 60;
     app_setting("notify", text, sizeof text); notices_on = app_text_equal(text, "On");
-    copy_text(text, HOST_HEADER_TEXT_MAX + 1, place);
-    header_set_text(HOST_HEADER_LEFT, placed ? text : " ", placed ? app_text_length(text) : 1);
+    app_text_copy(header_place, sizeof header_place, place);
+    update_header();
 }
 static bool stale(int32_t scope)
 {
@@ -764,6 +762,8 @@ void app_on_load(void)
 void app_on_focus(void)
 {
     app_session_load(&scene, sizeof scene);
+    app_nav_check(&scene.nav, 2);
+    update_header();
     selection(); maybe_browse(); timer_set(0, 300000);
 }
 void app_on_terminate(void)
@@ -808,7 +808,7 @@ void app_on_timer(int32_t id)
 void app_on_back(void)
 {
     if (app_nav_button(&scene.nav, BTN_BACK_PRESSED) == APP_NAV_IGNORED) { screen_leave(); }
-    else { screen_redraw(HOST_REDRAW_NORMAL); }
+    else { update_header(); screen_redraw(HOST_REDRAW_NORMAL); }
 }
 static int32_t notable(void)
 {
@@ -841,6 +841,7 @@ void app_on_button(int32_t event)
         }
     }
 redraw:
+    update_header();
     maybe_browse(); screen_redraw(HOST_REDRAW_NORMAL);
 }
 
@@ -931,14 +932,12 @@ static void draw_main(void)
     const event_t *e = i < 0 ? NULL : &cache.events[0][i];
     char line[128], a[64], b[32];
     if (!placed) {
-        nav_title(&scene.nav);
         draw_text(16, 96, HOST_UI_TEXT, word(STR_SET_LOCATION), 368);
         draw_text(16, 132, HOST_UI_CAPTION, word(STR_LOCATION_HELP), 368);
         return;
     }
     host_map_t map = { .x = 0, .y = 0, .w = 400, .h = 224 };
     event_map(&map, e, true);
-    nav_title(&scene.nav);
     gfx_draw_rect(0, 224, 400, 1, HOST_RECT_FILLED);
     if (e) {
         summary(a, e); when_text(b, e->time / 1000);
@@ -978,7 +977,6 @@ static const char *place_name(const event_t *e, char localized[128])
 }
 static void draw_list(void)
 {
-    nav_title(&scene.nav);
     char line[128], a[32], b[32], location[128];
     /* Compact filter content, rather than a repeated screen title. */
     draw_text(16, 10, HOST_UI_CAPTION, word(scene.scope ? STR_WORLDWIDE : STR_NEARBY), 304);

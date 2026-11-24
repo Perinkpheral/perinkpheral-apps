@@ -205,13 +205,13 @@
     {
       "name": "earthquakes",
       "title": "Earthquakes",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 16750,
-          "sha256": "66315a46d040871095b7b449bd6291190a3aa1b97148ffa3b3fd3b0555bfa77e"
+          "size": 17493,
+          "sha256": "5fae4060e1f7613754ca5d56362232f5881bbacdbed3c309c7808f1f41aceee0"
         },
         {
           "name": "manifest.ru",
@@ -226,7 +226,7 @@
         {
           "name": "manifest.json",
           "size": 3094,
-          "sha256": "994977e284631e96a5ce194f5eeb671b256a1ae756fb38f7f75a6918677da594"
+          "sha256": "a842f08617533efd51cd86a7dce83347c82cc3e4b913293a0d3763ad8352f903"
         }
       ],
       "author": "Perinkpheral",
@@ -355,13 +355,13 @@
     {
       "name": "keenetic",
       "title": "Keenetic",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 16470,
-          "sha256": "92008d0a02c8008417d087caeb222cc9d982bfe25a8c6ccb10f23756354142ce"
+          "size": 16682,
+          "sha256": "5bf7eed4c475ec30a29f333111e88b8672a7111a4ebe58025669b217a706f1b3"
         },
         {
           "name": "manifest.ru",
@@ -370,13 +370,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 567,
-          "sha256": "d8f2f4de7fd1d5aa39d4de0f2315c82de0effcacc43456ca6e49f60099091302"
+          "size": 527,
+          "sha256": "6979617320cf49bbd0faf5f2e1fd82aac172401c7cfbce8852defc321a5ed345"
         },
         {
           "name": "manifest.json",
           "size": 3052,
-          "sha256": "49c7c9e3e0189e00171a4364c66fd79250fe5d1c75085d4fa9d77b5197fd58dc"
+          "sha256": "f722c3fb490870630eb0c05758f496fc413039ae0fff073174c63a3aafaa47c6"
         }
       ],
       "author": "Perinkpheral",
@@ -672,13 +672,13 @@
     {
       "name": "space-launch",
       "title": "Space Launch",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 18481,
-          "sha256": "e29424494860e00ca8a0799101f91ab9b1f8b962853a0806ba5b23c09954f12d"
+          "size": 18957,
+          "sha256": "d56c086fd5534668ded67916a83dfcac6b009aaefdcd0e50b244132cf2dbc073"
         },
         {
           "name": "history.bin",
@@ -698,7 +698,7 @@
         {
           "name": "manifest.json",
           "size": 2644,
-          "sha256": "0cdecd3ead95afe4edff328a9d677abf38d7e123e2d09bef66100b068da9927c"
+          "sha256": "d238d7bcc61c0bc862090023683454ffcdb30b743c5e97d34da3d3448d1e9662"
         }
       ],
       "author": "Perinkpheral",

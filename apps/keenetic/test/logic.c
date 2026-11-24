@@ -593,8 +593,8 @@ static void optional_rates(void)
         assert(scene.up == (missing & 2 ? -1 : 167));
         assert(scene.snapshot.reading.cpu == 53 && scene.snapshot.reading.ram == 43);
         assert(!strcmp(facts[4], "192.0.2.3") && !strcmp(facts[2], "1000"));
-        scene.page = 0; draw_recorded();
-        assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], "Keenetic"));
+        scene.page = 0; header(); draw_recorded();
+        assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], "1/4 Keenetic"));
         /* Rate labels use number(); absent values must never be rendered as zero. */
         char value[32]; number(value, sizeof value, scene.down, 2, "");
         assert(!strcmp(value, missing & 1 ? "-" : "92.94"));
@@ -843,8 +843,8 @@ static void network_loading(void)
 static void device_scrollbar(int thumb_y, int thumb_height)
 {
     assert(drawn_rect_count == 2);
-    assert(drawn_rect[0].x == 393 && drawn_rect[0].y == 56);
-    assert(drawn_rect[0].width == 1 && drawn_rect[0].height == 162);
+    assert(drawn_rect[0].x == 393 && drawn_rect[0].y == 16);
+    assert(drawn_rect[0].width == 1 && drawn_rect[0].height == 202);
     assert(drawn_rect[1].x == 391 && drawn_rect[1].y == thumb_y);
     assert(drawn_rect[1].width == 5 && drawn_rect[1].height == thumb_height);
     assert(drawn_rect[0].mode == HOST_RECT_FILLED && drawn_rect[1].mode == HOST_RECT_FILLED);
@@ -853,31 +853,31 @@ static void device_two_lines(void)
 {
     logged_in(true); poll_fixture(BATCH, "v9-batch-1.json"); scene.page = 3;
     poll_fixture(HOSTS, "v11-long-hosts.json"); device_first = 0;
-    draw_recorded(); assert(hosts.count == 5 && drawn_text_count == 9);
+    draw_recorded(); assert(hosts.count == 5 && drawn_text_count == 7);
     for (int i = 0; i < shown_rows; i++) {
-        int name = 2 + 2 * i, ip = name + 1;
+        int name = 2 * i, ip = name + 1;
         assert(!strcmp(drawn_text[name].value, hosts.rows[i].name));
         assert(!strcmp(drawn_text[ip].value, hosts.rows[i].ip));
         assert(drawn_text[name].style == HOST_UI_TEXT && drawn_text[ip].style == HOST_UI_CAPTION);
         assert(drawn_text[name].x == 16 && drawn_text[ip].x == 16);
-        assert(drawn_text[name].y == 56 + i * 56 && drawn_text[ip].y == 84 + i * 56);
+        assert(drawn_text[name].y == 16 + i * 68 && drawn_text[ip].y == 44 + i * 68);
         assert(drawn_text[name].width == 356 && drawn_text[ip].width == 356);
     }
-    device_scrollbar(56, 97);
+    device_scrollbar(16, 121);
     app_on_button(BTN_DOWN_PRESSED); app_on_button(BTN_DOWN_PRESSED); draw_recorded();
-    assert(device_first == 2); device_scrollbar(121, 97);
+    assert(device_first == 2); device_scrollbar(97, 121);
     /* A shrinking list clamps to its start and gives the scrollbar's space back. */
-    hosts.count = 1; draw_recorded(); assert(drawn_text_count == 5 && !drawn_rect_count && !device_first);
-    assert(drawn_text[2].width == 368 && !strcmp(drawn_text[3].value, "198.51.100.255"));
+    hosts.count = 1; draw_recorded(); assert(drawn_text_count == 3 && !drawn_rect_count && !device_first);
+    assert(drawn_text[0].width == 368 && !strcmp(drawn_text[1].value, "198.51.100.255"));
     /* Uncached rows keep the complete localized loading label and no address. */
     hosts.rows[0].ip[0] = 0; draw_recorded();
-    assert(!strcmp(drawn_text[2].value, word(STR_LOADING)) && !drawn_text[3].value[0]);
+    assert(!strcmp(drawn_text[0].value, word(STR_LOADING)) && !drawn_text[1].value[0]);
     poll_fixture(HOSTS, "router/v9-get-08.json"); device_first = 0; draw_recorded();
-    assert(!strcmp(drawn_text[2].value, word(STR_UNKNOWN)));
-    device_scrollbar(56, 15);
+    assert(!strcmp(drawn_text[0].value, word(STR_UNKNOWN)));
+    device_scrollbar(16, 18);
     device_first = 29; app_on_blur(); in_scene = false; app_on_load(); in_scene = true; app_on_focus();
     assert(device_first == 29 && hosts.rows[31].ip[0] && !hosts.rows[28].ip[0]);
-    draw_recorded(); assert(drawn_text_count == 9); device_scrollbar(203, 15);
+    draw_recorded(); assert(drawn_text_count == 7); device_scrollbar(200, 18);
     puts("keenetic: three two-line devices, full-width kit body names, caption IPs, unknown/pending names and final viewport restore passed");
 }
 /* app_delivery.c gives VALUES synchronously, clears the answer, then lets the
@@ -997,13 +997,13 @@ static void detail_failures(void)
 {
     logged_in(true); poll_fixture(BATCH, "v9-batch-sample-a.json");
     refused_poll = HOSTS; request_poll(HOSTS); refused_poll = -1;
-    assert(scene.status == 200 && scene.down == 9294 && !strcmp(standin()->header_text[0], "Keenetic"));
+    assert(scene.status == 200 && scene.down == 9294 && !strcmp(standin()->header_text[0], "1/4 Keenetic"));
     for (int write_failure = 0; write_failure < 2; write_failure++) {
         logged_in(true); poll_fixture(BATCH, "v9-batch-sample-a.json");
         if (write_failure) fail_write = HOST_ERR_NO_SPACE;
         else fail_send = HOST_ERR_NO_SPACE;
         picked(HOSTS, 401, "");
-        assert(scene.status != 200 && !strcmp(standin()->header_text[0], word(STR_NO_CONTACT)));
+        assert(scene.status != 200 && !strncmp(standin()->header_text[0], "1/4 ", 4) && !strcmp(standin()->header_text[0] + 4, word(STR_NO_CONTACT)));
     }
     const int failures[] = {599, HOST_FAILED_TOO_LARGE, HOST_FAILED_TIMEOUT, HOST_FAILED_NO_NETWORK};
     for (int poll = INTERFACES; poll < POLLS; poll++) {
@@ -1014,16 +1014,16 @@ static void detail_failures(void)
             app_on_button(BTN_OK_PRESSED); /* Unsolicited detail while batch is pending. */
             picked(poll, failures[i], "");
             assert(scene.status == 200 && scene.down == down && scene.up == up);
-            assert(scene.history.count == samples && !strcmp(standin()->header_text[0], "Keenetic"));
+            assert(scene.history.count == samples && !strcmp(standin()->header_text[0], "1/4 Keenetic"));
             picked(BATCH, HOST_FAILED_NO_NETWORK, "");
             picked(poll, 200, "{}");
-            assert(!strcmp(standin()->header_text[0], word(STR_NO_CONTACT)));
+            assert(!strncmp(standin()->header_text[0], "1/4 ", 4) && !strcmp(standin()->header_text[0] + 4, word(STR_NO_CONTACT)));
             poll_fixture(BATCH, "batch-offline.json"); picked(poll, failures[i], "");
-            assert(!strcmp(standin()->header_text[0], word(STR_NO_INTERNET)));
+            assert(!strncmp(standin()->header_text[0], "1/4 ", 4) && !strcmp(standin()->header_text[0] + 4, word(STR_NO_INTERNET)));
         }
         logged_in(true); poll_fixture(BATCH, "v9-batch-sample-a.json");
         picked(poll, 403, "");
-        assert(control.blocked && !strcmp(standin()->header_text[0], word(STR_DENIED)));
+        assert(control.blocked && !strncmp(standin()->header_text[0], "1/4 ", 4) && !strcmp(standin()->header_text[0] + 4, word(STR_DENIED)));
     }
     logged_in(true); poll_fixture(BATCH, "v9-batch-sample-a.json");
     scene.page = 3; poll_fixture(HOSTS, "router/hotspot.json");
@@ -1033,7 +1033,7 @@ static void detail_failures(void)
     assert(detail_status == 599); /* An unrelated page cannot clear the warning. */
     picked(HOSTS, 200, "{\"host\":[]}");
     picked(HOSTS, 599, ""); draw_recorded();
-    assert(!strcmp(drawn_text[2].value, word(STR_NO_CONTACT)));
+    assert(!strcmp(drawn_text[0].value, word(STR_NO_CONTACT)));
     puts("keenetic: unsolicited detail failures preserve header/rates/history, blocked precedence and stale Devices warning passed");
 }
 static void long_host_cut(void)

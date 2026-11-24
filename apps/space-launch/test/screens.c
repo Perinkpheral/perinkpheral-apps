@@ -169,12 +169,13 @@ static void header(void)
 {
     /* The list taken 40 minutes ago or more: the header says when. */
     standin()->is_on_screen = true;
+    place.nav.screen = place.nav.depth = 0;
     seen_at = time_now() - 39 * MINUTE;
     update_header();
-    assert(standin()->header_text[HOST_HEADER_LEFT][0] == '\0');
+    assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], "1/4"));
     seen_at = time_now() - 41 * MINUTE;
     update_header();
-    assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], "Updated 19:19"));
+    assert(!strcmp(standin()->header_text[HOST_HEADER_LEFT], "1/4 Updated 19:19"));
 }
 
 static void no_clock(void)
