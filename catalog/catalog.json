@@ -261,8 +261,8 @@
       "files": [
         {
           "name": "app.wasm",
-          "size": 10635,
-          "sha256": "368f2e834442c4cd1848abd523e3c037ed882251a8010ed7476072c78653c9b4"
+          "size": 10805,
+          "sha256": "0637d364d3fec3d525d694ff7f47b7b6a2935aced75cee3086c8acee4a07aee3"
         },
         {
           "name": "manifest.ru",
@@ -271,8 +271,8 @@
         },
         {
           "name": "strings.ru",
-          "size": 53,
-          "sha256": "affc496fd57f3bacd4b7da80afecff8a46b7fe67a178f7c936633b2264e1b2cb"
+          "size": 82,
+          "sha256": "26362000fbcf0372110a98f4aa610c088fe32d71df941fca68b302525874565d"
         },
         {
           "name": "manifest.json",

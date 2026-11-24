@@ -14,8 +14,45 @@ static void answer(const char *payload)
     standin_data(request_screen(), -1, 200, payload, (int32_t)strlen(payload), HOST_DATA_CHUNK_MAX, STANDIN_WHOLE, 0);
 }
 
+static void refused_screen(void)
+{
+    const int32_t errors[] = { HOST_ERR_NO_SPACE, HOST_ERR_FAILED };
+    for (int i = 0; i < 2; i++) {
+        standin_reset();
+        standin_handlers.on_data = app_on_data;
+        standin_handlers.on_draw = app_on_draw;
+        app_on_load();
+        answer("hero|21|sunny");
+        standin()->refuse_writes = errors[i];
+        answer("hero|22|sunny");
+        assert(screen_dirty && !strcmp(screen, "hero|22|sunny"));
+        standin_draw();
+        assert(strstr(standin()->draw_text, "Storage error."));
+        /* Termination retries, but a persistent refusal leaves the old cache. */
+        app_on_terminate();
+        assert(screen_dirty);
+        app_on_load();
+        assert(!screen_dirty && !strcmp(screen, "hero|21|sunny"));
+        standin()->refuse_writes = HOST_OK;
+        answer("hero|22|sunny");
+        assert(!screen_dirty);
+        standin_draw();
+        assert(!strstr(standin()->draw_text, "Storage error."));
+        app_on_terminate(); app_on_load();
+        assert(!strcmp(screen, "hero|22|sunny"));
+
+        standin()->refuse_writes = errors[i];
+        answer("hero|23|sunny");
+        assert(screen_dirty);
+        standin()->refuse_writes = HOST_OK;
+        app_on_terminate(); app_on_load();
+        assert(!screen_dirty && !strcmp(screen, "hero|23|sunny"));
+    }
+}
+
 int main(void)
 {
+    refused_screen();
     standin_reset();
     standin_handlers.on_data = app_on_data;
     standin_set("every", "5 min");

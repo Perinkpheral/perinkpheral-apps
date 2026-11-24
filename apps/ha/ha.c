@@ -320,6 +320,7 @@ void app_on_load(void)
     cached_screen_t cache;
     int32_t length = kv_get(SCREEN_KEY, sizeof SCREEN_KEY - 1, &cache, sizeof cache);
     screen_pairing = pairing();
+    screen_dirty = false;
     screen_length = length > (int32_t)offsetof(cached_screen_t, text) &&
                     cache.version == SCREEN_VERSION && cache.pairing == screen_pairing
                         ? length - (int32_t)offsetof(cached_screen_t, text) : 0;
@@ -375,7 +376,12 @@ static void restore_cooldown(void)
     }
 }
 
-void app_on_terminate(void) { save_cooldown(); }
+void app_on_terminate(void)
+{
+    save_cooldown();
+    if (screen_dirty) { save_screen(); }
+    save_status();
+}
 
 /* The screen to ask for: the one of the session, or, opened anew, the one the kept picture is of -
  * the screen the user left it on. Starting at the first while the second is drawn made it show
@@ -900,6 +906,12 @@ static void draw_reason(void)
 
 void app_on_draw(void)
 {
+    if (screen_dirty || last_status != saved_status) {
+        host_notice_t notice = { .icon = HOST_ICON_WARNING };
+        app_text_copy(notice.first, sizeof notice.first, app_string(STR_STORAGE_ERROR));
+        ui_draw_notice(&notice);
+        return;
+    }
     if (screen_length > 0) {
         static item_t items[ITEMS_MAX]; /* too large for the stack */
         layout_t      layout = layout_asked();

@@ -1,4 +1,5 @@
 {
   "no_screen": "No screen",
-  "set_up_in_ha": "Set it up in HA"
+  "set_up_in_ha": "Set it up in HA",
+  "storage_error": "Storage error."
 }
