@@ -32,6 +32,14 @@ typedef struct {
     uint32_t boot;
 } snapshot_t;
 typedef struct {
+    snapshot_t snapshot;
+    int64_t last_ms;
+    uint32_t source, boot, revision;
+    uint32_t flags;
+    struct { int32_t down, up; } samples[KEENETIC_SAMPLES];
+} checkpoint_t;
+_Static_assert(sizeof(checkpoint_t) <= HOST_KV_VALUE_MAX, "checkpoint fits one KV value");
+typedef struct {
     uint32_t magic;
     snapshot_t snapshot;
     union {
@@ -41,6 +49,7 @@ typedef struct {
     int32_t detail_status;
     int64_t down, up, retry_at;
     int32_t page, status, pending, epoch;
+    uint32_t history_source;
     keenetic_history_t history;
 } scene_t;
 APP_SESSION_FITS(scene_t);
@@ -48,6 +57,7 @@ static scene_t scene, previous;
 static char cookie[256];
 static control_t control;
 static bool visible, restored, receiving, snapshot_dirty;
+static uint32_t saved_history_revision;
 static int32_t response_status;
 /* Picked details are transient; only the visible viewport enters the session. */
 static keenetic_hosts_t hosts;
@@ -55,7 +65,8 @@ static int device_first;
 #define detail_status scene.detail_status
 #define facts scene.details.facts
 static int detail_page;
-#define SCENE_MAGIC 0x4b454e3bu
+#define SCENE_MAGIC 0x4b454e3cu
+static const char *const setting_keys[] = { "router", "username", "wan", "password", "links", "every" };
 
 /* Share the language-table lookup instead of expanding it at every label. */
 __attribute__((noinline)) static const char *word(int id)
@@ -64,17 +75,93 @@ __attribute__((noinline)) static const char *word(int id)
 }
 
 /* Scene validity follows settings, independently of disposable request tags. */
-static int32_t scene_identity(void)
+static uint32_t settings_identity(int count)
 {
-    static const char *const keys[] = { "router", "username", "password", "wan", "links" };
     uint32_t hash = 2166136261u;
     char value[256];
-    for (int32_t key = 0; key < 5; key++) {
-        app_setting(keys[key], value, sizeof value);
+    for (int32_t key = 0; key < count; key++) {
+        app_setting(setting_keys[key], value, sizeof value);
         for (int32_t i = 0; value[i]; i++) { hash = (hash ^ (uint8_t)value[i]) * 16777619u; }
         hash = (hash ^ 255u) * 16777619u;
     }
-    return (int32_t)hash;
+    return hash;
+}
+static bool configured(void);
+static void load_checkpoint(void)
+{
+    checkpoint_t saved;
+    int32_t length = kv_get("snapshot", 8, &saved, sizeof saved);
+    if (length < (int32_t)sizeof(snapshot_t) || saved.snapshot.has_data != 1 ||
+        saved.snapshot.saved_at < 0 || saved.snapshot.saved_at > INT64_MAX / 1000 ||
+        (saved.snapshot.boot == time_boot_id() && saved.snapshot.saved_at > time_uptime_ms() / 1000) ||
+        saved.snapshot.reading.wan[sizeof saved.snapshot.reading.wan - 1] != '\0' || !configured())
+        return;
+    if (length == sizeof(snapshot_t) && saved.snapshot.version == 4) {
+        scene.snapshot = saved.snapshot;
+        keenetic_history_add(&scene.history, scene.snapshot.reading.down, scene.snapshot.reading.up);
+        scene.history.last_ms = scene.snapshot.saved_at * 1000;
+        scene.history.boot = scene.snapshot.boot;
+        scene.history.baseline = scene.history.count != 0;
+    } else if (length >= (int32_t)offsetof(checkpoint_t, samples) &&
+               saved.snapshot.version == 5 && saved.source == scene.history_source &&
+               !(saved.flags & ~3u) && saved.last_ms >= 0 &&
+               (saved.boot != time_boot_id() || saved.last_ms <= time_uptime_ms())) {
+        int32_t bytes = length - (int32_t)offsetof(checkpoint_t, samples);
+        if (bytes % (int32_t)sizeof saved.samples[0]) return;
+        int32_t count = bytes / (int32_t)sizeof saved.samples[0];
+        if (count > KEENETIC_SAMPLES || (!count && saved.flags) ||
+            saved.revision < (uint32_t)count) return;
+        for (int i = 0; i < count; i++) {
+            int32_t down = saved.samples[i].down, up = saved.samples[i].up;
+            if ((down < 0 || up < 0) && (down != KEENETIC_GAP || up != KEENETIC_GAP)) return;
+            scene.history.down[i] = down;
+            scene.history.up[i] = up;
+        }
+        scene.snapshot = saved.snapshot;
+        scene.history.count = count;
+        scene.history.last_ms = saved.last_ms;
+        scene.history.boot = saved.boot;
+        scene.history.baseline = (saved.flags & 1) != 0;
+        scene.history.background = (saved.flags & 2) != 0;
+        scene.history.revision = saved_history_revision = saved.revision;
+    }
+}
+/* Keep room for a replacement cookie of any length. Long settings can
+ * leave room for fewer points, in which case keep the newest observations. */
+static void save_checkpoint(void)
+{
+    if (!scene.snapshot.has_data) return;
+    int32_t room = HOST_KV_TOTAL_MAX - (64 + 256) - (64 + sizeof(control_t)) - 64;
+    char value[256];
+    for (unsigned i = 0; i < sizeof setting_keys / sizeof setting_keys[0]; i++) {
+        int32_t length = app_setting(setting_keys[i], value, sizeof value);
+        room -= 64 + ((length + 31) & ~31);
+    }
+    room &= ~31;
+    checkpoint_t saved = {0};
+    saved.snapshot = scene.snapshot;
+    saved.snapshot.version = 5;
+    saved.snapshot.boot = time_boot_id();
+    saved.snapshot.saved_at = time_uptime_ms() / 1000;
+    saved.source = scene.history_source;
+    saved.boot = scene.history.boot;
+    saved.last_ms = scene.history.last_ms;
+    saved.revision = scene.history.revision;
+    int32_t count = (room - (int32_t)offsetof(checkpoint_t, samples)) / (int32_t)sizeof saved.samples[0];
+    if (count < 0) count = 0;
+    if (count > scene.history.count) count = scene.history.count;
+    if (count) saved.flags = (scene.history.baseline ? 1u : 0u) | (scene.history.background ? 2u : 0u);
+    int first = scene.history.count - count;
+    for (int i = 0; i < count; i++) {
+        saved.samples[i].down = scene.history.down[first + i];
+        saved.samples[i].up = scene.history.up[first + i];
+    }
+    int32_t length = offsetof(checkpoint_t, samples) + count * sizeof saved.samples[0];
+    snapshot_dirty = kv_set("snapshot", 8, &saved, length) != HOST_OK;
+    if (!snapshot_dirty) {
+        scene.snapshot = saved.snapshot;
+        saved_history_revision = scene.history.revision;
+    }
 }
 static void clear_cookie(void)
 {
@@ -93,13 +180,21 @@ static void restore(void)
     if (restored)
         return;
     restored = true;
-    if (visible && !control.blocked && load_scene()) {
+    bool stacked = load_scene();
+    if (stacked && previous.history_source == scene.history_source &&
+        (previous.history.revision > scene.history.revision ||
+         (previous.history.revision == scene.history.revision && previous.history.count > scene.history.count)))
+        scene.history = previous.history;
+    if (visible && !control.blocked && stacked) {
         /* A completed background read supersedes the sleeping scene's checkpoint. */
-        if (scene.snapshot.has_data && (!previous.snapshot.has_data || scene.snapshot.saved_at > previous.snapshot.saved_at)) {
+        if (scene.snapshot.has_data && (!previous.snapshot.has_data ||
+            scene.snapshot.saved_at > previous.snapshot.saved_at ||
+            scene.history.revision > previous.history.revision)) {
             previous.snapshot = scene.snapshot;
             previous.down = scene.snapshot.reading.down;
             previous.up = scene.snapshot.reading.up;
         }
+        previous.history = scene.history;
         scene = previous;
         if (scene.retry_at > control.retry_at) {
             control.retry_at = scene.retry_at;
@@ -157,12 +252,28 @@ __attribute__((noinline)) static void schedule(int32_t seconds)
         }
     }
 }
-__attribute__((noinline)) static int32_t pace(void)
+static int32_t foreground_pace(void)
 {
-    if (!visible) return 900;
     char every[8];
     app_setting("every", every, sizeof every);
     return app_text_equal(every, "15 min") ? 900 : app_text_equal(every, "5 min") ? 300 : 60;
+}
+__attribute__((noinline)) static int32_t pace(void)
+{
+    return visible ? foreground_pace() : CHECKPOINT_SECONDS;
+}
+static void break_stale_history(int64_t sample_ms, int32_t cadence)
+{
+    /* Preserve the existing foreground tolerance. Consecutive background
+     * observations follow their own cadence, with a gap for a missed read. */
+    int64_t max_gap = !visible && (scene.history.background || cadence == CHECKPOINT_SECONDS)
+                          ? CHECKPOINT_SECONDS * 1500 : (int64_t)cadence * 2500;
+    if (scene.history.count && (scene.history.boot != time_boot_id() ||
+        sample_ms < scene.history.last_ms ||
+        sample_ms - scene.history.last_ms > max_gap)) {
+        keenetic_history_add(&scene.history, -1, -1);
+        scene.history.baseline = false;
+    }
 }
 __attribute__((noinline)) static void read_fact(int pick, int field);
 static void finish(int32_t status)
@@ -189,8 +300,12 @@ static void finish(int32_t status)
     alarm_set(WATCHDOG, 0);
     if (status != 200 && !detail) {
         scene.history.baseline = false;
-        if (visible)
+        if (visible || poll == BATCH) {
+            uint32_t revision = scene.history.revision;
             keenetic_history_add(&scene.history, -1, -1);
+            if (!visible && scene.history.revision != revision)
+                save_checkpoint();
+        }
     }
     if (control.blocked) {
         save_control();
@@ -396,24 +511,26 @@ static void accept_batch(void)
     int64_t sample_ms = time_uptime_ms();
     scene.down = reading.down;
     scene.up = reading.up;
-    if (visible && (!scene.history.baseline || sample_ms - scene.history.last_ms >= (int64_t)pace() * 1000)) {
-        if (scene.history.count && sample_ms - scene.history.last_ms > (int64_t)pace() * 2500)
-            keenetic_history_add(&scene.history, -1, -1);
+    int32_t cadence = foreground_pace();
+    if (!scene.history.baseline ||
+        scene.history.boot != time_boot_id() || sample_ms < scene.history.last_ms ||
+        sample_ms - scene.history.last_ms >= (int64_t)(visible ? cadence : CHECKPOINT_SECONDS) * 1000) {
+        break_stale_history(sample_ms, cadence);
         keenetic_history_add(&scene.history, scene.down, scene.up);
         scene.history.last_ms = sample_ms;
+        scene.history.boot = time_boot_id();
         scene.history.baseline = true;
+        scene.history.background = !visible;
     }
     bool first = !scene.snapshot.has_data;
     scene.snapshot.reading = reading;
     scene.status = 200;
     scene.snapshot.has_data = 1;
     int64_t now = time_uptime_ms() / 1000;
-    if (first || snapshot_dirty || scene.snapshot.boot != time_boot_id() ||
-        now - scene.snapshot.saved_at >= CHECKPOINT_SECONDS) {
-        scene.snapshot.saved_at = now;
-        scene.snapshot.boot = time_boot_id();
-        snapshot_dirty = !app_state_save("snapshot", &scene.snapshot, sizeof scene.snapshot);
-    }
+    if (first || snapshot_dirty || (!visible && scene.history.revision != saved_history_revision) ||
+        scene.snapshot.boot != time_boot_id() ||
+        now - scene.snapshot.saved_at >= CHECKPOINT_SECONDS)
+        save_checkpoint();
     if (visible && scene.page) {
         detail_status = 0;
         request_details();
@@ -523,12 +640,11 @@ void app_on_load(void)
         control.epoch = 0;
     keenetic_clear(&scene, sizeof scene);
     scene.magic = SCENE_MAGIC;
-    scene.epoch = scene_identity();
+    scene.epoch = (int32_t)settings_identity(5);
+    scene.history_source = settings_identity(3);
     scene.down = scene.up = -1;
-    if (!app_state_load("snapshot", &scene.snapshot, sizeof scene.snapshot, 4)) {
-        keenetic_clear(&scene.snapshot, sizeof scene.snapshot);
-        scene.snapshot.version = 4;
-    }
+    saved_history_revision = 0;
+    load_checkpoint();
     if (scene.snapshot.has_data) {
         scene.down = scene.snapshot.reading.down;
         scene.up = scene.snapshot.reading.up;
@@ -546,11 +662,14 @@ void app_on_focus(void)
 {
     visible = true;
     restore();
+    break_stale_history(time_uptime_ms(), foreground_pace());
     header();
     start(false);
 }
 void app_on_blur(void)
 {
+    if (scene.history.revision != saved_history_revision)
+        save_checkpoint();
     if (scene.page == 3) {
         __builtin_memcpy(scene.details.viewport.rows, hosts.rows + device_first,
                          sizeof scene.details.viewport.rows);
@@ -584,16 +703,23 @@ void app_on_settings(void)
 {
     restore();
     control.epoch = (control.epoch + 1) % 14;
-    scene.epoch = scene_identity();
+    scene.epoch = (int32_t)settings_identity(5);
     control.blocked = control.renewing = control.auth = 0;
     save_control();
     clear_cookie();
     scene.pending = 0;
-    keenetic_clear(&scene.history, sizeof scene.history);
-    scene.down = scene.up = -1;
-    keenetic_clear(&scene.snapshot, sizeof scene.snapshot);
-    scene.snapshot.version = 4;
-    app_state_forget("snapshot");
+    uint32_t source = settings_identity(3);
+    /* The v4 record has no source identity. Do not bind it to settings that
+     * may already have been replaced before this instance was loaded. */
+    if (scene.snapshot.version == 4 || source != scene.history_source || !configured()) {
+        scene.history_source = source;
+        keenetic_clear(&scene.history, sizeof scene.history);
+        scene.down = scene.up = -1;
+        keenetic_clear(&scene.snapshot, sizeof scene.snapshot);
+        saved_history_revision = 0;
+        snapshot_dirty = false;
+        app_state_forget("snapshot");
+    }
     keenetic_clear(facts, sizeof facts);
     keenetic_clear(&hosts, sizeof hosts);
     detail_status = 0;

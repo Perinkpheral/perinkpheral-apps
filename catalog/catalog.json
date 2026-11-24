@@ -355,13 +355,13 @@
     {
       "name": "keenetic",
       "title": "Keenetic",
-      "version": "0.4.9",
+      "version": "0.4.10",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 17287,
-          "sha256": "ebafe61e44d72328e10c2f3b7f9626f0791f6a5e9ab24e8ba7d8d63474196ce1"
+          "size": 18930,
+          "sha256": "a58552fe1af6448eb3ce6b12c68b24887f174a094d4fff74f8001cb821d87760"
         },
         {
           "name": "manifest.ru",
@@ -375,12 +375,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 3052,
-          "sha256": "a505bfbf35a48de9a2e04ed9339857b9965e68336998ec21bf321178cdc6e167"
+          "size": 3053,
+          "sha256": "9ed04e2ccce637dc7d508f4f7dee1ed06beffa2ad2beab11b1e4c082b4d1c19d"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.80",
+      "firmware": "0.1.95",
       "icon": [
         ".#.......#.",
         ".#.......#.",

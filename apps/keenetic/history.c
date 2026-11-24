@@ -14,4 +14,5 @@ void keenetic_history_add(keenetic_history_t *h, int64_t down, int64_t up)
     }
     h->down[h->count] = valid ? (int32_t)down : KEENETIC_GAP;
     h->up[h->count++] = valid ? (int32_t)up : KEENETIC_GAP;
+    h->revision++;
 }

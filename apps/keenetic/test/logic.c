@@ -482,6 +482,75 @@ static void system_temperatures(void)
     puts("keenetic: higher radio temperature, missing/invalid readings and zero passed");
 }
 
+static void cold_history(void)
+{
+    int64_t saved_uptime = uptime_ms;
+    uptime_ms = 10000;
+    logged_in(true);
+    poll_fixture(BATCH, "v9-batch-sample-a.json");
+    snapshot_t legacy = scene.snapshot;
+    legacy.version = 4;
+    assert(app_state_save("snapshot", &legacy, sizeof legacy));
+    standin_forget_session(); app_on_load(); app_on_focus();
+    assert(scene.history.count == 1 && scene.history.down[0] == 9294);
+
+    uptime_ms += 900000;
+    app_on_blur(); in_scene = false; standin_forget_session(); app_on_load();
+    app_on_alarm(REFRESH); poll_fixture(BATCH, "v9-batch-sample-b.json"); /* Background poll. */
+    assert(scene.history.count == 3 && scene.history.down[1] == KEENETIC_GAP &&
+           scene.history.down[2] == 9434);
+    uptime_ms += 900000;
+    app_on_load(); app_on_alarm(REFRESH); poll_fixture(BATCH, "v9-batch-1.json");
+    assert(scene.history.count == 4 && scene.history.down[3] == 9770);
+    uptime_ms += 60000;
+    app_on_load(); picked(BATCH, HOST_FAILED_NO_ANSWER, "");
+    assert(scene.history.count == 5 && scene.history.down[4] == KEENETIC_GAP);
+    int saved = writes;
+    app_on_load(); picked(BATCH, HOST_FAILED_NO_ANSWER, "");
+    assert(scene.history.count == 5 && writes == saved);
+    uptime_ms += 840000; /* Normal 15-minute spacing still splits at explicit failure. */
+    app_on_load(); app_on_alarm(REFRESH); poll_fixture(BATCH, "v9-batch-sample-b.json");
+    assert(scene.history.count == 6 && scene.history.down[4] == KEENETIC_GAP &&
+           scene.history.down[5] == 9434);
+    uptime_ms += 1800000; /* A missed interval without a failure callback. */
+    app_on_load(); app_on_alarm(REFRESH); poll_fixture(BATCH, "v9-batch-1.json");
+    assert(scene.history.count == 8 && scene.history.down[6] == KEENETIC_GAP &&
+           scene.history.down[7] == 9770);
+    app_on_load(); in_scene = true; app_on_focus();
+    assert(scene.history.count == 8 && scene.history.down[7] == 9770);
+    standin_restart(); uptime_ms = 0;
+    app_on_load(); in_scene = true; app_on_focus();
+    assert(scene.history.count == 9 && scene.history.down[7] == 9770 &&
+           scene.history.down[8] == KEENETIC_GAP);
+    poll_fixture(BATCH, "v9-batch-sample-a.json");
+    assert(scene.history.count == 10 && scene.history.down[9] == 9294);
+    uptime_ms = saved_uptime;
+    puts("keenetic: old snapshot, background point, cold open and reboot keep real points with gaps");
+}
+static void corrupt_history(void)
+{
+    logged_in(true);
+    poll_fixture(BATCH, "v9-batch-1.json");
+    checkpoint_t good;
+    int32_t length = kv_get("snapshot", 8, &good, sizeof good);
+    assert(length > (int32_t)offsetof(checkpoint_t, samples));
+    standin_forget_session();
+    for (int i = 0; i < 7; i++) {
+        checkpoint_t broken = good;
+        int32_t bytes = length;
+        if (i == 0) broken.snapshot.saved_at = INT64_MIN;
+        if (i == 1) broken.snapshot.saved_at = time_uptime_ms() / 1000 + 1;
+        if (i == 2 || i == 3) memset(broken.snapshot.reading.wan, 'w', sizeof broken.snapshot.reading.wan);
+        if (i == 3) { broken.snapshot.version = 4; bytes = sizeof(snapshot_t); }
+        if (i == 4) broken.flags = 4;
+        if (i == 5) bytes = offsetof(checkpoint_t, samples); /* Baseline with zero records. */
+        if (i == 6) broken.last_ms = time_uptime_ms() + 1;
+        assert(kv_set("snapshot", 8, &broken, bytes) == HOST_OK);
+        app_on_load();
+        assert(!scene.snapshot.has_data && scene.history.count == 0 && !scene.history.baseline);
+    }
+}
+
 static void graph_history(void)
 {
     int64_t prior_uptime = uptime_ms;
@@ -512,17 +581,26 @@ static void graph_history(void)
     assert(scene.down >= 0 && scene.history.count == 2);
     uptime_ms += 900000; poll_fixture(BATCH, "v9-batch-sample-b.json"); interface_fixture();
     assert(scene.history.count == 4 && scene.history.down[2] == KEENETIC_GAP && scene.down == 9434);
-    standin_forget_session(); app_on_load(); app_on_focus();
-    assert(scene.down == 9434 && scene.history.count == 0); /* Cached numbers, no cached chart sample. */
-    poll_fixture(BATCH, "v9-batch-sample-b.json");
-    assert(scene.history.count == 1);
+    app_on_blur(); in_scene = false; standin_forget_session(); app_on_load();
+    in_scene = true; app_on_focus();
+    assert(scene.down == 9434 && scene.history.count == 4 && scene.history.down[3] == 9434);
     before = writes;
-    uptime_ms = scene.snapshot.saved_at * 1000 + 899000; app_on_button(BTN_OK_PRESSED); poll_fixture(BATCH, "v9-batch-sample-b.json");
+    app_on_draw();
+    assert(writes == before); /* Opening and painting the saved graph writes nothing. */
+    poll_fixture(BATCH, "v9-batch-sample-b.json");
+    assert(scene.history.count == 4 && writes == before);
+    uptime_ms = scene.snapshot.saved_at * 1000 + 899000;
+    app_on_button(BTN_OK_PRESSED); poll_fixture(BATCH, "v9-batch-sample-b.json");
     assert(writes == before);
     uptime_ms += 1000; app_on_button(BTN_OK_PRESSED); poll_fixture(BATCH, "v9-batch-sample-b.json");
     assert(writes == before + 1);
+    setting("every", "5 min");
+    app_on_settings(); assert(scene.history.count == 6); /* Same router and WAN. */
+    setting("wan", "OtherWan");
     app_on_settings();
     assert(scene.history.count == 0 && scene.down == -1 && !scene.history.baseline);
+    standin_forget_session(); app_on_load();
+    assert(!scene.snapshot.has_data && scene.history.count == 0);
     uptime_ms = prior_uptime;
     puts("keenetic: 30-point history, time-spaced samples, gaps, restore and checkpoint bounds passed");
 }
@@ -643,6 +721,17 @@ static void bounds(void)
     longest[31] = 'a';
     setting("every", "15 min");
     longest[1] = '='; app_text_copy(cookie, sizeof cookie, longest); assert(kv_set("session", 7, cookie, (int32_t)strlen(cookie)) == HOST_OK);
+    scene.history_source = settings_identity(3);
+    for (int i = 0; i < KEENETIC_SAMPLES; i++) keenetic_history_add(&scene.history, 10000 + i, i);
+    save_checkpoint();
+    assert(!snapshot_dirty && scene.history.count == KEENETIC_SAMPLES);
+    scene.epoch = (int32_t)settings_identity(5);
+    assert(app_session_save(&scene, sizeof scene));
+    app_on_load(); app_on_focus();
+    assert(scene.history.count == KEENETIC_SAMPLES); /* Same revision, fuller in-stack copy. */
+    standin_forget_session(); app_on_load();
+    assert(scene.history.count > 0 && scene.history.count < KEENETIC_SAMPLES);
+    assert(scene.history.down[scene.history.count - 1] == 10000 + KEENETIC_SAMPLES - 1);
     assert(standin_store_bytes() <= HOST_KV_TOTAL_MAX);
     printf("keenetic: maximum valid settings + 255-byte session + control + snapshot: %d/%d store bytes\n", standin_store_bytes(), HOST_KV_TOTAL_MAX);
     printf("keenetic: scene %zu bytes, reading %zu, snapshot %zu\n", sizeof scene, sizeof(keenetic_reading_t), sizeof(snapshot_t));
@@ -1169,6 +1258,6 @@ int main(void)
     chart_neighbours(); refresh_phase(); optional_rates();
     restart_login(); detail_failures(); long_host_cut(); network_variants();
     network_delivery_order(); network_loading(); device_two_lines(); live_v9(); system_temperatures(); protocol(); background(); interface_settings(); router_rates(); bounds(); stream_failures();
-    hash_vectors(); input_boundaries(); graph_history(); four_pages(); list_navigation(); host_lists();
+    hash_vectors(); input_boundaries(); graph_history(); cold_history(); corrupt_history(); four_pages(); list_navigation(); host_lists();
     return 0;
 }

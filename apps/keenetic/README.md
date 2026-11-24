@@ -2,6 +2,8 @@
 
 A four-screen dashboard for Keenetic 5.01: Traffic, System, Network and Devices.
 English and Russian work with Departure Mono and Jersey fonts.
+Version 0.4.10 requires Perinkpheral OS 0.1.95 or later. Failure and offline
+scenarios can exhaust the interpreter arena on earlier firmware.
 
 Set Router address, Username, Password, Refresh and WAN interface (default
 `PPPoE0`). WAN port and radios accepts one to three interface names: the WAN
@@ -17,12 +19,19 @@ scrolls three devices and stops at the ends. OK refreshes; BACK uses OS navigati
 
 Traffic displays the router's `rxspeed`/`txspeed` in Mbit/s and occupied conntrack
 slots. A rate appears on the first successful answer; reopening displays the
-last cached rate while refreshing; missing rates show `-` independently. The chart
-starts with live data. Its common-scale fill joins adjacent valid samples; an
-isolated sample is a dot. The chart retains up to 30 observations, at most one
-per selected refresh interval. Page changes
-and repeated OK presses update the numbers without compressing the chart's
-sample spacing. Failed or substantially late observations create gaps.
+last cached rate and recent traffic points while refreshing; missing rates
+show `-` independently. The chart's common-scale fill joins adjacent valid
+samples. An isolated sample is a dot. It retains up to 30 observations from
+the configured router, username and WAN, including real samples from the
+existing 15-minute background reads. Page changes and repeated OK presses
+update the numbers without compressing the selected sample spacing. Failed
+or substantially late observations and restarts break the line. Foreground
+gaps use 2.5 times the selected interval. Consecutive background reads at
+15-minute cadence join, with a gap when a background interval is missed.
+The horizontal spacing represents observation order. A gap separates
+foreground and background observations when the interval is too long for
+the foreground cadence. On upgrade an older snapshot can supply one real
+pair of rates.
 
 System shows CPU, RAM, uptime in hours and the higher available radio temperature.
 Network shows interface, Internet reachability, WAN address, gateway, DNS, WAN
@@ -49,8 +58,11 @@ preserves an existing authentication refusal. Refused session saves are logged.
 
 Only GET/POST `/auth` uses `http_send`; reads use four manifest polls: the
 system/stat/Internet/DNS batch, selected WAN, carrier/radios and hotspot list.
-The cookie is stored only when it changes. Non-secret snapshots are checkpointed
-at most every 15 minutes. Passwords, cookies and login bodies are not logged.
+The cookie is stored only when it changes. Non-secret readings and history
+share a checkpoint at the first reading and every 15 minutes of successful
+reads, or when leaving a scene with uncheckpointed graph changes. Very long
+settings can leave room for fewer historical points in the shared store, in
+which case the newest are kept. Passwords, cookies and login bodies are not logged.
 HTTPS uses SDK certificate validation.
 
 Hotspot columns share the SDK's 8192-byte list buffer. The application stops
