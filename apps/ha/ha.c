@@ -30,6 +30,36 @@
 #include "host_api.h"
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
+/* The poller paces scheduled requests; explicit refreshes share its server cooldown.
+ * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
+typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
+static cooldown_t cooldown, saved_cooldown;
+
+static void save_cooldown(void)
+{
+    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
+        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
+}
+
+static void load_cooldown(void)
+{
+    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown ||
+        cooldown.boot != time_boot_id()) { cooldown = (cooldown_t){ .boot = time_boot_id() }; }
+    saved_cooldown = cooldown;
+}
+
+static void receive_cooldown(int32_t status)
+{
+    host_answer_info_t info = {0};
+    answer_info(&info, sizeof info);
+    int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
+    if (delay > 0) {
+        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
+        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
+    }
+    save_cooldown();
+}
+
 /* The request tag follows the pairing even across an unload. */
 static uint32_t pairing(void)
 {
@@ -135,6 +165,12 @@ static bool asked_by_press;
  * token are Perinkpheral OS's to put into the request. */
 static void ask(void)
 {
+    save_cooldown();
+    if (time_uptime_ms() < cooldown.retry_at) {
+        asked_by_press = false;
+        current_page = shown_page;
+        return;
+    }
     if (!focused) { restore_page(); }
     last_ask_ms = time_uptime_ms();
     follow_pairing();
@@ -207,6 +243,8 @@ static void accept_answer(void)
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
                  int32_t http_status)
 {
+    /* A superseded page's refusal still paces the application's requests. */
+    if (flags & (HOST_DATA_FIRST | HOST_DATA_FAILED)) { receive_cooldown(http_status); }
     /* The OS discards manifest-poll replies invalidated by a settings change. */
     if (request == 0 && (!source_ready || source.pairing != pairing())) { follow_pairing(); }
     if (!source_ready || source.pairing != pairing() || (request != 0 && request != request_screen())) {
@@ -244,6 +282,7 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 
 void app_on_load(void)
 {
+    load_cooldown();
     focused = false;
     current_page = page_count = shown_page = 1;
     last_ask_ms = -1;

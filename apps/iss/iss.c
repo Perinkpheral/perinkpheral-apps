@@ -11,6 +11,36 @@
 #include "orbit.h"
 #include "strings.h"
 
+/* The poller paces scheduled requests; explicit refreshes share its server cooldown.
+ * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
+typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
+static cooldown_t cooldown, saved_cooldown;
+
+static void save_cooldown(void)
+{
+    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
+        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
+}
+
+static void load_cooldown(void)
+{
+    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown ||
+        cooldown.boot != time_boot_id()) { cooldown = (cooldown_t){ .boot = time_boot_id() }; }
+    saved_cooldown = cooldown;
+}
+
+static void receive_cooldown(int32_t status)
+{
+    host_answer_info_t info = {0};
+    answer_info(&info, sizeof info);
+    int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
+    if (delay > 0) {
+        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
+        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
+    }
+    save_cooldown();
+}
+
 enum {
     VERSION = 2, SECONDS_PER_MINUTE = 60,
     ALTITUDE_DECIMALS = 3, MAX_ALTITUDE_METERS = 2000000,
@@ -47,6 +77,7 @@ static bool restore_state(state_t *saved)
 
 void app_on_load(void)
 {
+    load_cooldown();
     if ((!app_state_load("state", &state, sizeof state, VERSION) &&
          !app_state_load("state", &state, sizeof state, 1)) || !restore_state(&state)) {
         state = (state_t){ .version = VERSION, .unused = { 0, 0x495353 } };
@@ -78,12 +109,16 @@ void app_on_blur(void)
 
 void app_on_button(int32_t event)
 {
-    if (event == BTN_OK_PRESSED) { poll_run(0); }
+    if (event == BTN_OK_PRESSED) {
+        save_cooldown();
+        if (time_uptime_ms() >= cooldown.retry_at) { poll_run(0); }
+    }
 }
 
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request) { return; }
+    receive_cooldown(http_status);
     app_on_focus(); /* Background replies also follow the latest unsaved scene. */
     state_t fresh = state;
     int32_t previous_status = state.status;
@@ -121,6 +156,7 @@ void app_on_picked(int32_t request, int32_t http_status)
 
 void app_on_terminate(void)
 {
+    save_cooldown();
     if (state_dirty && app_state_save("state", &state, sizeof state)) {
         saved_minute = state.minute;
         saved_status = state.status;

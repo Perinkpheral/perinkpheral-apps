@@ -4,13 +4,13 @@
     {
       "name": "air",
       "title": "Air quality",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6957,
-          "sha256": "c77e064dc08a9b73a7c39c414fac10c26ca667708b9424dd5bb53631e728db0c"
+          "size": 7430,
+          "sha256": "dafb8306d1d373af9296b902257cbb683f1f1db19c4ca25d2b6c8f383d7d391e"
         },
         {
           "name": "manifest.ru",
@@ -25,7 +25,7 @@
         {
           "name": "manifest.json",
           "size": 2179,
-          "sha256": "3f1082539a82172c74bd043730d4a8826e98431f48167692b7e6de265d9360a0"
+          "sha256": "ff9120f779f24b09a193aa5a5b21fad395e7d54375883feb8e8e7c4cd00df63e"
         }
       ],
       "author": "Perinkpheral",
@@ -256,13 +256,13 @@
     {
       "name": "ha",
       "title": "HA Companion",
-      "version": "0.4.8",
+      "version": "0.4.9",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 9398,
-          "sha256": "0515d469df5e6f6d6df234062767644902a504cfc1760d4477fe41ed16c06418"
+          "size": 9904,
+          "sha256": "99abcef70b79b9cf767e72c1f686232a425c9773320dc24fba3bdf37c529184c"
         },
         {
           "name": "manifest.ru",
@@ -277,7 +277,7 @@
         {
           "name": "manifest.json",
           "size": 1227,
-          "sha256": "ff3bbf5124f39108fb1c424ab7017fceee827ec1c35e8d123e4cd1b351ef57b4"
+          "sha256": "5cff70b959c46babfb334b3380b46cb72346ac868cfe61e7b46a477a23d7ab11"
         }
       ],
       "author": "Perinkpheral",
@@ -305,13 +305,13 @@
     {
       "name": "iss",
       "title": "ISS",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6983,
-          "sha256": "ace554785211d6c6f9775ddfc498fa684664ed60ff23b7e81fa9325632b56d0e"
+          "size": 7477,
+          "sha256": "9b2b7e77bc2cc513c23cfd333ad786c30d85af410f67cdc6789116d5268d9431"
         },
         {
           "name": "manifest.ru",
@@ -326,7 +326,7 @@
         {
           "name": "manifest.json",
           "size": 718,
-          "sha256": "ed045378f3d023eb5fb2a1f9877e13b20cdae623a932b42b4498fb7082ac2faa"
+          "sha256": "f81934c47d3a9c0cb6659f72fdff58a05fb24ef0a7dde6b4d18fbc4cfaaef678"
         }
       ],
       "author": "Perinkpheral",

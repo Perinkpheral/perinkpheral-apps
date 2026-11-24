@@ -45,6 +45,36 @@ static bool    state_unsaved; /* the store refused the last write of it */
 static int32_t status, saved_status;
 static bool urgent;
 
+/* The poller paces scheduled requests; explicit refreshes share its server cooldown.
+ * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
+typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
+static cooldown_t cooldown, saved_cooldown;
+
+static void save_cooldown(void)
+{
+    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
+        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
+}
+
+static void load_cooldown(void)
+{
+    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown ||
+        cooldown.boot != time_boot_id()) { cooldown = (cooldown_t){ .boot = time_boot_id() }; }
+    saved_cooldown = cooldown;
+}
+
+static void receive_cooldown(int32_t status)
+{
+    host_answer_info_t info = {0};
+    answer_info(&info, sizeof info);
+    int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
+    if (delay > 0) {
+        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
+        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
+    }
+    save_cooldown();
+}
+
 static const struct { int32_t name, icon; } IRRITANTS[AIR_IRRITANTS] = {
     [AIR_OZONE] = { STR_OZONE, HOST_ICON_GAS },
     [AIR_NO2] = { STR_NO2, HOST_ICON_GAS },
@@ -104,6 +134,7 @@ static const char *index_word(int32_t index, bool us)
 
 void app_on_load(void)
 {
+    load_cooldown();
     int32_t length = kv_get("state", 5, &state, sizeof state);
     if (length == offsetof(state_t, updated_at) && state.version == PREVIOUS_STATE_VERSION) {
         state.version = STATE_VERSION;
@@ -131,12 +162,16 @@ void app_on_settings(void)
 
 void app_on_button(int32_t event)
 {
-    if (event == BTN_OK_PRESSED) { urgent = true; poll_run(0); }
+    if (event == BTN_OK_PRESSED) {
+        save_cooldown();
+        if (time_uptime_ms() >= cooldown.retry_at) { urgent = true; poll_run(0); }
+    }
 }
 
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request != 0) { return; }
+    receive_cooldown(http_status);
     status = http_status;
     if (status >= 200 && status < 300 && place_set()) {
         state_t fresh = { .version = STATE_VERSION, .has_data = 1 };
