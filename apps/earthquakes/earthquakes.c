@@ -158,10 +158,9 @@ static void load_cache(void)
 }
 
 /* Remember each failed query-key write until that key is saved successfully. */
-static int32_t save_query(const char *key, int32_t key_length, const void *value, int32_t length)
+static void query_result(const char *key, int32_t result)
 {
     static const char *const KEYS[] = { "lat", "lon", "near", "end", "offset" };
-    int32_t result = kv_set(key, key_length, value, length);
     uint32_t before = query_unsaved;
     for (int32_t index = 0; index < 5; index++) {
         if (app_text_equal(key, KEYS[index])) {
@@ -170,6 +169,12 @@ static int32_t save_query(const char *key, int32_t key_length, const void *value
         }
     }
     if (before != query_unsaved) { screen_redraw(HOST_REDRAW_NORMAL); }
+}
+
+static int32_t save_query(const char *key, int32_t key_length, const void *value, int32_t length)
+{
+    int32_t result = kv_set(key, key_length, value, length);
+    query_result(key, result);
     return result;
 }
 
@@ -278,8 +283,13 @@ static void settings(void)
         const char *keys[] = { "lat", "lon" };
         int32_t values[] = { latitude, longitude };
         char raw[256];
-        for (int32_t i = 0; i < 2; i++) if (app_setting(keys[i], raw, sizeof raw) > 16) {
-            coordinate_text(raw, values[i]); save_query(keys[i], 3, raw, app_text_length(raw));
+        for (int32_t i = 0; i < 2; i++) {
+            if (app_setting(keys[i], raw, sizeof raw) > 16) {
+                coordinate_text(raw, values[i]); save_query(keys[i], 3, raw, app_text_length(raw));
+            } else {
+                /* The device page already saved this coordinate without needing normalization. */
+                query_result(keys[i], HOST_OK);
+            }
         }
     }
     radius_km = 1000; minimum = 30;

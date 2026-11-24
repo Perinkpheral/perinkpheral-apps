@@ -247,6 +247,30 @@ static void equal_time_history(void)
     }
     assert(shown_events()[shown_count()-1].time<reports[15].time);
 }
+static void recovered_coordinates(void)
+{
+    const char *keys[] = { "lat", "lon" };
+    const int32_t errors[] = { HOST_ERR_FAILED, HOST_ERR_NO_SPACE };
+    for (int32_t coordinate = 0; coordinate < 2; coordinate++) {
+        for (int32_t error = 0; error < 2; error++) {
+            setup();
+            standin_set(keys[coordinate], "37.010000000000000000");
+            standin()->refuse_writes = errors[error];
+            app_on_settings();
+            assert(query_unsaved & (1u << coordinate));
+            standin_draw();
+            assert(strstr(standin()->draw_text, "Storage error."));
+            standin()->refuse_writes = HOST_OK;
+            standin_set(keys[coordinate], "37.01");
+            app_on_settings();
+            feed(0, "near", 200);
+            assert(!query_unsaved && !cache_unsaved);
+            standin_draw();
+            assert(!strstr(standin()->draw_text, "Storage error."));
+        }
+    }
+}
+
 static void refused_state(void)
 {
     static const int32_t REFUSALS[] = { HOST_ERR_NO_SPACE, HOST_ERR_FAILED };
@@ -297,7 +321,7 @@ static void refused_state(void)
 
 int main(void)
 {
-    refused_state(); changing_equal_time_history(); equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
+    recovered_coordinates(); refused_state(); changing_equal_time_history(); equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
     puts("earthquakes: atomic extraction, nulls, failures, unchanged data, cache recovery and history");
     return 0;
 }

@@ -20,6 +20,15 @@ int main(void)
     uint64_t diagnostics = standin()->diagnostics;
     standin_refuse_session(HOST_ERR_NO_SPACE);
     app_on_blur();
+    assert(standin_refused_sessions() == 0);
+    assert(standin()->diagnostics == diagnostics);
+    app_on_load(); app_on_focus();
+    assert(!memcmp(&place, &before, sizeof place));
+    standin_forget_session();
+    app_on_load(); app_on_focus();
+    diagnostics = standin()->diagnostics;
+    standin_refuse_session(HOST_ERR_NO_SPACE);
+    app_on_blur();
     assert(standin_refused_sessions() == 1);
     assert(standin()->diagnostics != diagnostics);
     puts("space-launch: saved views resume and refused session allocation is diagnosed");
