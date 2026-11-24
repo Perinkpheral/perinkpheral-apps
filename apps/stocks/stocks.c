@@ -116,6 +116,13 @@ static state_t saved;
 static quote_t quote;   /* the record of state.index */
 static int32_t loaded = -1;
 
+static void save_preferences(void)
+{
+    if (state.rotating == saved.rotating) { return; }
+    state_t preferences = { .version = STATE_VERSION, .rotating = state.rotating };
+    if (app_state_save(STATE_KEY, &preferences, sizeof preferences)) { saved = preferences; }
+}
+
 static int32_t ticker_count(void)
 {
     int32_t count = app_setting_count(TICKERS);
@@ -209,17 +216,13 @@ void app_on_load(void)
     if (!app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION)) {
         state = (state_t){ .version = STATE_VERSION };
     }
+    state.index = 0; /* Selection belongs to the scene, including for legacy records. */
     saved = state;
-    if (state.index >= ticker_count()) {
-        state.index = 0;
-    }
 }
 
 void app_on_terminate(void)
 {
-    if (state.index != saved.index || state.rotating != saved.rotating) {
-        if (app_state_save(STATE_KEY, &state, sizeof state)) { saved = state; }
-    }
+    save_preferences();
 }
 
 typedef struct { state_t state, saved; } scene_t;
@@ -270,7 +273,7 @@ void app_on_button(int32_t event)
     case BTN_OK_PRESSED:
         /* The user's choice is kept at once, so a power loss does not undo it. */
         state.rotating = !state.rotating;
-        if (app_state_save(STATE_KEY, &state, sizeof state)) { saved = state; }
+        save_preferences();
         update_header();
         break;
     default:

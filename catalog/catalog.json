@@ -505,13 +505,13 @@
     {
       "name": "metals",
       "title": "Bank of Russia metals",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 10570,
-          "sha256": "e62df8bf84453e7f04c66d3896b1c520186ea9262710611dcfeffcab22afdef9"
+          "size": 10855,
+          "sha256": "82d1556296920e6f843949b109abad400a5497af17dfd0f51cee532b03fa7591"
         },
         {
           "name": "manifest.ru",
@@ -531,7 +531,7 @@
         {
           "name": "manifest.json",
           "size": 818,
-          "sha256": "62654b2dd03939c62b6b9660f045cb7a71dc08f4de44d6a82a517d9eafb5b3e1"
+          "sha256": "2492c55b15e45be95f9b49c7bb45c36c539a9496095c3bced247d2d01baed0e6"
         }
       ],
       "author": "Perinkpheral",
@@ -613,13 +613,13 @@
     {
       "name": "rates",
       "title": "Exchange rates",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 14982,
-          "sha256": "0781aed1c1e973b6aa5b701b5462c56a42eeaa63904f91ced0ce7444148b5493"
+          "size": 15724,
+          "sha256": "08c10e52fad37fb4bdb730bd5897c6e47be3c61c6f1b711c4cd018daca1432bd"
         },
         {
           "name": "manifest.ru",
@@ -638,8 +638,8 @@
         },
         {
           "name": "manifest.json",
-          "size": 1288,
-          "sha256": "19575f65e19da2bd07671d1cc1e81d339b70008dfec3c6407ff16933265c9374"
+          "size": 1340,
+          "sha256": "af10c6b7232721e4161542121645ce4a161ae57711ebf696382538409f414e7d"
         }
       ],
       "author": "Perinkpheral",
@@ -728,13 +728,13 @@
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.15",
+      "version": "0.2.16",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 9212,
-          "sha256": "b3073626020727b04e1911e3147a8771a4b4aa746b294fe96d10a979e92fcf6e"
+          "size": 9145,
+          "sha256": "3d8ff6af543fb1d6cac7a97b2b3175d53f7b801c2b6bf51ed1796b3b882197f6"
         },
         {
           "name": "manifest.ru",
@@ -749,7 +749,7 @@
         {
           "name": "manifest.json",
           "size": 2799,
-          "sha256": "ba08a9d2520e1a05acf712134d99f91046409311810950bb466b63c16f9b78a0"
+          "sha256": "2c9d7bc3d6feef0d2e440693e33e6ec861d4c113c8ab90a349fc9e19302d59bb"
         }
       ],
       "author": "Perinkpheral",
@@ -929,13 +929,13 @@
     {
       "name": "weather",
       "title": "Weather",
-      "version": "0.2.19",
+      "version": "0.2.20",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6775,
-          "sha256": "6bcb0bcda73c704501bf5253904ab19cbff36e046feff3f71edc5bb541e903e7"
+          "size": 7412,
+          "sha256": "da8610598bb3f7743e10d96d677f95a1d46afe51e4cbbe2706b50307708d1fa1"
         },
         {
           "name": "manifest.ru",
@@ -950,7 +950,7 @@
         {
           "name": "manifest.json",
           "size": 2040,
-          "sha256": "b1b968dfee601bc693494f733a0c33e0c0d1344ce33b7084ec48f8c46d369d1d"
+          "sha256": "b2365e2382c7b9a76258dfe83eaa4b3a137ea9ee6b1c7a60bf1d17cdb26654b0"
         }
       ],
       "author": "Perinkpheral",

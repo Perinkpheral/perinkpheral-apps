@@ -47,6 +47,8 @@ typedef struct {
     day_t days[DAYS_MAX]; /* oldest first */
 } month_t;
 
+typedef struct { uint32_t boot; int64_t pending_until, retry_at; } request_t;
+
 typedef struct {
     int32_t metal;
     int32_t configured;
@@ -56,18 +58,19 @@ typedef struct {
     month_t unsaved_month;
     uint32_t saved_hash;
     bool unsaved;
+    request_t request;
 } session_t;
 APP_SESSION_FITS(session_t);
 _Static_assert(sizeof(month_t) <= HOST_KV_VALUE_MAX, "the month fits one store value");
 
 static month_t month;
 static bool    month_unsaved; /* the store refused the last write of it */
+static bool    recovery_restored;
 static month_t incoming;
 static session_t session;
 static int32_t status;
 static bool pending;
 static uint32_t saved_month_hash;
-typedef struct { uint32_t boot; int64_t pending_until, retry_at; } request_t;
 static request_t request, saved_request;
 static void save_request(void)
 {
@@ -92,16 +95,23 @@ static void save_month(void)
 }
 static void restore_month(void)
 {
+    if (recovery_restored) { return; }
+    recovery_restored = true;
     session_t live;
-    if (app_session_load(&live, sizeof live) && live.unsaved && live.saved_hash == saved_month_hash) {
+    if (!app_session_load(&live, sizeof live)) { return; }
+    if (live.request.boot == request.boot && live.request.retry_at > request.retry_at) {
+        request.retry_at = live.request.retry_at;
+        save_request();
+    }
+    if (live.unsaved && live.saved_hash == saved_month_hash) {
         month = live.unsaved_month;
         month_unsaved = true;
     }
 }
 static void end_request(int32_t http_status)
 {
-    /* Keep the durable lease until it expires: a background completion cannot
-     * update the sleeping scene, and need not write flash to clear a guard. */
+    /* Keep the durable lease to avoid writing flash on every identical answer.
+     * The live instance and its session know that the request completed. */
     if (http_status == 429) {
         request.pending_until = 0;
         host_answer_info_t info = {0};
@@ -340,6 +350,7 @@ static void add_date(app_text_t *text, int32_t date)
 
 static void ask(void)
 {
+    restore_month();
     int64_t uptime = time_uptime_ms();
     if ((pending && uptime < request.pending_until) || uptime < request.retry_at) { return; }
     pending = false;
@@ -369,12 +380,15 @@ static void ask(void)
 
 void app_on_load(void)
 {
+    scan = (scanner_t){0};
+    status = 0;
     if (!app_state_load(STATE_KEY, &month, sizeof month, STATE_VERSION) ||
         month.count < 0 || month.count > DAYS_MAX) {
         month = (month_t){ .version = STATE_VERSION };
     }
     saved_month_hash = month_hash();
     month_unsaved = false;
+    recovery_restored = false;
     if (kv_get("request", 7, &request, sizeof request) != sizeof request || request.boot != time_boot_id()) {
         request = (request_t){ .boot = time_boot_id() };
     }
@@ -394,8 +408,6 @@ void app_on_intent(int32_t intent)
 void app_on_alarm(int32_t id)
 {
     if (id == ALARM) {
-        /* A periodic refresh supersedes an abandoned raw GET. */
-        pending = false;
         ask();
     }
 }
@@ -406,7 +418,9 @@ void app_on_focus(void)
     bool restored = app_session_load(&session, sizeof session);
     if (restored) {
         status = session.status;
-        if (session.request_lease == request.pending_until) { pending = session.request_pending; }
+        if (session.request_lease == request.pending_until) {
+            pending = session.request_pending && time_uptime_ms() < request.pending_until;
+        }
     }
     if (!restored || session.configured != configured ||
         session.metal < 0 || session.metal >= METALS) {
@@ -421,9 +435,11 @@ void app_on_focus(void)
 void app_on_blur(void)
 {
     save_month();
+    save_request();
     session.status = status;
     session.request_lease = request.pending_until;
     session.request_pending = pending;
+    session.request = request;
     session.unsaved = month_unsaved;
     session.saved_hash = saved_month_hash;
     if (month_unsaved) { session.unsaved_month = month; }
@@ -433,7 +449,16 @@ void app_on_blur(void)
     }
 }
 
-void app_on_terminate(void) { save_month(); }
+void app_on_terminate(void)
+{
+    if (scan.active) {
+        /* The OS drops a raw response interrupted by unloading this parser. */
+        request.pending_until = 0;
+        pending = false;
+    }
+    save_month();
+    save_request();
+}
 
 void app_on_settings(void)
 {
@@ -456,11 +481,12 @@ void app_on_button(int32_t event)
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 
-void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
+void app_on_data(int32_t tag, const uint8_t *data, int32_t length, int32_t flags, int32_t http_status)
 {
-    if (request != REQUEST) { return; }
+    if (tag != REQUEST) { return; }
     restore_month();
     if (flags & HOST_DATA_FAILED) {
+        if (scan.active) { request.pending_until = 0; }
         scan.active = false;
         incoming = (month_t){ .version = STATE_VERSION };
         end_request(http_status);

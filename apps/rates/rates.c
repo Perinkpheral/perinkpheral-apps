@@ -50,6 +50,10 @@ static const char HISTORY_FILE[] = "history";
 #define ROTATE_TIMER 0
 #define HISTORY_VERSION 1
 #define SNAPSHOT_VERSION 2
+#define HISTORY_ALARM 0
+#define HISTORY_LEASE_MS 330000
+typedef struct { uint32_t boot; int64_t retry_at[CURRENCIES_MAX]; } history_requests_t;
+static history_requests_t history_requests, saved_history_requests;
 static void request_histories(void);
 static void load_chart(void);
 
@@ -121,6 +125,14 @@ static bool same_bytes(const void *first, const void *second, size_t length)
     for (size_t byte = 0; byte < length; byte++) {
         if (left[byte] != right[byte]) return false;
     }
+    return true;
+}
+
+static bool save_history_requests(void)
+{
+    if (same_bytes(&history_requests, &saved_history_requests, sizeof history_requests)) return true;
+    if (!app_state_save("requests", &history_requests, sizeof history_requests)) return false;
+    saved_history_requests = history_requests;
     return true;
 }
 
@@ -222,6 +234,7 @@ static void request_histories(void)
 {
     int32_t day = history_day(state.date, true);
     if (!day) return;
+    int64_t now = time_uptime_ms(), next = 0;
     for (int32_t index = 0; index < currency_count(); ++index) {
         const rate_t *rate = rate_for(index);
         if (!rate || !rate->nominal || !history_valid_id(rate->id)) continue;
@@ -229,6 +242,11 @@ static void request_histories(void)
         read_history(index, &previous);
         if (history_matches(&previous, rate) &&
             previous.history.count && previous.history.as_of >= day) continue;
+        int64_t *retry_at = &history_requests.retry_at[index];
+        if (*retry_at > now) {
+            if (!next || *retry_at < next) next = *retry_at;
+            continue;
+        }
         char url[192];
         app_text_t text;
         start_text(&text, url, sizeof url);
@@ -237,7 +255,23 @@ static void request_histories(void)
         app_text_add(&text, "&date_req2=");
         append_date(&text, day);
         add_pair(&text, "&VAL_NM_RQ=", rate->id);
-        http_send(HOST_REQUEST_FIRST + index, HOST_HTTP_GET, url, app_text_length(url), "", 0, "", 0);
+        /* A persisted lease covers queued and interrupted raw GETs across unloads. */
+        *retry_at = now + HISTORY_LEASE_MS;
+        if (!save_history_requests()) {
+            *retry_at = 0; /* No request was queued; a later handler may retry the refused save. */
+            if (!next || now + 60000 < next) next = now + 60000;
+            continue;
+        }
+        if (http_send(HOST_REQUEST_FIRST + index, HOST_HTTP_GET, url, app_text_length(url), "", 0, "", 0) != HOST_OK) {
+            *retry_at = now + 60000;
+            save_history_requests();
+        }
+        if (!next || *retry_at < next) next = *retry_at;
+    }
+    int32_t seconds = next ? (int32_t)((next - now + 999) / 1000) : 0;
+    if (alarm_set(HISTORY_ALARM, seconds) != HOST_OK) {
+        static const char message[] = "Could not schedule history retry";
+        log_write(HOST_LOG_WARN, message, sizeof message - 1);
     }
 }
 
@@ -292,10 +326,17 @@ void app_on_load(void)
     navigation = (navigation_t){0};
     if (kv_get("rotating", 8, &rotating, sizeof rotating) != sizeof rotating) rotating = 0;
     saved_rotating = rotating;
+    if (kv_get("requests", 8, &history_requests, sizeof history_requests) != sizeof history_requests ||
+        history_requests.boot != time_boot_id()) {
+        history_requests = (history_requests_t){ .boot = time_boot_id() };
+    }
+    saved_history_requests = history_requests;
+    history_reading = false;
 }
 
 void app_on_terminate(void)
 {
+    save_history_requests();
     if (rotating != saved_rotating && app_state_save("rotating", &rotating, sizeof rotating)) {
         saved_rotating = rotating;
     }
@@ -305,6 +346,17 @@ void app_on_terminate(void)
 void app_on_updated(void)
 {
     kv_set("navigation", 10, NULL, 0);
+    request_histories();
+}
+
+void app_on_intent(int32_t intent)
+{
+    if (intent == HOST_INTENT_STARTED || intent == HOST_INTENT_NETWORK_UP) request_histories();
+}
+
+void app_on_alarm(int32_t id)
+{
+    if (id == HISTORY_ALARM) request_histories();
 }
 
 void app_on_focus(void)
@@ -318,6 +370,7 @@ void app_on_focus(void)
     load_chart();
     update_header();
     update_rotation(false);
+    request_histories();
 }
 
 void app_on_blur(void)
@@ -398,6 +451,17 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 {
     if (request >= HOST_REQUEST_FIRST && request < HOST_REQUEST_FIRST + CURRENCIES_MAX) {
         history_answer(data, length, flags, http_status);
+        if (flags & (HOST_DATA_LAST | HOST_DATA_FAILED)) {
+            int32_t delay = 60;
+            if (http_status == 429) {
+                host_answer_info_t info = {0};
+                answer_info(&info, sizeof info);
+                if (info.retry_after > 0) delay = info.retry_after;
+            }
+            history_requests.retry_at[request - HOST_REQUEST_FIRST] = time_uptime_ms() + (int64_t)delay * 1000;
+            save_history_requests();
+            request_histories();
+        }
         return;
     }
     if (request != 0) return;
