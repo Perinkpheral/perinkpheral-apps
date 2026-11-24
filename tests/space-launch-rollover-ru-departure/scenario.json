@@ -1,0 +1,29 @@
+{
+  "app": "apps/space-launch",
+  "at": 1798760880,
+  "tz": "UTC",
+  "language": "ru",
+  "font": "departure",
+  "glyphs": "glyphs",
+  "mocks": "../fixtures/space-launch/final-review.json",
+  "steps": [
+    "wait 2",
+    "press 2",
+    "shot launch-unknown",
+    "press 4",
+    "forward 300",
+    "wait 1",
+    "forward 300",
+    "wait 1",
+    "forward 600",
+    "wait 2",
+    "press 3L 3L",
+    "press 1",
+    "shot months-incomplete",
+    "press 3L",
+    "press 1",
+    "shot history-incomplete",
+    "press 1",
+    "shot history-2025"
+  ]
+}

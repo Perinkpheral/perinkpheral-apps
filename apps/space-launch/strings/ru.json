@@ -46,5 +46,6 @@
   "please_wait": "Подождите",
   "retry_later": "Повторим позже",
   "no_data": "Нет данных",
-  "month_width": "июл"
+  "month_width": "июл",
+  "incomplete": "{0}: Неполные данные"
 }

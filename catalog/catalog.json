@@ -672,13 +672,13 @@
     {
       "name": "space-launch",
       "title": "Space Launch",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 18361,
-          "sha256": "417f3b795170b26741098fdcf02b709363d250c543d4cdf2fc2c3b5f71b527ba"
+          "size": 18481,
+          "sha256": "e29424494860e00ca8a0799101f91ab9b1f8b962853a0806ba5b23c09954f12d"
         },
         {
           "name": "history.bin",
@@ -692,13 +692,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 884,
-          "sha256": "a4faeb5b658e13cd7c3d0d607c39a32be8bd63503f83a87c90da4934f69ee41f"
+          "size": 921,
+          "sha256": "91b13d6fe57d11cd06479c8e1b1ac70186e81a23f21069a2f737e8001c88c041"
         },
         {
           "name": "manifest.json",
           "size": 2644,
-          "sha256": "138aa6d3d7064f34071083c0e8290251ecb781d267263e01702662184ef4bab9"
+          "sha256": "0cdecd3ead95afe4edff328a9d677abf38d7e123e2d09bef66100b068da9927c"
         }
       ],
       "author": "Perinkpheral",

@@ -1,17 +1,17 @@
 {
   "date": "2026-11-24",
-  "app_version": "0.1.1",
+  "app_version": "0.1.2",
   "firmware_minimum": "0.1.95",
   "module": {
-    "sha256": "417f3b795170b26741098fdcf02b709363d250c543d4cdf2fc2c3b5f71b527ba",
-    "bytes": 18361,
-    "code_section_bytes": 15624
+    "sha256": "e29424494860e00ca8a0799101f91ab9b1f8b962853a0806ba5b23c09954f12d",
+    "bytes": 18481,
+    "code_section_bytes": 15677
   },
   "sources": {
-    "apps/space-launch/launch.c": "c96e1445c49e3d260e560eaf5bef3162dbc7a3c0463b0c7a83faa06c8f979b89",
-    "apps/space-launch/manifest.json": "138aa6d3d7064f34071083c0e8290251ecb781d267263e01702662184ef4bab9",
-    "apps/space-launch/strings/en.json": "111d6d1248b607f3e83c81bc7a9a0ea13165e37435d310ac2d104dd4be1ad574",
-    "apps/space-launch/strings/ru.json": "e3ab055ac6d6442b806c5360e92663a259aeca7568e0c3728511386b65481d8a"
+    "apps/space-launch/launch.c": "0e04fa3a088b1e18b1c0ea50fffaa09bca220f3a78f6e62dda85e7721ee46daf",
+    "apps/space-launch/manifest.json": "0cdecd3ead95afe4edff328a9d677abf38d7e123e2d09bef66100b068da9927c",
+    "apps/space-launch/strings/en.json": "35088243aeba1ab6de652a0b4f25c14ca73ae518af864a6bf423dcfaef4a2513",
+    "apps/space-launch/strings/ru.json": "5c57b7c6ab24225a038521ac85bd6a90db6d9fc62e70994bd72a3a650820caab"
   },
   "harness": {
     "commit": "26f42ed4dacf324db2fe3eb91112c21abf7c9717",
@@ -26,160 +26,208 @@
     "native_stack_limit_bytes": 6144
   },
   "sdk": {
-    "source_head": "8d7b24732d086523f072744cffb287fb2e8fb3c0",
+    "source_head": "3dde7efb74fb629028604b0f3070296f70e7d3b4",
     "checkout_version": "0.1.96",
-    "note": "Application built with the unmodified current SDK; no VERSION metadata or capability checks changed. The resulting Wasm was measured directly with the existing 32-bit QEMU harness."
+    "note": "Built and checked with the unmodified current SDK. The exact catalog Wasm was measured with the existing 32-bit QEMU harness."
   },
   "runtime": {
-    "peak_interpreter_bytes": 73508,
+    "peak_interpreter_bytes": 73540,
     "limit_bytes": 73728,
-    "remaining_interpreter_bytes": 8412,
+    "remaining_interpreter_bytes": 8380,
     "allocation_failures": 0,
     "scenarios": [
       {
         "scenario": "space-launch-background-measure",
-        "combined_peak_bytes": 139016,
-        "interpreter_peak_bytes": 73480,
+        "combined_peak_bytes": 139048,
+        "interpreter_peak_bytes": 73512,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-empty-measure",
-        "combined_peak_bytes": 128496,
-        "interpreter_peak_bytes": 62960,
+        "combined_peak_bytes": 129040,
+        "interpreter_peak_bytes": 63504,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-en-departure",
-        "combined_peak_bytes": 139016,
-        "interpreter_peak_bytes": 73480,
+        "combined_peak_bytes": 139048,
+        "interpreter_peak_bytes": 73512,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-en-jersey",
-        "combined_peak_bytes": 139016,
-        "interpreter_peak_bytes": 73480,
+        "combined_peak_bytes": 139048,
+        "interpreter_peak_bytes": 73512,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-offline-en-departure",
-        "combined_peak_bytes": 126820,
-        "interpreter_peak_bytes": 61284,
+        "combined_peak_bytes": 127364,
+        "interpreter_peak_bytes": 61828,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-offline-en-jersey",
+        "combined_peak_bytes": 127364,
+        "interpreter_peak_bytes": 61828,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-offline-ru-departure",
+        "combined_peak_bytes": 127364,
+        "interpreter_peak_bytes": 61828,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-offline-ru-jersey",
-        "combined_peak_bytes": 126820,
-        "interpreter_peak_bytes": 61284,
+        "combined_peak_bytes": 127364,
+        "interpreter_peak_bytes": 61828,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-reminder-en-departure",
-        "combined_peak_bytes": 129148,
-        "interpreter_peak_bytes": 63612,
+        "combined_peak_bytes": 128636,
+        "interpreter_peak_bytes": 63100,
         "allocation_failures": 0,
         "notifications": 1
       },
       {
         "scenario": "space-launch-reminder-ru-jersey",
-        "combined_peak_bytes": 129148,
-        "interpreter_peak_bytes": 63612,
+        "combined_peak_bytes": 128636,
+        "interpreter_peak_bytes": 63100,
         "allocation_failures": 0,
         "notifications": 1
       },
       {
         "scenario": "space-launch-retry-date-measure",
-        "combined_peak_bytes": 126872,
-        "interpreter_peak_bytes": 61336,
+        "combined_peak_bytes": 126888,
+        "interpreter_peak_bytes": 61352,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-retry-default-measure",
-        "combined_peak_bytes": 124048,
-        "interpreter_peak_bytes": 58512,
+        "combined_peak_bytes": 124064,
+        "interpreter_peak_bytes": 58528,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-rollover-en-departure",
+        "combined_peak_bytes": 139032,
+        "interpreter_peak_bytes": 73496,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-rollover-en-jersey",
+        "combined_peak_bytes": 139032,
+        "interpreter_peak_bytes": 73496,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-rollover-ru-departure",
+        "combined_peak_bytes": 139032,
+        "interpreter_peak_bytes": 73496,
+        "allocation_failures": 0,
+        "notifications": 0
+      },
+      {
+        "scenario": "space-launch-rollover-ru-jersey",
+        "combined_peak_bytes": 139032,
+        "interpreter_peak_bytes": 73496,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-ru-departure",
-        "combined_peak_bytes": 139016,
-        "interpreter_peak_bytes": 73480,
+        "combined_peak_bytes": 139048,
+        "interpreter_peak_bytes": 73512,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-ru-jersey",
-        "combined_peak_bytes": 139016,
-        "interpreter_peak_bytes": 73480,
+        "combined_peak_bytes": 139048,
+        "interpreter_peak_bytes": 73512,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-throttled-en-departure",
-        "combined_peak_bytes": 124612,
-        "interpreter_peak_bytes": 59076,
+        "combined_peak_bytes": 124628,
+        "interpreter_peak_bytes": 59092,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-unknown-measure",
-        "combined_peak_bytes": 139016,
-        "interpreter_peak_bytes": 73480,
+        "combined_peak_bytes": 139048,
+        "interpreter_peak_bytes": 73512,
         "allocation_failures": 0,
         "notifications": 0
       },
       {
         "scenario": "space-launch-warm-reminder-measure",
-        "combined_peak_bytes": 139044,
-        "interpreter_peak_bytes": 73508,
+        "combined_peak_bytes": 139076,
+        "interpreter_peak_bytes": 73540,
         "allocation_failures": 0,
         "notifications": 1
       }
     ],
-    "limit_headroom_bytes": 220
+    "limit_headroom_bytes": 188
   },
   "compile_all_probe": {
     "pointer_bytes": 4,
     "area_bytes": 147456,
-    "compile_peak": 139048,
-    "peak_with_scratch": 139048,
+    "compile_peak": 139076,
+    "peak_with_scratch": 139076,
     "failures": 0,
     "complete": true
   },
   "validation": {
-    "app_check": "19 applications, 124 checks, 0 failed using the unmodified SDK 0.1.96 app-check apps, including all nine Space Launch checks.",
+    "app_check": "19 applications, 128 checks, 0 failed using the unmodified SDK 0.1.96 app-check apps, including all 13 Space Launch checks. The eight Space Launch logic checks also passed again after the final test expansion.",
     "sim_test": {
-      "catalog_scenarios": 132,
-      "catalog_pictures": 435,
+      "catalog_scenarios": 138,
+      "catalog_pictures": 461,
       "catalog_failed": 0,
-      "final_space_launch_scenarios": 9,
-      "final_space_launch_pictures": 70,
+      "final_space_launch_scenarios": 15,
+      "final_space_launch_pictures": 96,
       "final_space_launch_failed": 0,
-      "note": "Unmodified SDK 0.1.96: sim-test tests --jobs 3 passed every comparison without updating any reference pictures."
+      "note": "Unmodified SDK 0.1.96: sim-test tests --jobs 3 passed every comparison. Only Space Launch references were updated; all 30 new or changed pictures were visually reviewed."
     },
-    "space_launch_pictures_reviewed": 70,
+    "space_launch_pictures_reviewed": 30,
+    "unchanged_space_launch_pictures": 66,
+    "picture_review": "All 30 new or changed pictures inspected at full resolution in contact sheets. The final 16 rollover pictures were inspected again after adding the year-specific notice. Ten regenerated files with identical pixels retain their original PNG encoding.",
     "catalog_build_apps": 19,
+    "catalog_package_matches_measured_package": true,
     "production_ll2_requests": 0,
     "development_ll2_requests": 0,
-    "ui_reference_comparison": {
-      "normal_view_pngs_unchanged_from_a77324d": 52,
-      "total_reviewed": 70,
-      "changed_offline_or_reminder_pngs": 8,
-      "note": "Ten regenerated files with identical pixels retain their original PNG encoding.",
-      "recovery_fix": "Every committed reference PNG remains unchanged from 45559af; the full simulator suite, including all 70 Space Launch pictures, matches those references."
-    },
-    "network_recovery": "Unmodified SDK network capability passes. Native frame comparisons cover all eight transport failures, HTTP 503/404/304, incomplete picked JSON and 429, both on screen and across unload; request count does not increase and global cooldown remains intact."
+    "regressions": {
+      "baseline_source": "27a5dbe3ca6cd94f4ae8af85436f1fcab50ab2a6",
+      "baseline_failures": [
+        "list_validation.c",
+        "rollover.c",
+        "offline.c",
+        "unknown_time.c"
+      ],
+      "fixed_failures": 0,
+      "note": "All four new tests fail against the baseline application source; unchanged retry checks include total KV changes and file writes."
+    }
   },
-  "evidence": "/tmp/wt-measure/build-measure/launch-recovery; package/app.wasm, run.py, tests, runs-results.json, runs/*/{samples.json,sim.log,result.json} and probe80.json",
+  "evidence": "/tmp/wt-measure/build-measure/space-launch-final-review; package/app.wasm, run.py, tests, runs-final-results.json, runs-final/*/{samples.json,sim.log,result.json} and probe80.json",
   "reproduce": {
-    "runtime": "Build apps/space-launch with the current SDK into the evidence directory; copy that package into packages/space-launch. Run the nine committed scenarios plus six supplementary scenarios using run.py and the existing arena-launch80 simulator in a linux/arm/v7 QEMU container. Mount /tmp/wt-measure at /work and the catalog checkout at /launch:ro. Subtract 65536 from app_area_peak, including the shutdown run_peak.",
-    "probe": "PERINKPHERAL_ARENA_PROBE=/tmp/wt-measure/build-measure/launch-final/probe80-wrapper; export PERINKPHERAL_ARENA_PROBE; \"$PERINKPHERAL_ARENA_PROBE\" /tmp/wt-measure/build-measure/launch-recovery/package/app.wasm > /tmp/wt-measure/build-measure/launch-recovery/probe80.json. The current SDK build tool does not invoke this optional harness hook itself.",
+    "runtime": "Build apps/space-launch with the current SDK into the evidence directory; copy the package into packages/space-launch. Run all 15 committed Space Launch scenarios plus six supplementary scenarios using run.py with MEASURE_RUNS=runs-final and the existing arena-launch80 simulator in a linux/arm/v7 QEMU container. Mount /tmp/wt-measure at /work and this catalog worktree at /launch:ro. Subtract 65536 from app_area_peak, including the shutdown run_peak.",
+    "probe": "export PERINKPHERAL_ARENA_PROBE=/tmp/wt-measure/build-measure/launch-final/probe80-wrapper; \"$PERINKPHERAL_ARENA_PROBE\" /tmp/wt-measure/build-measure/space-launch-final-review/package/app.wasm > /tmp/wt-measure/build-measure/space-launch-final-review/probe80.json. The unmodified current SDK build tool does not invoke this optional harness hook itself.",
     "limits": "Measurements include arena allocator metadata and temporary allocations; they do not measure C6 native stack usage or device timing."
   }
 }

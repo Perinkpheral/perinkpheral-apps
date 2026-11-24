@@ -347,19 +347,16 @@ __attribute__((noinline)) static int32_t year_total(const year_t *year)
 __attribute__((noinline)) static bool year_of(int32_t number, year_t *year)
 {
     read_history();
+    const year_t *source;
     if (number == cache.year && cache.pages_have) {
-        copy_record(year, &cache.annual, sizeof *year);
-        return true;
-    }
-    if (number == cache.last_year && cache.last_year != 0) {
-        copy_record(year, &cache.last, sizeof *year);
-        return true;
-    }
-    if (number >= FIRST_YEAR && number < FIRST_YEAR + history_count) {
-        copy_record(year, &history[number - FIRST_YEAR], sizeof *year);
-        return true;
-    }
-    return false;
+        source = &cache.annual;
+    } else if (number >= FIRST_YEAR && number < FIRST_YEAR + history_count) {
+        source = &history[number - FIRST_YEAR];
+    } else if (number == cache.last_year && cache.last_year != 0) {
+        source = &cache.last;
+    } else { return false; }
+    copy_record(year, source, sizeof *year);
+    return true;
 }
 
 /* The latest year there is anything for: this one once the clock is known. */
@@ -370,8 +367,8 @@ static int32_t latest_year(void)
     return latest < FIRST_YEAR ? FIRST_YEAR : latest;
 }
 
-/* At the turn of the year the pages start again: the year before is kept beside them, and the
- * annual refresh starts again for the new year. */
+/* At the turn of the year the pages start again. The preceding snapshot remains incomplete
+ * until packaged history supersedes it; the charts label it accordingly. */
 static void follow_year(void)
 {
     int64_t now = time_now();
@@ -395,7 +392,7 @@ static void follow_year(void)
 
 /* ---- the launches ---- */
 
-__attribute__((noinline)) static bool is_done(const launch_t *launch)
+static bool is_done(const launch_t *launch)
 {
     return launch->status == ST_SUCCESS || launch->status == ST_FAILURE || launch->status == ST_PARTIAL ||
            launch->status == ST_DEPLOYED;
@@ -490,9 +487,9 @@ static launch_t incoming[LIST_MAX];
 /* A picked list of launches; false when the answer is not one. */
 static bool take_launches(int32_t list)
 {
-    int32_t count = value_count(PICK_ID);
-    if (count > LIST_MAX || value_count(PICK_NAME) != count || value_count(PICK_NET) != count ||
-        (count == 0 && picked_number(PICK_COUNT, 0) < 0)) {
+    int32_t count = value_count(PICK_ID), total = picked_number(PICK_COUNT, 0);
+    if (total < 0 || count != (total < LIST_MAX ? total : LIST_MAX) ||
+        value_count(PICK_NAME) != count || value_count(PICK_NET) != count) {
         return false;
     }
     int64_t now = time_now();
@@ -576,7 +573,7 @@ static bool take_page(void)
     if (next.offset == total) {
         copy_record(&cache.annual, &next.sum, sizeof next.sum);
         cache.total = total;
-        for (int32_t i = 0; i < COUNTRIES; i++) { cache.countries[i] = next.countries[i]; }
+        copy_record(cache.countries, next.countries, sizeof cache.countries);
         cache.pages_have = 1;
         cache.countries_have = (1u << COUNTRIES) - 1;
         clear_record(stage, sizeof *stage);
@@ -1193,7 +1190,8 @@ __attribute__((noinline)) static void draw_launch(const launch_t *launch, int64_
 
     /* The rocket, the day, and what is uncertain about the time. */
     bool has_time = launch->precision <= PRECISION_HOUR;
-    int32_t note = !has_time                              ? STR_TIME_UNKNOWN
+    int32_t note = launch->precision == PRECISION_UNKNOWN ? -1
+                   : !has_time                          ? STR_TIME_UNKNOWN
                    : launch->precision == PRECISION_HOUR ? STR_TIME_UNCONFIRMED
                    : launch->slipped_at != 0 && now - launch->slipped_at < SLIP_SHOWN_S && !is_done(launch)
                        ? STR_SCHEDULE_CHANGED
@@ -1244,6 +1242,9 @@ static void draw_empty(int32_t status)
         copy_text(notice.first, sizeof notice.first, word(STR_NO_LAUNCHES));
         ui_draw_notice(&notice);
     } else {
+        /* The first paced request already knows the network is unavailable. Infer this
+         * only while waiting for data, so a successful retry restores the normal view. */
+        if (!status && state.status[POLL_UPCOMING] == HOST_FAILED_NO_NETWORK) { status = HOST_FAILED_NO_NETWORK; }
         ui_draw_reason(status);
     }
 }
@@ -1301,6 +1302,13 @@ __attribute__((noinline)) static int32_t chart_frame(host_chart_t *chart, int32_
     int32_t caption = bottom_line_top(), labels = caption - 12 - cap;
     chart->x = MARGIN;
     chart->y = screen_top() + 8 + (history_chart ? 2 : cap + 6);
+    int32_t year = cache.last_year;
+    if (year >= FIRST_YEAR + history_count &&
+        (history_chart ? year < FIRST_YEAR + count : year == year_shown(0))) {
+        char note[64];
+        fill_number(note, sizeof note, STR_INCOMPLETE, year);
+        caption_line(MARGIN, note);
+    }
     chart->width = gfx_width() - 2 * MARGIN;
     chart->height = labels - (history_chart ? 10 : 8) - chart->y;
     chart->kind = history_chart ? HOST_CHART_AREA : HOST_CHART_BARS;

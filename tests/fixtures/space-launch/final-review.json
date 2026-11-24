@@ -1,0 +1,17 @@
+{
+  "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?format=json&mode=normal&limit=10&ordering=net&hide_recent_previous=false": {
+    "status": 200,
+    "body": "{\"count\": 1, \"results\": [{\"id\": \"00000000-0000-0000-0000-000000000001\", \"name\": \"Soyuz 2.1b | Progress MS-36 (97P)\", \"net\": \"2027-01-01T10:13:00Z\", \"status\": {\"id\": 8}, \"net_precision\": null, \"launch_service_provider\": {\"name\": \"ROSCOSMOS\"}, \"pad\": {\"location\": {\"name\": \"Baikonur Cosmodrome\"}}}]}"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=-net&hide_recent_previous=false": {
+    "status": 200,
+    "body": "{\"count\":0,\"results\":[]}"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=0&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "body": "{\"count\": 1, \"results\": [{\"id\": \"00000000-0000-0000-0000-000000000002\", \"net\": \"2026-12-31T10:00:00Z\", \"status\": {\"id\": 3}, \"launch_service_provider\": {\"id\": 121}}]}"
+  },
+  "https://ll.thespacedevs.com/*": {
+    "status": -1
+  }
+}

@@ -73,8 +73,16 @@ across the page boundary. UUID ordering does not move a row when its NET is corr
 Country counts are folded from these same rows, with unknown providers under Others.
 Only the last complete page publishes Months, History and Countries together. Failed or
 inconsistent rounds retain the preceding complete snapshot; paging has no 400-launch ceiling.
+List responses must contain exactly the smaller of `count` and ten mandatory records;
+missing whole rows invalidate the answer and preserve the cached list. On an offline start,
+empty statistics show the known network failure while their own paced request is pending.
 These checks prevent duplicate/missing boundary rows; the service provides no transactional
 snapshot of fields edited while a round is being fetched. Missing History is shown as No data.
+
+At year rollover, the preceding snapshot is retained with a year-specific Incomplete notice
+on Months and History. History keeps the notice while that year is plotted, even when its
+cursor selects another year. Packaged historical data supersedes the provisional snapshot
+and removes the notice for that year.
 
 The library has no working country filter. The countries are lists of provider ids in the
 application's provider table, from the library's agencies with launches:
@@ -139,8 +147,13 @@ an unload, without advancing time or manufacturing a new request binding. It ver
 that accepting the answer does not bypass the scheduler or clear a global cooldown.
 Other regressions cover delayed responses, clock corrections, endpoint fairness,
 complete annual paging, global cooldown and unchanged payloads.
+`test/list_validation.c`, `test/rollover.c`, `test/offline.c` and `test/unknown_time.c`
+reproduce the four final-review findings; each fails against the preceding source.
+The offline and rollover scenarios cover both languages and fonts, including unknown-time
+details with a single uncertainty caption.
 
-The 32-bit QEMU arena harness measured a 73,508-byte (71.79 KiB) interpreter peak across all
-nine simulator scenarios and six supplementary paths, with no failed allocations in the
-80 KiB arena. A compile-all probe measured 73,512 bytes. Firmware 0.1.95 is required.
+The 32-bit QEMU arena harness measured a 73,540-byte (71.82 KiB) interpreter peak across all
+15 simulator scenarios and six supplementary paths, with no failed allocations in the
+80 KiB arena. The compile-all probe also measured 73,540 bytes, 188 bytes below the 72 KiB
+limit. Firmware 0.1.95 is required.
 [Measurement details and hashes](test/arena.json) record the harness, scenarios and limitations.
