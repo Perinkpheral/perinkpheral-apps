@@ -563,13 +563,13 @@
     {
       "name": "pomodoro",
       "title": "Pomodoro",
-      "version": "0.1.5",
+      "version": "0.1.8",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 5962,
-          "sha256": "9752ea05969c8fe16dc48807272c5296f57420e2bf23364798048beab1cf069e"
+          "size": 7021,
+          "sha256": "57f9c379dc06f6f3c744e79d5fcc2b5ec1c93b6ebef49413553c9b2c4dcc7bcc"
         },
         {
           "name": "manifest.ru",
@@ -584,7 +584,7 @@
         {
           "name": "manifest.json",
           "size": 1199,
-          "sha256": "758ef9350e5bad3d53aba9e4bdeb3bbfe80782c1c0f8e26e21cd8d4bb8373192"
+          "sha256": "235133ee92a4b701ee12d444bcded3963ea8be76d382971f3d4b078343f89f43"
         }
       ],
       "author": "Perinkpheral",
@@ -779,13 +779,13 @@
     {
       "name": "stopwatch",
       "title": "Stopwatch",
-      "version": "0.1.15",
+      "version": "0.1.17",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 3285,
-          "sha256": "cb101ff4a8bd0364c89fb6f067a072863c88f0e12e3df686644efb92ca4bb2e9"
+          "size": 3822,
+          "sha256": "7899c90bf6424b76340c057cb519d12b9ff60b7bf95f8a000cb209d3ab66adb8"
         },
         {
           "name": "manifest.ru",
@@ -800,7 +800,7 @@
         {
           "name": "manifest.json",
           "size": 446,
-          "sha256": "b21197722be417e4d36f9f061fad8b0858883887bceb1c96100d3bcee976b821"
+          "sha256": "2e932d2419c44d88ad2bc9d8ec85fb853fe9c663a098825a8bb44d8fc409c33a"
         }
       ],
       "author": "Perinkpheral",
@@ -879,13 +879,13 @@
     {
       "name": "timer",
       "title": "Timer",
-      "version": "0.3.15",
+      "version": "0.3.18",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 3221,
-          "sha256": "56a60af7cd7d2cd94dd832177fd8640c3a5b608f69927b9a8b7e7d4d7c66c61d"
+          "size": 4352,
+          "sha256": "ec928a249a99b2f909b3f329a01329fd0ad09727bee41fa5f9afd89a65467c50"
         },
         {
           "name": "manifest.ru",
@@ -900,7 +900,7 @@
         {
           "name": "manifest.json",
           "size": 384,
-          "sha256": "3b306af3f1bd1e4a6c5cd6b4fc2925d76a5295641b1893dd6f90dbff6c72d48d"
+          "sha256": "b766f285ad1066b9c7d6541123f1e2a9dd7ab85f81525ca71492e44e8c917d78"
         }
       ],
       "author": "Perinkpheral",

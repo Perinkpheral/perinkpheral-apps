@@ -30,15 +30,24 @@
 /* What survives being unloaded. `ends_at` is uptime in seconds: the wall
  * clock may not be known, and it may jump when it is set. */
 #define STATE_KEY     "state"
-#define STATE_VERSION 3
+#define STATE_VERSION 4
+#define RETRY_TIMER 1
+#define NOTICE_ALARM 2
+#define NOTICE_LIFETIME 60
+#define RETRY_SECONDS 1
 typedef struct {
     int32_t version;
     int32_t minutes; /* what the user set */
     int32_t ends_at; /* 0: not running; else in seconds since the device started */
     uint32_t boot;   /* the run of the device `ends_at` is of */
+    int32_t notice_until;
 } timer_state_t;
 
-static timer_state_t state;
+static timer_state_t state, pending;
+static bool save_pending, receipt_pending;
+static void retry_save(void);
+static void restore_running(void);
+static void say_if_unset(int32_t result, const char *what);
 
 static int32_t uptime_seconds(void)
 {
@@ -47,14 +56,24 @@ static int32_t uptime_seconds(void)
 
 static bool save(void)
 {
-    return app_state_save(STATE_KEY, &state, sizeof state);
+    if (!app_state_save(STATE_KEY, &state, sizeof state)) { return false; }
+    receipt_pending = false;
+    return true;
 }
 
 void app_on_load(void)
 {
     bool is_stored = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
+    if (!is_stored) {
+        /* Version 3 has the same prefix, without the notice deadline. */
+        is_stored = kv_get(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state) == 16 && state.version == 3;
+        state.version = STATE_VERSION;
+        state.notice_until = 0;
+    }
+    save_pending = receipt_pending = false;
     /* A countdown from before a restart is over: uptime began again. */
     bool is_stale = is_stored && state.ends_at != 0 && state.boot != time_boot_id();
+    if (state.boot != time_boot_id()) { state.notice_until = 0; }
     if (!is_stored || is_stale) {
         state = (timer_state_t){ .version = STATE_VERSION, .minutes = MINUTES_DEFAULT };
     }
@@ -79,12 +98,14 @@ static void schedule_minute_tick(void)
 
 void app_on_focus(void)
 {
+    retry_save();
     schedule_minute_tick();
 }
 
 void app_on_timer(int32_t id)
 {
-    (void)id;
+    if (id == RETRY_TIMER) { retry_save(); return; }
+    if (id != MINUTE_TIMER) { return; }
     screen_redraw(HOST_REDRAW_NORMAL);
     schedule_minute_tick();
 }
@@ -119,26 +140,50 @@ static void release_header_status(void)
     alarm_set(MINUTE_ALARM, 0);
 }
 
-/* Loaded for this one call when the application is not on the screen. */
+static void post_completion(void)
+{
+    if (state.notice_until == 0 || uptime_seconds() > state.notice_until) { return; }
+    /* Keep the durable deadline until the queue accepts the notice. A full
+     * queue must remain retryable even if storage refuses every later write. */
+    host_notice_t time_is_up = { .icon = HOST_ICON_BELL };
+    app_text_copy(time_is_up.first, sizeof time_is_up.first, app_string(STR_TIME));
+    app_text_copy(time_is_up.second, sizeof time_is_up.second, app_string(STR_IS_UP));
+    if (notification_post(&time_is_up) == HOST_OK) {
+        state.notice_until = 0;
+        if (save_pending) { pending.notice_until = 0; }
+        alarm_set(NOTICE_ALARM, 0);
+        /* Receipt writes are best effort: posting and storage are separate
+         * host operations. Retry in this instance without posting again. */
+        if (!save()) {
+            receipt_pending = true;
+            timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND);
+        }
+    } else {
+        say_if_unset(alarm_set(NOTICE_ALARM, RETRY_SECONDS), "no room for the notice's alarm");
+    }
+}
+
+/* Persist completion before attempting delivery. */
 void app_on_alarm(int32_t id)
 {
+    if (id == NOTICE_ALARM) { post_completion(); return; }
     if (id == MINUTE_ALARM) {
-        if (seconds_left() > 0) {
-            show_in_header();
-        }
+        if (seconds_left() > 0) { show_in_header(); }
         return;
     }
-    release_header_status();
+    if (id != COUNTDOWN_ALARM || state.ends_at == 0 || seconds_left() > 0) { return; }
+    timer_state_t before = state;
+    state.notice_until = state.ends_at + NOTICE_LIFETIME;
     state.ends_at = 0;
-    save();
-    /* Perinkpheral OS tells it, over whatever has the screen, until it is seen. */
-    host_notice_t time_is_up = { .icon = HOST_ICON_BELL };
-    app_text_t    text;
-    app_text_start(&text, time_is_up.first, sizeof time_is_up.first);
-    app_text_add(&text, app_string(STR_TIME));
-    app_text_start(&text, time_is_up.second, sizeof time_is_up.second);
-    app_text_add(&text, app_string(STR_IS_UP));
-    notification_post(&time_is_up);
+    if (!save()) {
+        state = before;
+        alarm_set(COUNTDOWN_ALARM, RETRY_SECONDS);
+        return;
+    }
+    alarm_set(COUNTDOWN_ALARM, 0);
+    release_header_status();
+    timer_set(MINUTE_TIMER, 0);
+    post_completion();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 
@@ -150,19 +195,9 @@ static void say_if_unset(int32_t result, const char *what)
     }
 }
 
-static void start(void)
-{
-    state.ends_at = uptime_seconds() + state.minutes * SECONDS_PER_MINUTE;
-    state.boot = time_boot_id();
-    say_if_unset(alarm_set(COUNTDOWN_ALARM, state.minutes * SECONDS_PER_MINUTE), "no room for the countdown's alarm");
-    say_if_unset(alarm_set_every(MINUTE_ALARM, SECONDS_PER_MINUTE, 0), "no room for the minutes' alarm");
-    show_in_header();
-    schedule_minute_tick();
-}
-
 /* A new version of the timer does not inherit the old one's alarms: a countdown under way
  * is set going again where it is. */
-void app_on_updated(void)
+static void restore_running(void)
 {
     if (state.ends_at == 0) {
         return;
@@ -176,6 +211,60 @@ void app_on_updated(void)
     show_in_header();
 }
 
+void app_on_updated(void)
+{
+    restore_running();
+    if (state.notice_until && uptime_seconds() <= state.notice_until) {
+        say_if_unset(alarm_set(NOTICE_ALARM, RETRY_SECONDS), "no room for the notice's alarm");
+    }
+}
+
+/* Changes remain invisible until stored. Retry without acknowledging an unsaved edit. */
+static void apply_state(void)
+{
+    if (state.ends_at) { restore_running(); schedule_minute_tick(); }
+    else {
+        alarm_set(COUNTDOWN_ALARM, 0);
+        release_header_status();
+        timer_set(MINUTE_TIMER, 0);
+    }
+    if (!state.notice_until) { alarm_set(NOTICE_ALARM, 0); }
+}
+
+static bool commit_change(timer_state_t before)
+{
+    /* Reserve the indispensable alarm before acknowledging a new countdown. */
+    if (state.ends_at && !before.ends_at) {
+        int32_t left = seconds_left();
+        int32_t result = alarm_set(COUNTDOWN_ALARM, left > 0 ? left : 1);
+        say_if_unset(result, "no room for the countdown's alarm");
+        if (result != HOST_OK) { state = before; return false; }
+    }
+    if (!save()) {
+        pending = state;
+        state = before;
+        save_pending = true;
+        apply_state();
+        timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND);
+        return false;
+    }
+    save_pending = false;
+    timer_set(RETRY_TIMER, 0);
+    apply_state();
+    return true;
+}
+static void retry_save(void)
+{
+    if (save_pending) {
+        timer_state_t before = state;
+        state = pending;
+        if (commit_change(before)) { screen_redraw(HOST_REDRAW_NORMAL); }
+        else if (save_pending) { timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND); }
+    }
+    if (receipt_pending && !save()) { timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND); }
+}
+void app_on_terminate(void) { retry_save(); }
+
 /* Removal keeps the countdown's store but drops its alarms. */
 void app_on_installed(void)
 {
@@ -184,14 +273,6 @@ void app_on_installed(void)
         save();
     }
     app_on_updated();
-}
-
-static void stop(void)
-{
-    state.ends_at = 0;
-    alarm_set(COUNTDOWN_ALARM, 0);
-    release_header_status();
-    timer_set(MINUTE_TIMER, 0);
 }
 
 static bool change_minutes(int32_t by)
@@ -211,6 +292,7 @@ static bool change_minutes(int32_t by)
 
 void app_on_button(int32_t event)
 {
+    timer_state_t before = state;
     switch (event) {
     case BTN_UP_PRESSED:
         if (!change_minutes(1)) return;
@@ -225,25 +307,17 @@ void app_on_button(int32_t event)
         if (!change_minutes(-MINUTES_STEP_LONG)) return;
         break;
     case BTN_OK_PRESSED:
-        if (state.ends_at != 0) {
-            stop();
-        } else {
-            timer_state_t before = state;
-            start();
-            /* A start the store did not keep is no start: its alarms and the header's
-             * hourglass would outlive what the timer shows when it is opened again. */
-            if (!save()) {
-                stop();
-                state = before;
-            }
-            screen_redraw(HOST_REDRAW_NORMAL);
-            return;
+        if (state.ends_at) { state.ends_at = 0; }
+        else {
+            state.ends_at = uptime_seconds() + state.minutes * SECONDS_PER_MINUTE;
+            state.boot = time_boot_id();
         }
+        state.notice_until = 0;
         break;
     default:
         return; /* the key going down and up changes nothing by itself */
     }
-    save();
+    commit_change(before);
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 
