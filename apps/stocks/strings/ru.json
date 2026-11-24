@@ -30,5 +30,6 @@
       }
     }
   },
-  "decimal_point": ","
+  "decimal_point": ",",
+  "storage_error": "Ошибка записи."
 }

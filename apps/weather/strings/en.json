@@ -2,5 +2,6 @@
   "today": "Today",
   "no_data": "No data",
   "km_per_hour": "km/h",
-  "miles_per_hour": "mph"
+  "miles_per_hour": "mph",
+  "storage_error": "Could not save."
 }

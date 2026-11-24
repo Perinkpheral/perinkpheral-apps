@@ -235,12 +235,14 @@ void app_on_picked(int32_t request, int32_t http_status)
         if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
         save_cooldown();
     }
+    bool status_was_unsaved = last_status != saved_status;
     if (http_status != last_status) {
         last_status = http_status;
         screen_redraw(HOST_REDRAW_NORMAL);
     }
     if (last_status != saved_status &&
         app_state_save(STATUS_KEY, &last_status, sizeof last_status)) { saved_status = last_status; }
+    if (status_was_unsaved && last_status == saved_status) { screen_redraw(HOST_REDRAW_NORMAL); }
     forecast_t fresh = { .version = FORECAST_VERSION };
     bool is_whole = http_status == HTTP_OK &&
                     app_value_number(VALUE_TEMPERATURE, 0, &fresh.temperature) &&
@@ -448,6 +450,12 @@ static void draw_days(void)
 
 void app_on_draw(void)
 {
+    if (forecast_dirty || forget_forecast || last_status != saved_status) {
+        host_notice_t notice = { .icon = HOST_ICON_WARNING };
+        app_text_copy(notice.first, sizeof notice.first, app_string(STR_STORAGE_ERROR));
+        ui_draw_notice(&notice);
+        return;
+    }
     if (has_forecast) {
         draw_now();
         draw_days();
