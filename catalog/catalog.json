@@ -4,13 +4,13 @@
     {
       "name": "air",
       "title": "Air quality",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7843,
-          "sha256": "a62564338ec98a573016f699c48395a16fed20dc68342c1db6715d0030c83901"
+          "size": 7854,
+          "sha256": "0f991b22585317b516cbb1b52b9f26b3900298536d788b3779acb55e5093b280"
         },
         {
           "name": "manifest.ru",
@@ -25,7 +25,7 @@
         {
           "name": "manifest.json",
           "size": 2179,
-          "sha256": "ff9120f779f24b09a193aa5a5b21fad395e7d54375883feb8e8e7c4cd00df63e"
+          "sha256": "c1669e9b30bbf3e0ca19cae84af6aded470a9c12ea8baf4013ffd2b1b179d95f"
         }
       ],
       "author": "Perinkpheral",
@@ -728,13 +728,13 @@
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.18",
+      "version": "0.2.19",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 9634,
-          "sha256": "698a6c664de031b3972d4342d9e52e120a1c24f00e2e3a1891b218dc8d9990d3"
+          "size": 9818,
+          "sha256": "86b508ecd27b9a276ea45994ee2b7acc4317be16b09c7e1839cae86bbc1f3d00"
         },
         {
           "name": "manifest.ru",
@@ -754,7 +754,7 @@
         {
           "name": "manifest.json",
           "size": 2850,
-          "sha256": "d4ade378904e13b2238c98e8f682174a90bd1666c5b9799105ed646802270cd3"
+          "sha256": "276f562567d215bc8945d2010f7778accdaca14ec27cf235d55265bc844f9341"
         }
       ],
       "author": "Perinkpheral",

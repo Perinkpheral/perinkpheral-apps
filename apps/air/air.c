@@ -156,6 +156,7 @@ void app_on_settings(void)
 {
     if (state.has_data && !same_place(&state)) {
         state = (state_t){ .version = STATE_VERSION };
+        state_unsaved = false;
         app_state_forget("state");
         status = 0;
         save_status();

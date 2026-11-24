@@ -116,6 +116,7 @@ static state_t saved;
 static quote_t quote;   /* the record of state.index */
 static int32_t loaded = -1;
 static uint32_t unsaved_quotes; /* one bit per ticker whose latest file write failed */
+static char unsaved_items[TICKERS_MAX][sizeof quote.item];
 
 static void save_preferences(void)
 {
@@ -255,6 +256,16 @@ void app_on_focus(void)
 
 void app_on_settings(void)
 {
+    /* A failed write belongs to the ticker it was received for, even when
+     * no earlier quote for that ticker made it into the file. */
+    for (int32_t item = 0; item < TICKERS_MAX; item++) {
+        char asked[sizeof quote.item];
+        if ((unsaved_quotes & (1u << item)) &&
+            (app_setting_item(TICKERS, item, asked, sizeof asked) == 0 ||
+             !app_text_equal(asked, unsaved_items[item]))) {
+            unsaved_quotes &= ~(1u << item);
+        }
+    }
     if (state.index >= ticker_count()) {
         state.index = 0;
     }
@@ -331,7 +342,10 @@ static bool same_quote(const quote_t *first, const quote_t *second)
 static void keep_quote(int32_t item, const quote_t *record, const quote_t *before, int32_t had_data)
 {
     uint32_t was_unsaved = unsaved_quotes;
-    if (!same_quote(record, before) && !write_quote(item, record)) { unsaved_quotes |= 1u << item; }
+    if (!same_quote(record, before) && !write_quote(item, record)) {
+        unsaved_quotes |= 1u << item;
+        app_text_copy(unsaved_items[item], sizeof unsaved_items[item], record->item);
+    }
     else { unsaved_quotes &= ~(1u << item); }
     if (item == loaded && !same_quote(record, &quote)) {
         quote = *record;
