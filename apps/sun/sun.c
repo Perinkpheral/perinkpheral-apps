@@ -27,6 +27,7 @@
 #define CITY_KEY        "city"
 #define HEADER_CITY_KEY "header_city"
 #define REDRAW_TIMER    0
+#define FALLBACK_ALARM  1
 #define NOTIFY_ALARM    0
 #define NOTIFIED_KEY    "notified"
 #define RETRY_FILE      "notice-retry"
@@ -350,8 +351,13 @@ static void set_notification_alarm(int64_t seconds)
     if (alarm_set_every(NOTIFY_ALARM, SECONDS_PER_MINUTE, (int32_t)seconds) != HOST_OK) {
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_WARNING, "", 0);
         log_write(HOST_LOG_ERROR, "Notification alarm refused", 26);
+        /* Keep a separate ordinary wakeup when all shared repeating slots
+         * are occupied. Do not replace an existing repeating alarm: it can
+         * still recover if the ordinary allocation is refused as well. */
+        alarm_set(FALLBACK_ALARM, (int32_t)(seconds < SECONDS_PER_MINUTE ? seconds : SECONDS_PER_MINUTE));
         timer_set(RETRY_TIMER, SECONDS_PER_MINUTE * MS_PER_SECOND);
     } else {
+        alarm_set(FALLBACK_ALARM, 0);
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
     }
 }
@@ -408,6 +414,7 @@ static void update_notifications(bool deliver)
         if (receipts_dirty) { retry_alarm(); }
         else {
             alarm_set(NOTIFY_ALARM, 0);
+            alarm_set(FALLBACK_ALARM, 0);
             header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
         }
         return;
@@ -434,12 +441,19 @@ static void update_notifications(bool deliver)
             }
             int64_t due = at - lead[i];
             if (deliver && due <= now) {
-                /* Defer while both stores refuse writes; a background
-                 * instance cannot retain an accepted receipt in memory. */
-                if (save_receipts() && notify_of(i, at)) {
-                    receipts.at[i] = at;
-                    changed = true;
-                    continue;
+                /* Persist the upcoming receipt before the host accepts:
+                 * both stores may fail immediately inside notify_of(). */
+                int64_t previous = receipts.at[i];
+                receipts.at[i] = at;
+                if (save_receipts()) {
+                    if (notify_of(i, at)) {
+                        changed = true;
+                        continue;
+                    }
+                    receipts.at[i] = previous;
+                    save_receipts(); /* A full queue remains eligible on reload. */
+                } else {
+                    receipts.at[i] = previous;
                 }
                 due = now + SECONDS_PER_MINUTE;
             }
@@ -527,7 +541,7 @@ void app_on_updated(void)
 
 void app_on_alarm(int32_t id)
 {
-    if (id == NOTIFY_ALARM) { update_notifications(true); }
+    if (id == NOTIFY_ALARM || id == FALLBACK_ALARM) { update_notifications(true); }
 }
 
 /* ---- the picture ---- */

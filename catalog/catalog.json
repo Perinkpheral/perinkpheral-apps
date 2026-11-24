@@ -54,13 +54,13 @@
     {
       "name": "calendar",
       "title": "Calendar",
-      "version": "0.5.4",
+      "version": "0.5.5",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 16578,
-          "sha256": "56cfc9b9269f0776e819bfb0a8c7c45b9c93b9efb6ec7420876392bb6bf36022"
+          "size": 16696,
+          "sha256": "729578c41c130efa88ca026a2123a979d1a2ac1719b3bccdb449c3e5eb8fea18"
         },
         {
           "name": "manifest.ru",
@@ -75,7 +75,7 @@
         {
           "name": "manifest.json",
           "size": 1887,
-          "sha256": "12f8073405e533f5e2acc1821b5b78796062459357d0b334ff31fd069a0452fc"
+          "sha256": "115210729d3ea4391c5808713c52d1a532e45b974153457488dd1ad3141fd90c"
         }
       ],
       "author": "Perinkpheral",
@@ -829,13 +829,13 @@
     {
       "name": "sun",
       "title": "Sun and Moon",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7766,
-          "sha256": "f67d2f3f1f0dee3f7f64114fa0778b4d6df953a87a3a3c6be7244c62c72692a8"
+          "size": 7842,
+          "sha256": "4ad235d4fbab0574da1b8ce12c401fea9cd2d4163c5403f76e3f07aad34bf2f7"
         },
         {
           "name": "manifest.ru",
@@ -850,7 +850,7 @@
         {
           "name": "manifest.json",
           "size": 1448,
-          "sha256": "19b582cd6fb6b2527be8cd2a8fa4cd0737dfe3b48e32b939e8cc76380bd29662"
+          "sha256": "9bf005cf23af80a8539556c7e41b6cddda9537dbba429910fe96187699781108"
         }
       ],
       "author": "Perinkpheral",

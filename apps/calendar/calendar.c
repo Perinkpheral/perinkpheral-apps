@@ -27,6 +27,7 @@
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
 #define SOURCES_MAX        4
+#define FALLBACK_ALARM     1
 #define REMIND_ALARM       0
 #define TURN_TIMER         0
 #define RETRY_TIMER        1
@@ -155,8 +156,13 @@ static void set_reminder(int64_t seconds)
     if (alarm_set_every(REMIND_ALARM, SECONDS_PER_MINUTE, (int32_t)seconds) != HOST_OK) {
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_WARNING, "", 0);
         log_write(HOST_LOG_ERROR, "Reminder alarm refused", 22);
+        /* Keep a separate ordinary wakeup when all shared repeating slots
+         * are occupied. Do not replace an existing repeating alarm: it can
+         * still recover if the ordinary allocation is refused as well. */
+        alarm_set(FALLBACK_ALARM, (int32_t)(seconds < SECONDS_PER_MINUTE ? seconds : SECONDS_PER_MINUTE));
         timer_set(RETRY_TIMER, SECONDS_PER_MINUTE * MS_PER_SECOND);
     } else {
+        alarm_set(FALLBACK_ALARM, 0);
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
     }
 }
@@ -207,6 +213,7 @@ static void schedule_reminder(void)
     if (state_dirty || !state_ready) { retry_alarm(); return; }
     if (now == 0 || lead < 0) {
         alarm_set(REMIND_ALARM, 0);
+        alarm_set(FALLBACK_ALARM, 0);
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
         return;
     }
@@ -220,6 +227,7 @@ static void schedule_reminder(void)
         return; /* the events are in order: this is the nearest */
     }
     alarm_set(REMIND_ALARM, 0);
+    alarm_set(FALLBACK_ALARM, 0);
     header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
 }
 
@@ -259,15 +267,23 @@ void app_on_alarm(int32_t id)
                 }
             }
             if (delivered) { continue; }
-            /* Do not accept notices while neither receipt store is writable.
-             * In-memory receipts disappear at the end of a background call. */
-            if (state.delivered_count == ICS_EVENTS_MAX || !save_state() || !remind_of(event)) {
+            if (state.delivered_count == ICS_EVENTS_MAX) { accepted = false; break; }
+            /* Commit this receipt before the host can accept the notice:
+             * storage may become unavailable inside notification_post(),
+             * and background termination discards every in-memory receipt. */
+            state.delivered[state.delivered_count].uid = event->uid;
+            state.delivered[state.delivered_count++].start = event->start;
+            if (!save_state()) {
+                state.delivered_count--;
                 accepted = false;
                 break;
             }
-            /* Keep accepted notices across retries of a full notification queue. */
-            state.delivered[state.delivered_count].uid = event->uid;
-            state.delivered[state.delivered_count++].start = event->start;
+            if (!remind_of(event)) {
+                state.delivered_count--;
+                save_state(); /* A full queue must remain eligible after reload. */
+                accepted = false;
+                break;
+            }
             changed = true;
         }
     }

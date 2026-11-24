@@ -18,13 +18,15 @@ int32_t kv_set(const char *, int32_t, const void *, int32_t);
 int32_t kv_get(const char *, int32_t, void *, int32_t);
 int32_t alarm_set_every(int32_t, int32_t, int32_t);
 int32_t notification_post(const host_notice_t *);
-static bool no_kv, no_read, no_alarm;
-static int capacity;
+static bool no_kv, no_read, no_alarm, outage_on_accept;
+static int capacity, other_repeating;
 int32_t limited_notice(const host_notice_t *notice)
 {
     if (capacity == 0) { return HOST_ERR_NO_SPACE; }
     capacity--;
-    return notification_post(notice);
+    int32_t result = notification_post(notice);
+    if (outage_on_accept && result == HOST_OK) { standin()->refuse_writes = HOST_ERR_FAILED; }
+    return result;
 }
 int32_t refused_set(const char *key, int32_t n, const void *value, int32_t size)
 {
@@ -36,7 +38,13 @@ int32_t refused_get(const char *key, int32_t n, void *value, int32_t size)
 }
 int32_t refused_every(int32_t id, int32_t seconds, int32_t first_in)
 {
-    return no_alarm ? HOST_ERR_NO_SPACE : alarm_set_every(id, seconds, first_in);
+    /* The SDK stand-in has no shared pool. Model other apps holding all
+     * 24 slots, while leaving ordinary alarm capacity available. */
+    if (no_alarm || (other_repeating == HOST_ALARM_REPEATING_MAX &&
+                     standin()->alarms[id].kind != STANDIN_ALARM_EVERY)) {
+        return HOST_ERR_NO_SPACE;
+    }
+    return alarm_set_every(id, seconds, first_in);
 }
 static void reload(void)
 {
@@ -50,10 +58,10 @@ static void reload(void)
 }
 static void setup(void)
 {
-    no_kv = no_read = no_alarm = false;
-    capacity = 100;
+    no_kv = no_read = no_alarm = outage_on_accept = false;
+    capacity = 100; other_repeating = 0;
     standin_handlers = (standin_handlers_t){ .on_load = app_on_load,
-        .on_alarm = app_on_alarm, .on_terminate = app_on_terminate };
+        .on_alarm = app_on_alarm, .on_terminate = app_on_terminate, .on_updated = app_on_updated };
     standin_reset(); standin()->is_new = false; standin_clock(1768485600);
     standin()->zone_offset = 0;
     standin_set("feed", "https://calendar.invalid/feed");
@@ -64,8 +72,75 @@ static void setup(void)
     sources[0].data = stored; sources[0].data.version = EVENTS_VERSION;
     save_events(); save_state();
 }
+/* Start with no repeating allocation, including the update path that
+ * clears old alarms. Ordinary capacity must preserve a background wakeup. */
+static void full_repeating_pool(bool update, bool release)
+{
+    setup();
+    stored.events[0].start += 120; stored.events[0].end += 120;
+    sources[0].data = stored; sources[0].data.version = EVENTS_VERSION; save_events();
+    assert(standin_alarms() == 0);
+    if (update) {
+        schedule_reminder();
+        assert(standin()->alarms[0].kind == STANDIN_ALARM_EVERY);
+    }
+    other_repeating = HOST_ALARM_REPEATING_MAX;
+    if (update) { standin_updated(); }
+    else { app_on_settings(); }
+    assert(standin()->error_logs > 0);
+    reload();
+    assert(standin()->timer_due_ms[RETRY_TIMER] == 0);
+    /* Only now may another application release its repeating slot. */
+    if (release) { other_repeating--; }
+    capacity = 0;
+    for (int minute = 0; minute < 2; minute++) {
+        standin_pass(60000);
+        int due = -1;
+        for (int id = 0; id < HOST_ALARM_COUNT; id++) {
+            if (standin_alarm_due(id)) { due = id; break; }
+        }
+        assert(due >= 0);
+        standin_alarm(due);
+        assert(standin()->notices == 0);
+        reload();
+    }
+    /* The fallback also preserves a queue-full retry through unload. */
+    capacity = 1;
+    standin_pass(60000);
+    int due = -1;
+    for (int id = 0; id < HOST_ALARM_COUNT; id++) {
+        if (standin_alarm_due(id)) { due = id; break; }
+    }
+    assert(due >= 0); standin_alarm(due);
+    assert(standin()->notices == 1);
+    reload(); app_on_alarm(0); assert(standin()->notices == 1);
+}
+
+static void acceptance_outage(bool journal_only)
+{
+    /* Refuse both stores inside the accepting host call, not before it or
+     * after the handler. Keep the outage through termination and a fresh
+     * instance, then recover after another background retry. */
+    setup(); no_kv = journal_only; outage_on_accept = true;
+    standin_alarm(0); assert(standin()->notices == 1);
+    assert(standin()->refuse_writes == HOST_ERR_FAILED);
+    reload(); standin_pass(60000);
+    assert(standin_alarm_due(0)); standin_alarm(0);
+    assert(standin()->notices == 1);
+    reload();
+    standin()->refuse_writes = HOST_OK; no_kv = outage_on_accept = false;
+    standin_updated(); standin_pass(60000);
+    for (int id = 0; id < HOST_ALARM_COUNT; id++) {
+        if (standin_alarm_due(id)) { standin_alarm(id); }
+    }
+    assert(standin()->notices == 1);
+}
+
 int main(void)
 {
+    acceptance_outage(false);
+    acceptance_outage(true);
+
     /* Version 5 receipts from 0.5.2 migrate without replaying notices. */
     setup(); app_on_alarm(0);
     state.version = 5;
@@ -148,5 +223,9 @@ int main(void)
     schedule_reminder(); assert(standin_alarm_left(0) == SECONDS_PER_DAY);
     standin_pass(SECONDS_PER_DAY * 1000); standin_alarm(0);
     assert(standin()->notices == 0 && standin_alarm_left(0) == SECONDS_PER_DAY);
-    puts("calendar: background storage outages, timely recovery, receipt migration and retained alarm recovery passed");
+    full_repeating_pool(false, false);
+    full_repeating_pool(false, true);
+    full_repeating_pool(true, false);
+    full_repeating_pool(true, true);
+    puts("calendar: acceptance-boundary outages, queue retries, update/unload recovery and repeating-pool exhaustion passed");
 }
