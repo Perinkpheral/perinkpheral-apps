@@ -1,0 +1,15 @@
+{
+  "app": "apps/space-launch",
+  "at": 1795456800,
+  "tz": "Europe/Nicosia",
+  "language": "en",
+  "font": "departure",
+  "glyphs": "glyphs",
+  "mocks": "../fixtures/space-launch/throttled.json",
+  "steps": [
+    "wait 3",
+    "shot launches",
+    "press 3L 3L",
+    "shot months"
+  ]
+}

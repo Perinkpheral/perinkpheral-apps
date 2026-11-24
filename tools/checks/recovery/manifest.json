@@ -1,0 +1,13 @@
+{
+  "name": "recovery",
+  "title": "Recovery specimen",
+  "version": "0.1.0",
+  "abi": 3,
+  "hosts": ["example.test"],
+  "polls": [{
+    "url": "https://example.test/value",
+    "headers": {"X-Gate": "{{gate}}"},
+    "every": 300,
+    "pick": ["value"]
+  }]
+}

@@ -1,0 +1,104 @@
+{
+  "name": "space-launch",
+  "title": "Space Launch",
+  "author": "Perinkpheral",
+  "description": "Space launches, upcoming and past",
+  "version": "0.1.1",
+  "abi": 3,
+  "writes_files": true,
+  "intents": [
+    "started",
+    "time_changed",
+    "network_up"
+  ],
+  "settings": [
+    {
+      "key": "remind",
+      "type": "choice",
+      "title": "Reminder",
+      "options": [
+        "Off",
+        "15 min",
+        "1 h"
+      ],
+      "default": "Off"
+    }
+  ],
+  "icon": [
+    ".....#.....",
+    "....###....",
+    "...##.##...",
+    "...#...#...",
+    "...#####...",
+    "...#...#...",
+    "..##...##..",
+    ".###...###.",
+    "...#####...",
+    "....#.#....",
+    ".....#....."
+  ],
+  "hosts": [
+    "ll.thespacedevs.com"
+  ],
+  "polls": [
+    {
+      "url": "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?format=json&mode=normal&limit=10&ordering=net&hide_recent_previous=false",
+      "every": 86400,
+      "headers": {
+        "Accept": "application/json",
+        "User-Agent": "perinkpheral-space-launch",
+        "X-App-Gate": "{{list_gate}}"
+      },
+      "pick": [
+        "results[*].id",
+        "results[*].name",
+        "results[*].net",
+        "results[*].status.id",
+        "results[*].net_precision.id",
+        "results[*].launch_service_provider.name",
+        "results[*].pad.location.name",
+        "count"
+      ]
+    },
+    {
+      "url": "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=-net&hide_recent_previous=false",
+      "every": 86400,
+      "headers": {
+        "Accept": "application/json",
+        "User-Agent": "perinkpheral-space-launch",
+        "X-App-Gate": "{{past_gate}}"
+      },
+      "pick": [
+        "results[*].id",
+        "results[*].name",
+        "results[*].net",
+        "results[*].status.id",
+        "results[*].net_precision.id",
+        "results[*].launch_service_provider.name",
+        "results[*].pad.location.name",
+        "count"
+      ]
+    },
+    {
+      "url": "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset={{offset}}&year={{yr}}&status__ids=3,4,7&include_suborbital=false",
+      "every": 86400,
+      "headers": {
+        "Accept": "application/json",
+        "User-Agent": "perinkpheral-space-launch",
+        "X-App-Gate": "{{year_gate}}"
+      },
+      "pick": [
+        "results[*].id",
+        "unused",
+        "results[*].net",
+        "results[*].status.id",
+        "unused2",
+        "unused_provider",
+        "unused_site",
+        "count",
+        "results[*].launch_service_provider.id"
+      ]
+    }
+  ],
+  "firmware": "0.1.95"
+}

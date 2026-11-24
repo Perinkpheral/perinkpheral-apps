@@ -48,7 +48,7 @@ sibling `../perinkpheral-os` checkout:
 export WASI_SDK_PATH=/path/to/wasi-sdk
 ../perinkpheral-os/tools/perinkpheral build apps/<name> --out /tmp/<name>
 ../perinkpheral-os/tools/perinkpheral sim apps/<name>
-../perinkpheral-os/tools/perinkpheral app-check apps
+tools/app-check apps
 ../perinkpheral-os/tools/perinkpheral sim-test tests
 ./build.sh
 ```
@@ -57,7 +57,9 @@ export WASI_SDK_PATH=/path/to/wasi-sdk
 matching checkout's `tools/perinkpheral`. The tests require no live service: declare mocks
 for network answers. See [the test reference](tests/README.md).
 
-`app-check` discovers applications from their manifests and selects capability checks
+`tools/app-check` runs the SDK checker with the catalog's temporary
+[bounded-recovery compatibility patch](tools/checks/README.md). It discovers
+applications from their manifests and selects capability checks
 from their imports, exports and manifest fields. No application list or additional
 capability-test registration is required. Application-specific inputs and tests belong
 in `apps/<name>/test/`:

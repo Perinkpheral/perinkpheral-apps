@@ -1,0 +1,125 @@
+{
+  "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?format=json&mode=normal&limit=10&ordering=net&hide_recent_previous=false": {
+    "status": 200,
+    "file": "upcoming.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=-net&hide_recent_previous=false": {
+    "status": 200,
+    "file": "previous.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=0&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-0.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=10&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-10.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=20&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-20.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=30&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-30.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=40&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-40.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=50&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-50.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=60&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-60.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=70&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-70.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=80&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-80.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=90&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-90.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=100&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-100.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=110&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-110.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=120&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-120.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=130&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-130.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=140&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-140.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=150&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-150.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=160&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-160.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=170&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-170.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=180&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-180.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=190&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-190.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=200&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-200.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=210&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-210.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=220&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-220.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=230&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-230.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=240&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-240.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=250&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-250.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=260&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-260.json"
+  },
+  "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset=270&year=2026&status__ids=3,4,7&include_suborbital=false": {
+    "status": 200,
+    "file": "year-270.json"
+  },
+  "https://ll.thespacedevs.com/*": {
+    "status": -1
+  }
+}
