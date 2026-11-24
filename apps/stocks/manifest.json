@@ -3,10 +3,13 @@
   "title": "Stocks",
   "author": "Perinkpheral",
   "description": "Stock prices",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "abi": 3,
   "writes_files": true,
   "fullscreen": false,
+  "certificates": [
+    "russian-root-ca.pem"
+  ],
   "polls": [
     {
       "url": "https://query1.finance.yahoo.com/v8/finance/chart/{{tickers}}?range=1d&interval=5m",

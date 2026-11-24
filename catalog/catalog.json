@@ -618,8 +618,8 @@
       "files": [
         {
           "name": "app.wasm",
-          "size": 15724,
-          "sha256": "08c10e52fad37fb4bdb730bd5897c6e47be3c61c6f1b711c4cd018daca1432bd"
+          "size": 15740,
+          "sha256": "969ed041bfaa52fba5cf612e5a78ba3197064916b8102bf6646abe66a84dd35a"
         },
         {
           "name": "manifest.ru",
@@ -728,7 +728,7 @@
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.16",
+      "version": "0.2.17",
       "abi": 3,
       "files": [
         {
@@ -742,19 +742,27 @@
           "sha256": "accbf2a61ca167343227fe41a6aeafa1178acea4592cf7d9cf5f9d548bebf5ba"
         },
         {
+          "name": "russian-root-ca.pem",
+          "size": 2057,
+          "sha256": "aa800ef345422d6158c6fafe1c06c429dbda21c3df4bb1ccb45a920ec1111399"
+        },
+        {
           "name": "strings.ru",
           "size": 63,
           "sha256": "f978a1a0a6ef5041396daedee2570e1dcaf6fcc8f2957760a0af65f48077f806"
         },
         {
           "name": "manifest.json",
-          "size": 2799,
-          "sha256": "2c9d7bc3d6feef0d2e440693e33e6ec861d4c113c8ab90a349fc9e19302d59bb"
+          "size": 2850,
+          "sha256": "6e713f48fb0070276a2c892eb2f465ca9d09f04651510823fddee498f9744e10"
         }
       ],
       "author": "Perinkpheral",
       "firmware": "0.1.30",
       "writes_files": true,
+      "trusts": [
+        "Russian Trusted Root CA"
+      ],
       "icon": [
         "...........",
         ".........#.",
