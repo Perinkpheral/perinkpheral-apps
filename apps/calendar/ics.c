@@ -257,7 +257,7 @@ KEPT_ONE static int64_t unix_of(const ics_t *ics, const ics_moment_t *moment)
     }
     /* No zone, a zone the file does not describe, or a whole day: the
      * device's own. */
-    return local - ics->device_offset_s;
+    return ics->from_local(moment->days, moment->seconds);
 }
 
 /* ---- the events kept ---- */
@@ -303,6 +303,17 @@ typedef struct {
     bool    is_over;
 } run_t;
 
+/* A whole day ends at local midnight, including a 23- or 25-hour day. */
+static int64_t event_end(const ics_t *ics, int32_t days, int64_t start, int64_t duration)
+{
+    if (!ics->start.is_date) { return start + duration; }
+    ics_moment_t end = ics->start;
+    int32_t span = ics->end.is_set ? ics->end.days - ics->start.days :
+                   ics->duration_s > 0 ? ics->duration_s / SECONDS_PER_DAY : 1;
+    end.days = days + (span > 0 ? span : 0);
+    return unix_of(ics, &end);
+}
+
 /* One occurrence, on the day `days` of the event's own calendar. */
 static void occur(run_t *run, int32_t days)
 {
@@ -320,7 +331,7 @@ static void occur(run_t *run, int32_t days)
     }
     run->made++;
     if (!is_taken_out(ics, start)) {
-        keep(ics, start, start + run->duration, start, ics->start.is_date);
+        keep(ics, start, event_end(ics, days, start, run->duration), start, ics->start.is_date);
     }
 }
 
@@ -328,8 +339,9 @@ static void repeat(ics_t *ics, int64_t duration)
 {
     run_t run = { .ics = ics, .duration = duration, .until = INT64_MAX };
     if (ics->rule_until.is_set) {
-        run.until = unix_of(ics, &ics->rule_until) +
-                    (ics->rule_until.is_date ? SECONDS_PER_DAY - 1 : 0); /* the whole of that day */
+        ics_moment_t until = ics->rule_until;
+        if (until.is_date) { until.days++; }
+        run.until = unix_of(ics, &until) - (until.is_date ? 1 : 0);
     }
     int32_t interval = ics->interval > 0 ? ics->interval : 1;
     int32_t first = ics->start.days;
@@ -431,7 +443,7 @@ static void finish_event(ics_t *ics)
         return;
     }
     if (!ics->is_cancelled) {
-        keep(ics, start, start + duration, kept_original, ics->start.is_date);
+        keep(ics, start, event_end(ics, ics->start.days, start, duration), kept_original, ics->start.is_date);
     }
 }
 
@@ -716,9 +728,9 @@ static void take_line(ics_t *ics)
 }
 
 void ics_begin(ics_t *ics, ics_event_t *events, int64_t from, int64_t until,
-               int32_t device_offset_s)
+               int64_t (*from_local)(int32_t days, int32_t seconds))
 {
-    *ics = (ics_t){ .from = from, .until = until, .device_offset_s = device_offset_s,
+    *ics = (ics_t){ .from = from, .until = until, .from_local = from_local,
                     .events = events };
 }
 

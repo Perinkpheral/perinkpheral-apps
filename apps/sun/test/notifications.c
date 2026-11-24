@@ -52,8 +52,7 @@ static sun_day_t today(void)
 
 static void assert_alarm(int64_t at)
 {
-    assert(standin()->alarms[NOTIFY_ALARM].kind == STANDIN_ALARM_AT);
-    assert(standin()->alarms[NOTIFY_ALARM].at == at);
+    assert(standin_alarm_left(NOTIFY_ALARM) == at - time_now());
 }
 
 static void choices_and_notices(void)
@@ -147,10 +146,10 @@ static void lifecycle_and_queue(void)
 
     setup();
     standin_set("rise_notice", "5 min"); app_on_settings();
-    int64_t old = standin()->alarms[NOTIFY_ALARM].at;
+    int64_t old = time_now() + standin_alarm_left(NOTIFY_ALARM);
     standin_set("lon", "25.0"); app_on_settings();
     assert_alarm(today().rise - 300);
-    assert(standin()->alarms[NOTIFY_ALARM].at != old);
+    assert(time_now() + standin_alarm_left(NOTIFY_ALARM) != old);
     standin()->zone_offset = 0;
     app_on_intent(HOST_INTENT_TIME_CHANGED); assert_alarm(moment(2026, 11, 22, 0));
     standin_clock(0); app_on_intent(HOST_INTENT_TIME_CHANGED);

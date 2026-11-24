@@ -67,7 +67,7 @@ typedef struct {
 typedef struct {
     /* What the caller gives. */
     int64_t      from, until;  /* the window: events that end after `from` and begin before `until` */
-    int32_t      device_offset_s; /* the device's zone, east of UTC */
+    int64_t    (*from_local)(int32_t days, int32_t seconds); /* per-date device zone */
     ics_event_t *events;       /* ICS_EVENTS_MAX of them, the earliest kept, in order */
     int32_t      count;
     char         name[ICS_NAME_MAX + 1]; /* X-WR-CALNAME, before or after events */
@@ -110,7 +110,7 @@ typedef struct {
 
 /* Begins a file. `events` is the caller's, ICS_EVENTS_MAX long. */
 void ics_begin(ics_t *ics, ics_event_t *events, int64_t from, int64_t until,
-               int32_t device_offset_s);
+               int64_t (*from_local)(int32_t days, int32_t seconds));
 void ics_feed(ics_t *ics, const char *data, int32_t length);
 /* The file is over: how many events there are, earliest first. */
 int32_t ics_end(ics_t *ics);

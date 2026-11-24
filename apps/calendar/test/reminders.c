@@ -85,7 +85,7 @@ int main(void)
     int writes = standin()->store_writes;
     app_on_alarm(0);
     assert(standin()->notices == 0 && state.delivered_count == 0 && state.reminded[0] < time_now());
-    assert(standin()->store_writes == writes && standin_alarm_left(0) == 60);
+    assert(standin()->store_writes > writes && standin_alarm_left(0) == 60);
     standin_pass(60000);
     queued = 0;
     app_on_alarm(0);
@@ -95,7 +95,7 @@ int main(void)
     state = (state_t){0}; app_on_load();
     standin_pass(60000);
     app_on_alarm(0);
-    assert(standin()->store_writes == writes && standin_alarm_left(0) == 60);
+    assert(standin()->store_writes > writes && standin_alarm_left(0) == 60);
     assert(standin()->notices == 4 && state.delivered_count == 4);
     queued = 0;
     standin_pass(60000);

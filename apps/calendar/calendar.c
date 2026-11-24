@@ -18,6 +18,7 @@
 #include <stddef.h>
 
 #include "app_draw.h"
+#include "app_days.h"
 #include "app_state.h"
 #include "app_text.h"
 #include "app_ui.h"
@@ -26,8 +27,10 @@
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
 #define SOURCES_MAX        4
+#define FALLBACK_ALARM     1
 #define REMIND_ALARM       0
 #define TURN_TIMER         0
+#define RETRY_TIMER        1
 #define SECONDS_PER_MINUTE 60
 #define SECONDS_PER_DAY    86400
 #define MS_PER_SECOND      1000
@@ -60,7 +63,8 @@ typedef struct {
 } stored_events_t;
 
 #define STATE_KEY     "state"
-#define STATE_VERSION 5
+#define STATE_VERSION 6
+#define RETRY_FILE "state-retry"
 typedef struct {
     int32_t  version;
     int32_t  status;      /* combined reason when the list is empty */
@@ -70,10 +74,13 @@ typedef struct {
     struct { uint32_t uid; int64_t start; } delivered[ICS_EVENTS_MAX];
     uint32_t source_hash[SOURCES_MAX];
     int64_t  reminded[SOURCES_MAX];
+    int64_t  revision; /* orders the KV state and the failed-write journal */
 } state_t;
 
 static stored_events_t stored;
 static state_t         state;
+static bool state_dirty;
+static bool state_ready;
 
 /* All four bounded source snapshots share one file, outside the 2 KB KV store.
  * The first data record retains the version-3 file layout for migration. */
@@ -127,9 +134,42 @@ static void merge_events(void)
     }
 }
 
-static void save_state(void)
+static bool save_state(void)
 {
-    kv_set(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state);
+    if (!state_ready) { return false; }
+    state.revision++;
+    state_dirty = kv_set(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state) != HOST_OK;
+    /* A refused KV write must not lose accepted receipts at background unload.
+     * Older journals are harmless once a newer revision reaches KV. */
+    if (state_dirty) {
+        return file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &state, sizeof state) == HOST_OK;
+    }
+    return true;
+}
+
+/* The OS re-arms a repeating alarm before calling us. Retain that wakeup
+ * if moving it fails: a screen timer cannot recover a background unload.
+ * Long waits are revisited daily (first_in is bounded by the contract). */
+static void set_reminder(int64_t seconds)
+{
+    if (seconds > SECONDS_PER_DAY) { seconds = SECONDS_PER_DAY; }
+    if (alarm_set_every(REMIND_ALARM, SECONDS_PER_MINUTE, (int32_t)seconds) != HOST_OK) {
+        header_set_status(HOST_HEADER_RIGHT, HOST_ICON_WARNING, "", 0);
+        log_write(HOST_LOG_ERROR, "Reminder alarm refused", 22);
+        /* Keep a separate ordinary wakeup when all shared repeating slots
+         * are occupied. Do not replace an existing repeating alarm: it can
+         * still recover if the ordinary allocation is refused as well. */
+        alarm_set(FALLBACK_ALARM, (int32_t)(seconds < SECONDS_PER_MINUTE ? seconds : SECONDS_PER_MINUTE));
+        timer_set(RETRY_TIMER, SECONDS_PER_MINUTE * MS_PER_SECOND);
+    } else {
+        alarm_set(FALLBACK_ALARM, 0);
+        header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
+    }
+}
+
+static void retry_alarm(void)
+{
+    set_reminder(SECONDS_PER_MINUTE);
 }
 
 static bool is_same(const void *one, const void *other, uint32_t size)
@@ -170,8 +210,11 @@ static void schedule_reminder(void)
 {
     int64_t now = time_now();
     int32_t lead = lead_seconds();
-    alarm_set(REMIND_ALARM, 0);
+    if (state_dirty || !state_ready) { retry_alarm(); return; }
     if (now == 0 || lead < 0) {
+        alarm_set(REMIND_ALARM, 0);
+        alarm_set(FALLBACK_ALARM, 0);
+        header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
         return;
     }
     for (int32_t i = 0; i < stored.count; i++) {
@@ -180,13 +223,12 @@ static void schedule_reminder(void)
         if (!needs_reminder(event, now, lead)) {
             continue;
         }
-        if (due <= now) {
-            alarm_set(REMIND_ALARM, 1);
-        } else {
-            alarm_set_at(REMIND_ALARM, due);
-        }
+        set_reminder(due <= now ? 1 : due - now);
         return; /* the events are in order: this is the nearest */
     }
+    alarm_set(REMIND_ALARM, 0);
+    alarm_set(FALLBACK_ALARM, 0);
+    header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
 }
 
 __attribute__((noinline)) static const char *event_title(const ics_event_t *event)
@@ -206,6 +248,9 @@ static bool remind_of(const ics_event_t *event)
 void app_on_alarm(int32_t id)
 {
     (void)id;
+    if (!state_ready) { app_on_load(); screen_redraw(HOST_REDRAW_NORMAL); }
+    if (!state_ready) { retry_alarm(); return; }
+    if (state_dirty) { save_state(); }
     int64_t now = time_now();
     int32_t lead = lead_seconds();
     bool changed = false;
@@ -222,13 +267,23 @@ void app_on_alarm(int32_t id)
                 }
             }
             if (delivered) { continue; }
-            if (state.delivered_count == ICS_EVENTS_MAX || !remind_of(event)) {
+            if (state.delivered_count == ICS_EVENTS_MAX) { accepted = false; break; }
+            /* Commit this receipt before the host can accept the notice:
+             * storage may become unavailable inside notification_post(),
+             * and background termination discards every in-memory receipt. */
+            state.delivered[state.delivered_count].uid = event->uid;
+            state.delivered[state.delivered_count++].start = event->start;
+            if (!save_state()) {
+                state.delivered_count--;
                 accepted = false;
                 break;
             }
-            /* Keep accepted notices across retries of a full notification queue. */
-            state.delivered[state.delivered_count].uid = event->uid;
-            state.delivered[state.delivered_count++].start = event->start;
+            if (!remind_of(event)) {
+                state.delivered_count--;
+                save_state(); /* A full queue must remain eligible after reload. */
+                accepted = false;
+                break;
+            }
             changed = true;
         }
     }
@@ -246,7 +301,7 @@ void app_on_alarm(int32_t id)
     }
     /* Only a refused round needs backoff; newly due reminders should arrive promptly. */
     if (accepted) { schedule_reminder(); }
-    else { alarm_set(REMIND_ALARM, SECONDS_PER_MINUTE); }
+    else { retry_alarm(); }
 }
 
 /* ---- the feed ---- */
@@ -334,6 +389,17 @@ static void finish_fetch(int32_t source, int32_t status)
 
 static ics_opening_t opening;
 
+static int64_t from_local(int32_t days, int32_t seconds)
+{
+    host_local_time_t parts = { .second = seconds };
+    app_date_from_days(days, &parts.year, &parts.month, &parts.day);
+    int64_t at = 0;
+    if (time_from_local(&parts, &at) == HOST_OK) { return at; }
+    /* Old DTSTARTs still supply recurrence durations, and distant UNTILs
+     * bound rules, outside the OS conversion range. Visible dates use it. */
+    return (int64_t)days * SECONDS_PER_DAY + seconds - time_zone_offset();
+}
+
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
                  int32_t http_status)
 {
@@ -357,7 +423,7 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
         } else {
             incoming = (source_t){ .data.version = EVENTS_VERSION };
             ics_begin(&reader, incoming.data.events, now - LATE_SECONDS - 1, now + (int64_t)DAYS_AHEAD * SECONDS_PER_DAY,
-                      time_zone_offset());
+                      from_local);
             is_reading = true;
         }
     }
@@ -400,6 +466,7 @@ static void schedule_next_change(void)
 /* Keep untouched snapshots and reminder progress when a link changes. */
 static void sync_sources(const uint32_t hashes[SOURCES_MAX])
 {
+    if (!state_ready) { merge_events(); return; }
     bool changed = false;
     for (int32_t i = 0; i < SOURCES_MAX; i++) {
         if (state.source_hash[i] == hashes[i]) { continue; }
@@ -420,17 +487,31 @@ void app_on_load(void)
     uint32_t hashes[SOURCES_MAX];
     uint32_t hash = feed_hash(hashes);
     int32_t length = kv_get(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state);
+    state_dirty = false;
+    state_ready = length >= 0 || length == HOST_ERR_NOT_FOUND;
     bool old_state = (length == offsetof(state_t, delivered) && state.version == 3) ||
                      (length == offsetof(state_t, source_hash) && state.version == 4);
     if (old_state) {
+        state.revision = 0;
         if (state.version == 3) { state.delivered_count = 0; }
         state.version = STATE_VERSION;
         for (int32_t i = 0; i < SOURCES_MAX; i++) {
             state.source_hash[i] = hash == state.feed_hash ? hashes[i] : 0;
             state.reminded[i] = state.reminded_to;
         }
+    } else if (length == offsetof(state_t, revision) && state.version == 5) {
+        state.version = STATE_VERSION;
+        state.revision = 0;
     } else if (length != sizeof state || state.version != STATE_VERSION) {
         state = (state_t){ .version = STATE_VERSION };
+    }
+    state_t retry;
+    int32_t recovered = file_read(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &retry, sizeof retry);
+    if (recovered == sizeof retry && retry.version == STATE_VERSION && retry.revision > state.revision) {
+        state = retry;
+        state_dirty = true;
+    } else if (recovered < 0 && recovered != HOST_ERR_NOT_FOUND) {
+        state_ready = false;
     }
     if ((uint32_t)state.delivered_count > ICS_EVENTS_MAX) { state.delivered_count = 0; }
     length = file_read(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &cache, sizeof cache);
@@ -459,13 +540,22 @@ void app_on_focus(void)
 {
     restore_place(); /* where the user was, when it was unloaded for another */
     schedule_next_change();
+    schedule_reminder();
 }
 
 void app_on_timer(int32_t id)
 {
-    (void)id;
+    if (id == RETRY_TIMER) { app_on_alarm(REMIND_ALARM); return; }
+    if (state_dirty) { save_state(); schedule_reminder(); }
     screen_redraw(HOST_REDRAW_NORMAL);
     schedule_next_change();
+}
+
+void app_on_terminate(void)
+{
+    if (events_dirty) { save_events(); }
+    if (state_dirty) { save_state(); }
+    if (state_dirty || !state_ready) { retry_alarm(); }
 }
 
 void app_on_intent(int32_t intent)

@@ -27,8 +27,11 @@
 #define CITY_KEY        "city"
 #define HEADER_CITY_KEY "header_city"
 #define REDRAW_TIMER    0
+#define FALLBACK_ALARM  1
 #define NOTIFY_ALARM    0
 #define NOTIFIED_KEY    "notified"
+#define RETRY_FILE      "notice-retry"
+#define RETRY_TIMER     1
 
 /* ---- arithmetic ---- */
 
@@ -310,6 +313,60 @@ static void show_header(void)
 
 /* ---- notifications ---- */
 
+typedef struct {
+    int64_t at[2]; /* first fields retain the original receipt format */
+    int64_t revision;
+} receipts_t;
+static receipts_t receipts;
+static bool receipts_ready, receipts_dirty;
+
+static bool save_receipts(void)
+{
+    receipts.revision++;
+    receipts_dirty = kv_set(NOTIFIED_KEY, sizeof NOTIFIED_KEY - 1, &receipts, sizeof receipts) != HOST_OK;
+    if (receipts_dirty) {
+        return file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &receipts, sizeof receipts) == HOST_OK;
+    }
+    return true;
+}
+
+static bool load_receipts(void)
+{
+    receipts_t saved = {0}, retry = {0};
+    int32_t length = kv_get(NOTIFIED_KEY, sizeof NOTIFIED_KEY - 1, &saved, sizeof saved);
+    if (length < 0 && length != HOST_ERR_NOT_FOUND) { return false; }
+    if (length != sizeof saved && length != sizeof saved.at) { saved = (receipts_t){0}; }
+    length = file_read(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &retry, sizeof retry);
+    if (length < 0 && length != HOST_ERR_NOT_FOUND) { return false; }
+    receipts_dirty = length == sizeof retry && retry.revision > saved.revision;
+    receipts = receipts_dirty ? retry : saved;
+    return true;
+}
+
+/* Repeating alarms are re-armed by the OS before delivery. A failed move
+ * leaves that background wakeup alive even after this instance unloads. */
+static void set_notification_alarm(int64_t seconds)
+{
+    if (seconds > SECONDS_PER_DAY) { seconds = SECONDS_PER_DAY; }
+    if (alarm_set_every(NOTIFY_ALARM, SECONDS_PER_MINUTE, (int32_t)seconds) != HOST_OK) {
+        header_set_status(HOST_HEADER_RIGHT, HOST_ICON_WARNING, "", 0);
+        log_write(HOST_LOG_ERROR, "Notification alarm refused", 26);
+        /* Keep a separate ordinary wakeup when all shared repeating slots
+         * are occupied. Do not replace an existing repeating alarm: it can
+         * still recover if the ordinary allocation is refused as well. */
+        alarm_set(FALLBACK_ALARM, (int32_t)(seconds < SECONDS_PER_MINUTE ? seconds : SECONDS_PER_MINUTE));
+        timer_set(RETRY_TIMER, SECONDS_PER_MINUTE * MS_PER_SECOND);
+    } else {
+        alarm_set(FALLBACK_ALARM, 0);
+        header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
+    }
+}
+
+static void retry_alarm(void)
+{
+    set_notification_alarm(SECONDS_PER_MINUTE);
+}
+
 /* Values belong to the manifest, even when the labels are translated. An
  * absent or unrecognized value is Off, including on an older installation. */
 static int32_t lead_seconds(const char *key)
@@ -345,20 +402,24 @@ static bool notify_of(int32_t event, int64_t at)
  * and restarts, so an already queued notice is not posted twice. */
 static void update_notifications(bool deliver)
 {
-    alarm_set(NOTIFY_ALARM, 0);
+    if (!receipts_ready) { receipts_ready = load_receipts(); }
+    if (!receipts_ready) { retry_alarm(); return; }
+    if (receipts_dirty) { save_receipts(); }
     int32_t lead[2] = { lead_seconds("rise_notice"), lead_seconds("set_notice") };
     int64_t now = time_now();
     place_t place;
     host_local_time_t date;
     if ((lead[0] < 0 && lead[1] < 0) || now == 0 || !read_place(&place) ||
         time_local(&date) != HOST_OK) {
+        if (receipts_dirty) { retry_alarm(); }
+        else {
+            alarm_set(NOTIFY_ALARM, 0);
+            alarm_set(FALLBACK_ALARM, 0);
+            header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
+        }
         return;
     }
 
-    int64_t notified[2] = { 0, 0 };
-    if (kv_get(NOTIFIED_KEY, sizeof NOTIFIED_KEY - 1, notified, sizeof notified) != (int32_t)sizeof notified) {
-        notified[0] = notified[1] = 0;
-    }
     int64_t next = 0;
     date.hour = date.minute = date.second = 0;
     date.day++;
@@ -374,16 +435,25 @@ static void update_notifications(bool deliver)
         int64_t moments[2] = { sun.rise, sun.set };
         for (int32_t i = 0; i < 2; i++) {
             int64_t at = moments[i];
-            if (lead[i] < 0 || at == notified[i] || at + 5 * SECONDS_PER_MINUTE < now ||
+            if (lead[i] < 0 || at == receipts.at[i] || at + 5 * SECONDS_PER_MINUTE < now ||
                 at - lead[i] < HOST_TIME_MIN || at > HOST_TIME_MAX) {
                 continue;
             }
             int64_t due = at - lead[i];
             if (deliver && due <= now) {
-                if (notify_of(i, at)) {
-                    notified[i] = at;
-                    changed = true;
-                    continue;
+                /* Persist the upcoming receipt before the host accepts:
+                 * both stores may fail immediately inside notify_of(). */
+                int64_t previous = receipts.at[i];
+                receipts.at[i] = at;
+                if (save_receipts()) {
+                    if (notify_of(i, at)) {
+                        changed = true;
+                        continue;
+                    }
+                    receipts.at[i] = previous;
+                    save_receipts(); /* A full queue remains eligible on reload. */
+                } else {
+                    receipts.at[i] = previous;
                 }
                 due = now + SECONDS_PER_MINUTE;
             }
@@ -392,9 +462,14 @@ static void update_notifications(bool deliver)
         }
     }
     if (changed) {
-        kv_set(NOTIFIED_KEY, sizeof NOTIFIED_KEY - 1, notified, sizeof notified);
+        save_receipts();
     }
-    if (next > now && next <= HOST_TIME_MAX) { alarm_set_at(NOTIFY_ALARM, next); }
+    if (receipts_dirty && (next == 0 || next > now + SECONDS_PER_MINUTE)) {
+        next = now + SECONDS_PER_MINUTE;
+    }
+    if (next > now && next <= HOST_TIME_MAX) {
+        set_notification_alarm(next - now);
+    }
 }
 
 /* ---- the handlers ---- */
@@ -410,20 +485,29 @@ static void schedule_redraw(void)
 
 void app_on_load(void)
 {
+    receipts_ready = receipts_dirty = false;
     show_header();
 }
 
 void app_on_focus(void)
 {
+    update_notifications(false);
     show_header();
     schedule_redraw();
 }
 
 void app_on_timer(int32_t id)
 {
-    (void)id;
+    if (id == RETRY_TIMER) { update_notifications(true); return; }
+    update_notifications(true);
     screen_redraw(HOST_REDRAW_NORMAL);
     schedule_redraw();
+}
+
+void app_on_terminate(void)
+{
+    if (receipts_dirty) { save_receipts(); }
+    if (receipts_dirty) { retry_alarm(); }
 }
 
 void app_on_settings(void)
@@ -457,7 +541,7 @@ void app_on_updated(void)
 
 void app_on_alarm(int32_t id)
 {
-    if (id == NOTIFY_ALARM) { update_notifications(true); }
+    if (id == NOTIFY_ALARM || id == FALLBACK_ALARM) { update_notifications(true); }
 }
 
 /* ---- the picture ---- */
