@@ -1,0 +1,31 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Run the SDK checker with bounded network recovery support until it is upstream.
+# Only the temporary view's checks.c changes; the SDK and application packages do not.
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+sdk=${PERINKPHERAL:-$here/../../perinkpheral-os}
+sdk=$(CDPATH= cd -- "$sdk" && pwd)
+"$sdk/tools/perinkpheral" > /dev/null
+view=$(mktemp -d "${TMPDIR:-/tmp}/catalog-app-check.XXXXXX")
+trap 'rm -rf "$view"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+mkdir -p "$view/sdk/check"
+for path in "$sdk"/*; do
+    name=${path##*/}
+    [ "$name" = sdk ] || ln -s "$path" "$view/$name"
+done
+for path in "$sdk/sdk"/*; do
+    name=${path##*/}
+    [ "$name" = check ] || ln -s "$path" "$view/sdk/$name"
+done
+for path in "$sdk/sdk/check"/*; do
+    name=${path##*/}
+    [ "$name" = checks.c ] || ln -s "$path" "$view/sdk/check/$name"
+done
+cp "$sdk/sdk/check/checks.c" "$view/sdk/check/checks.c"
+patch --batch --forward --silent "$view/sdk/check/checks.c" < "$here/checks/network-recovery.patch"
+if [ "$#" -eq 0 ]; then set -- apps; fi
+if [ -n "${JAVA_HOME:-}" ]; then java="$JAVA_HOME/bin/java"; else java=java; fi
+"$java" -Dperinkpheral.root="$view" -jar "$sdk/tools/cli/build/libs/perinkpheral.jar" app-check "$@"

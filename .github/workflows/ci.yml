@@ -79,12 +79,19 @@ jobs:
           name: simulator-pictures
           path: tests/**/*.actual.png
           if-no-files-found: ignore
+      - name: The network checker's recovery contract
+        if: success() || failure()
+        env:
+          PERINKPHERAL: ${{ github.workspace }}/perinkpheral-os
+        run: tools/checks/test-network-recovery
       # One command and no list: the SDK's capability checks on every application of the
       # folder, and whatever tests an application keeps in its own test folder. After the
       # pictures, so that a finding here does not keep them from being compared.
       - name: The applications against the contract
         if: success() || failure()
-        run: perinkpheral-os/tools/perinkpheral app-check apps
+        env:
+          PERINKPHERAL: ${{ github.workspace }}/perinkpheral-os
+        run: tools/app-check apps
       - name: The catalog, as the run's artifact
         run: (cd catalog && zip -qr ../catalog.zip .)
       - uses: actions/upload-artifact@v4

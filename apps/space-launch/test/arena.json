@@ -153,7 +153,7 @@
     "complete": true
   },
   "validation": {
-    "app_check": "8 of 9 groups passed; generic network recovery assumes an immediate retry without advancing time, incompatible with the application gate/backoff. All four application regression suites pass.",
+    "app_check": "18 applications, 113 checks, 0 failed via tools/app-check apps, including all five Space Launch capability groups and all four application regression suites.",
     "sim_test": {
       "catalog_scenarios": 108,
       "catalog_pictures": 351,
@@ -161,7 +161,7 @@
       "final_space_launch_scenarios": 9,
       "final_space_launch_pictures": 70,
       "final_space_launch_failed": 0,
-      "note": "Full catalog comparison passed; after the final background retry change, all nine Space Launch scenarios were compared again without updating references."
+      "note": "Round 3: sim-test tests --jobs 3 passed all 108 scenarios and 351 pictures, including all nine Space Launch scenarios and 70 pictures, without updating references."
     },
     "space_launch_pictures_reviewed": 70,
     "catalog_build_apps": 18,
@@ -172,7 +172,10 @@
       "total_reviewed": 70,
       "changed_offline_or_reminder_pngs": 8,
       "note": "Ten regenerated files with identical pixels retain their original PNG encoding."
-    }
+    },
+    "network_checker_regression": "Bounded gated-poll recovery passes; a permanently broken retry and the unchanged default immediate-recovery contract both fail as expected.",
+    "runtime_unchanged": "Round 3 changes only the catalog checker, CI, test configuration and documentation. Every recorded runtime source hash and the packaged Wasm hash still match; no code growth or arena remeasurement.",
+    "sdk_version_note": "Validation used the configured SDK checkout with VERSION temporarily set from 0.1.94 to the existing application minimum 0.1.95, as in the recorded measurement; the original metadata was restored afterward."
   },
   "evidence": "/tmp/wt-measure/build-measure/launch-final; run.py, tests, runs-release, probe80.json and screens-release",
   "reproduce": {

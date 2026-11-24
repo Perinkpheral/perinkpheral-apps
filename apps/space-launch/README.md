@@ -124,15 +124,17 @@ GCAT's count.
 
 `test/network.c` (validation, global cooldown, complete paging beyond 400 and year bindings),
 `test/persistence.c` (torn banks, write retries, rejected posts and delivery receipts), `test/reminders.c`
-and `test/screens.c` run with `app-check`. The simulator
+and `test/screens.c` run with `tools/app-check apps`. The simulator
 scenarios `tests/space-launch-*` use the answers in
 [tests/fixtures/space-launch](../../tests/fixtures/space-launch).
 
-The SDK's generic network recovery check assumes the next response can be delivered without
-advancing time. It fails for the closed gates during this application's retry interval;
-`test/network.c` exercises recovery with the clock advanced, as well as delayed responses,
-clock corrections, endpoint fairness and unchanged payloads. The other capability checks and
-all four application regression suites pass.
+The catalog's [checker compatibility shim](../../tools/checks/README.md) gives this
+application's generic network recovery assertions a two-hour window. It advances
+alarms and compares recovery with a successful control at the same time, covering
+the closed gates, one-hour failure backoff and endpoint rotation both on and off
+screen. Immediate-recovery checks remain the default for other applications.
+`test/network.c` additionally checks delayed responses, clock corrections, endpoint
+fairness, global cooldown and unchanged payloads.
 
 The 32-bit QEMU arena harness measured a 73,512-byte (71.79 KiB) interpreter peak across all
 nine simulator scenarios and six supplementary paths, with no failed allocations in the
