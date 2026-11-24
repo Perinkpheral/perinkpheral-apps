@@ -728,7 +728,7 @@
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.14",
+      "version": "0.2.15",
       "abi": 3,
       "files": [
         {
@@ -742,19 +742,27 @@
           "sha256": "accbf2a61ca167343227fe41a6aeafa1178acea4592cf7d9cf5f9d548bebf5ba"
         },
         {
+          "name": "russian-root-ca.pem",
+          "size": 2057,
+          "sha256": "aa800ef345422d6158c6fafe1c06c429dbda21c3df4bb1ccb45a920ec1111399"
+        },
+        {
           "name": "strings.ru",
           "size": 63,
           "sha256": "f978a1a0a6ef5041396daedee2570e1dcaf6fcc8f2957760a0af65f48077f806"
         },
         {
           "name": "manifest.json",
-          "size": 2799,
-          "sha256": "f98c105857d2d703e747f0f449b6d70c912a6a6af5faa8777296ac954e25576c"
+          "size": 2850,
+          "sha256": "4da249b96e71db43f51323b7d913a64bc25595f68b874adb4aaa9e120a721bd9"
         }
       ],
       "author": "Perinkpheral",
       "firmware": "0.1.30",
       "writes_files": true,
+      "trusts": [
+        "Russian Trusted Root CA"
+      ],
       "icon": [
         "...........",
         ".........#.",
