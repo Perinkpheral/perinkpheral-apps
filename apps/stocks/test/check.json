@@ -4,5 +4,23 @@
     "tickers": "AAPL",
     "refresh": "15 min"
   },
-  "mocks": "../../../tests/stocks/mocks.json"
+  "mocks": "../../../tests/stocks/mocks.json",
+  "valid_responses": {
+    "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=5m": [
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":null,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[119,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":9223372036854775807,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[119,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":\"invalid\",\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[119,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":null,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[119,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":9223372036854775807,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[119,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":\"invalid\",\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[119,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":null}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":null}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[null]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":null}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[null,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[9223372036854775807,120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}",
+      "{\"chart\":{\"result\":[{\"meta\":{\"longName\":\"Apple\",\"shortName\":\"Apple\",\"symbol\":\"AAPL\",\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920,\"currency\":\"USD\"},\"indicators\":{\"quote\":[{\"close\":[\"invalid\",120.5,119.6,121.3,122.7,121.9,122.4,123.45]}]}}]}}"
+    ]
+  },
+  "valid_responses_reason": "Market time, previous close and chart samples are optional: unavailable time is hidden, absent previous close uses the current price, and invalid chart samples become gaps. Only these exact optional-field bodies may change the cached picture; price and other malformed mutations remain checked."
 }

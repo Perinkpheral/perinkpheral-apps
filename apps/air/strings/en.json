@@ -24,5 +24,6 @@
   "mugwort": "Mugwort",
   "ragweed": "Ragweed",
   "olive": "Olive",
-  "decimal_point": "."
+  "decimal_point": ".",
+  "storage_error": "Could not save."
 }

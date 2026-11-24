@@ -1,0 +1,20 @@
+{
+  "app": "apps/stocks",
+  "at": 1794955920,
+  "store": {
+    "tickers": "AAPL",
+    "refresh": "15 min"
+  },
+  "mocks": {
+    "https://query1.finance.yahoo.com/*": {
+      "status": 200,
+      "body": "{\"chart\":{\"result\":[{\"meta\":{\"longName\":null,\"shortName\":null,\"symbol\":null,\"currency\":null,\"regularMarketPrice\":123.45,\"chartPreviousClose\":122,\"priceHint\":2,\"regularMarketTime\":1794955920}}]}}"
+    }
+  },
+  "steps": [
+    "wait 3",
+    "shot null-metadata"
+  ],
+  "language": "en",
+  "font": "departure"
+}

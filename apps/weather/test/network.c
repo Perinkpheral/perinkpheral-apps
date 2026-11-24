@@ -33,7 +33,14 @@ int main(void)
     app_on_load(); picked(200);
     assert(has_forecast && forecast.temperature == 12);
     standin()->refuse_writes = HOST_ERR_FAILED; picked(503);
+    standin_handlers.on_draw = app_on_draw;
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    int before_retry = standin()->redraws;
     standin()->refuse_writes = HOST_OK; picked(503);
+    assert(standin()->redraws > before_retry);
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
     app_on_load(); assert(last_status == 503);
     picked(200);
     int first_writes = writes();
@@ -51,8 +58,13 @@ int main(void)
     assert(has_forecast && same_place());
     values[0] = 13; standin()->refuse_writes = HOST_ERR_NO_SPACE; picked(200);
     assert(forecast_dirty);
+    standin_handlers.on_draw = app_on_draw;
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
     standin()->refuse_writes = HOST_OK; picked(200);
     assert(!forecast_dirty);
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
     forecast = (forecast_t){0}; has_forecast = false; app_on_load();
     assert(has_forecast && forecast.temperature == 13);
     /* A real v5 record is the v6 prefix without the city offset. */

@@ -2,5 +2,6 @@
   "auto": "Auto",
   "not_found": "Not found",
   "no_data": "No data",
-  "decimal_point": "."
+  "decimal_point": ".",
+  "storage_error": "Could not save."
 }

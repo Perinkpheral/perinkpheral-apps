@@ -46,7 +46,19 @@ int main(void)
     const char empty[] = "BEGIN:VCALENDAR\r\nEND:VCALENDAR";
     standin()->refuse_writes = HOST_ERR_NO_SPACE; answer(empty, sizeof empty - 1, 3);
     assert(stored.count == 0 && events_dirty);
+    standin_handlers.on_draw = app_on_draw;
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
     standin()->refuse_writes = HOST_OK; answer(empty, sizeof empty - 1, 1);
     assert(!events_dirty && event_file()->count == 0);
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+    standin()->refuse_writes = HOST_ERR_FAILED; answer(valid, sizeof valid - 1, 3);
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    standin()->refuse_writes = HOST_OK; answer(valid, sizeof valid - 1, 1);
+    assert(!events_dirty && event_file()->count == 1);
+    standin_draw();
+    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
     puts("calendar: one-byte streams, 96 unchanged polls, missing footer, valid empty calendar and failed save retry passed");
 }

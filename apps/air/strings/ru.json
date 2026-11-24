@@ -57,5 +57,6 @@
   "mugwort": "Полынь",
   "ragweed": "Амброзия",
   "olive": "Олива",
-  "decimal_point": ","
+  "decimal_point": ",",
+  "storage_error": "Ошибка записи."
 }

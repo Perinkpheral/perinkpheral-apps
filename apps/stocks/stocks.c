@@ -115,6 +115,7 @@ static state_t state;
 static state_t saved;
 static quote_t quote;   /* the record of state.index */
 static int32_t loaded = -1;
+static uint32_t unsaved_quotes; /* one bit per ticker whose latest file write failed */
 
 static void save_preferences(void)
 {
@@ -141,6 +142,10 @@ static void read_quote(int32_t index, quote_t *out)
     if (length != (int32_t)sizeof *out || out->version != QUOTE_VERSION) {
         *out = (quote_t){ .version = QUOTE_VERSION };
     }
+    /* Repair metadata cached by versions that treated picked null as text. */
+    if (app_text_equal(out->name, "null")) { out->name[0] = '\0'; }
+    if (app_text_equal(out->symbol, "null")) { app_text_copy(out->symbol, sizeof out->symbol, out->item); }
+    if (app_text_equal(out->currency, "null")) { out->currency[0] = '\0'; }
 }
 
 /* Records are written in place, so the file is first extended with empty
@@ -218,6 +223,7 @@ void app_on_load(void)
     }
     state.index = 0; /* Selection belongs to the scene, including for legacy records. */
     saved = state;
+    unsaved_quotes = 0;
 }
 
 void app_on_terminate(void)
@@ -324,11 +330,22 @@ static bool same_quote(const quote_t *first, const quote_t *second)
  * separately so a return to the stored price still updates the screen. */
 static void keep_quote(int32_t item, const quote_t *record, const quote_t *before, int32_t had_data)
 {
-    if (!same_quote(record, before)) { write_quote(item, record); }
+    uint32_t was_unsaved = unsaved_quotes;
+    if (!same_quote(record, before) && !write_quote(item, record)) { unsaved_quotes |= 1u << item; }
+    else { unsaved_quotes &= ~(1u << item); }
     if (item == loaded && !same_quote(record, &quote)) {
         quote = *record;
         screen_redraw(had_data ? HOST_REDRAW_NORMAL : HOST_REDRAW_SOON);
+    } else if (item == loaded && was_unsaved != unsaved_quotes) {
+        screen_redraw(HOST_REDRAW_NORMAL);
     }
+}
+
+/* Picked JSON null is the text "null". Optional metadata keeps its last
+ * good value when absent; a new ticker starts with its configured symbol. */
+static bool metadata_text(int32_t pick, char *text, int32_t capacity)
+{
+    return app_value_text(pick, text, capacity) && text[0] && !app_text_equal(text, "null");
 }
 
 static void yahoo_values(int32_t item, int32_t http_status)
@@ -354,15 +371,22 @@ static void yahoo_values(int32_t item, int32_t http_status)
             if (!app_value_fixed(PICK_TIME, 0, &record.time)) {
                 record.time = 0;
             }
-            if (!app_value_text(PICK_LONG_NAME, record.name, sizeof record.name)
-                && !app_value_text(PICK_SHORT_NAME, record.name, sizeof record.name)) {
-                record.name[0] = 0;
+            char name[sizeof record.name], symbol[sizeof record.symbol], currency[sizeof record.currency];
+            if (metadata_text(PICK_LONG_NAME, name, sizeof name)
+                || metadata_text(PICK_SHORT_NAME, name, sizeof name)) {
+                app_text_copy(record.name, sizeof record.name, name);
+            } else if (app_text_equal(record.name, "null")) {
+                record.name[0] = '\0';
             }
-            if (!app_value_text(PICK_SYMBOL, record.symbol, sizeof record.symbol)) {
+            if (metadata_text(PICK_SYMBOL, symbol, sizeof symbol)) {
+                app_text_copy(record.symbol, sizeof record.symbol, symbol);
+            } else {
                 app_text_copy(record.symbol, sizeof record.symbol, record.item);
             }
-            if (!app_value_text(PICK_CURRENCY, record.currency, sizeof record.currency)) {
-                record.currency[0] = 0;
+            if (metadata_text(PICK_CURRENCY, currency, sizeof currency)) {
+                app_text_copy(record.currency, sizeof record.currency, currency);
+            } else if (app_text_equal(record.currency, "null")) {
+                record.currency[0] = '\0';
             }
             record.count = app_value_series(PICK_CLOSE, hint, record.series, HOST_CHART_VALUES_MAX);
         }
@@ -410,7 +434,7 @@ static void moex_quote(int32_t item, int32_t http_status)
             price     = previous;
             has_price = true;
         }
-        if (!app_value_text(MOEX_SECID, record.symbol, sizeof record.symbol)) {
+        if (!metadata_text(MOEX_SECID, record.symbol, sizeof record.symbol)) {
             /* The exchange answers a ticker it does not have with empty tables. */
             record.has_data = 0;
             http_status     = STATUS_NOT_FOUND;
@@ -419,10 +443,10 @@ static void moex_quote(int32_t item, int32_t http_status)
             record.decimals = decimals;
             record.price    = price;
             record.previous = has_previous ? previous : price;
-            if (!app_value_text(MOEX_NAME, record.name, sizeof record.name)) {
+            if (!metadata_text(MOEX_NAME, record.name, sizeof record.name)) {
                 record.name[0] = 0;
             }
-            if (!app_value_text(MOEX_CURRENCY, record.currency, sizeof record.currency)
+            if (!metadata_text(MOEX_CURRENCY, record.currency, sizeof record.currency)
                 || app_text_equal(record.currency, "SUR")) {
                 app_text_copy(record.currency, sizeof record.currency, "RUB"); /* the exchange's old code */
             }
@@ -537,6 +561,12 @@ static int32_t when_text(int64_t moment, char *text, int32_t capacity)
 
 void app_on_draw(void)
 {
+    if (unsaved_quotes & (1u << state.index)) {
+        host_notice_t notice = { .icon = HOST_ICON_WARNING };
+        app_text_copy(notice.first, sizeof notice.first, app_string(STR_STORAGE_ERROR));
+        ui_draw_notice(&notice);
+        return;
+    }
     int32_t width  = gfx_width();
     int32_t height = gfx_height();
 

@@ -81,6 +81,7 @@ static stored_events_t stored;
 static state_t         state;
 static bool state_dirty;
 static bool state_ready;
+static bool state_unsaved; /* both KV and the recovery journal refused the write */
 
 /* All four bounded source snapshots share one file, outside the 2 KB KV store.
  * The first data record retains the version-3 file layout for migration. */
@@ -142,8 +143,10 @@ static bool save_state(void)
     /* A refused KV write must not lose accepted receipts at background unload.
      * Older journals are harmless once a newer revision reaches KV. */
     if (state_dirty) {
-        return file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &state, sizeof state) == HOST_OK;
+        state_unsaved = file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &state, sizeof state) != HOST_OK;
+        return !state_unsaved;
     }
+    state_unsaved = false;
     return true;
 }
 
@@ -488,6 +491,7 @@ void app_on_load(void)
     uint32_t hash = feed_hash(hashes);
     int32_t length = kv_get(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state);
     state_dirty = false;
+    state_unsaved = false;
     state_ready = length >= 0 || length == HOST_ERR_NOT_FOUND;
     bool old_state = (length == offsetof(state_t, delivered) && state.version == 3) ||
                      (length == offsetof(state_t, source_hash) && state.version == 4);
@@ -810,6 +814,12 @@ static void draw_event(const ics_event_t *event)
 
 void app_on_draw(void)
 {
+    if (events_dirty || state_unsaved) {
+        host_notice_t notice = { .icon = HOST_ICON_WARNING };
+        app_text_copy(notice.first, sizeof notice.first, app_string(STR_STORAGE_ERROR));
+        ui_draw_notice(&notice);
+        return;
+    }
     int64_t now = time_now();
     int32_t count = count_visible_events(now);
     if (count == 0 || now == 0) {
