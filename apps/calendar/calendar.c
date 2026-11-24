@@ -133,27 +133,37 @@ static void merge_events(void)
     }
 }
 
-static void save_state(void)
+static bool save_state(void)
 {
-    if (!state_ready) { return; }
+    if (!state_ready) { return false; }
     state.revision++;
     state_dirty = kv_set(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state) != HOST_OK;
     /* A refused KV write must not lose accepted receipts at background unload.
      * Older journals are harmless once a newer revision reaches KV. */
     if (state_dirty) {
-        file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &state, sizeof state);
+        return file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &state, sizeof state) == HOST_OK;
     }
+    return true;
 }
 
-static void retry_alarm(void)
+/* The OS re-arms a repeating alarm before calling us. Retain that wakeup
+ * if moving it fails: a screen timer cannot recover a background unload.
+ * Long waits are revisited daily (first_in is bounded by the contract). */
+static void set_reminder(int64_t seconds)
 {
-    if (alarm_set(REMIND_ALARM, SECONDS_PER_MINUTE) != HOST_OK) {
+    if (seconds > SECONDS_PER_DAY) { seconds = SECONDS_PER_DAY; }
+    if (alarm_set_every(REMIND_ALARM, SECONDS_PER_MINUTE, (int32_t)seconds) != HOST_OK) {
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_WARNING, "", 0);
         log_write(HOST_LOG_ERROR, "Reminder alarm refused", 22);
         timer_set(RETRY_TIMER, SECONDS_PER_MINUTE * MS_PER_SECOND);
     } else {
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
     }
+}
+
+static void retry_alarm(void)
+{
+    set_reminder(SECONDS_PER_MINUTE);
 }
 
 static bool is_same(const void *one, const void *other, uint32_t size)
@@ -206,9 +216,7 @@ static void schedule_reminder(void)
         if (!needs_reminder(event, now, lead)) {
             continue;
         }
-        int32_t result = due <= now ? alarm_set(REMIND_ALARM, 1) : alarm_set_at(REMIND_ALARM, due);
-        if (result != HOST_OK) { retry_alarm(); }
-        else { header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0); }
+        set_reminder(due <= now ? 1 : due - now);
         return; /* the events are in order: this is the nearest */
     }
     alarm_set(REMIND_ALARM, 0);
@@ -251,7 +259,9 @@ void app_on_alarm(int32_t id)
                 }
             }
             if (delivered) { continue; }
-            if (state.delivered_count == ICS_EVENTS_MAX || !remind_of(event)) {
+            /* Do not accept notices while neither receipt store is writable.
+             * In-memory receipts disappear at the end of a background call. */
+            if (state.delivered_count == ICS_EVENTS_MAX || !save_state() || !remind_of(event)) {
                 accepted = false;
                 break;
             }

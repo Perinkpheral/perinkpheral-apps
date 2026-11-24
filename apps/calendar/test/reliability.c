@@ -4,25 +4,22 @@
 #include <string.h>
 #define kv_set refused_set
 #define kv_get refused_get
-#define alarm_set_at refused_at
-#define alarm_set refused_alarm
+#define alarm_set_every refused_every
 #define notification_post limited_notice
 #include "../calendar.c"
 #include "../ics.c"
 #undef kv_set
 #undef kv_get
-#undef alarm_set_at
-#undef alarm_set
+#undef alarm_set_every
 #undef notification_post
 #include "standin.h"
 
 int32_t kv_set(const char *, int32_t, const void *, int32_t);
 int32_t kv_get(const char *, int32_t, void *, int32_t);
-int32_t alarm_set_at(int32_t, int64_t);
-int32_t alarm_set(int32_t, int32_t);
+int32_t alarm_set_every(int32_t, int32_t, int32_t);
 int32_t notification_post(const host_notice_t *);
 static bool no_kv, no_read, no_alarm;
-static int no_at, capacity;
+static int capacity;
 int32_t limited_notice(const host_notice_t *notice)
 {
     if (capacity == 0) { return HOST_ERR_NO_SPACE; }
@@ -37,29 +34,27 @@ int32_t refused_get(const char *key, int32_t n, void *value, int32_t size)
 {
     return no_read && n == 5 && !memcmp(key, "state", 5) ? HOST_ERR_FAILED : kv_get(key, n, value, size);
 }
-int32_t refused_at(int32_t id, int64_t at)
+int32_t refused_every(int32_t id, int32_t seconds, int32_t first_in)
 {
-    if (no_at > 0) { no_at--; return HOST_ERR_NO_SPACE; }
-    return alarm_set_at(id, at);
-}
-int32_t refused_alarm(int32_t id, int32_t seconds)
-{
-    return no_alarm && seconds != 0 ? HOST_ERR_NO_SPACE : alarm_set(id, seconds);
+    return no_alarm ? HOST_ERR_NO_SPACE : alarm_set_every(id, seconds, first_in);
 }
 static void reload(void)
 {
     /* A background instance has no writable session and loses all globals. */
-    app_on_terminate();
+    standin_terminate();
     memset(&state, 0, sizeof state);
     memset(&cache, 0, sizeof cache);
     memset(&stored, 0, sizeof stored);
-    app_on_load();
+    state_dirty = state_ready = events_dirty = is_reading = false;
+    standin_load();
 }
 static void setup(void)
 {
-    no_kv = no_read = no_alarm = false; no_at = 0;
+    no_kv = no_read = no_alarm = false;
     capacity = 100;
-    standin_reset(); standin_clock(1768485600);
+    standin_handlers = (standin_handlers_t){ .on_load = app_on_load,
+        .on_alarm = app_on_alarm, .on_terminate = app_on_terminate };
+    standin_reset(); standin()->is_new = false; standin_clock(1768485600);
     standin()->zone_offset = 0;
     standin_set("feed", "https://calendar.invalid/feed");
     standin_set("remind", "At start");
@@ -101,25 +96,57 @@ int main(void)
     reload(); capacity = 1; app_on_alarm(0); assert(standin()->notices == 5);
     no_kv = false; reload(); app_on_alarm(0); assert(standin()->notices == 5);
 
-    /* When all writes fail, retain progress in memory and retry at unload. */
-    setup(); standin()->refuse_writes = HOST_ERR_FAILED;
-    app_on_alarm(0); app_on_alarm(0); assert(standin()->notices == 1);
-    assert(standin_alarm_left(0) == 60);
-    standin()->refuse_writes = HOST_OK; reload(); app_on_alarm(0);
+    /* Keep both stores refused through termination and fresh background loads.
+     * Without the delivery gate, the first accepted notice is replayed. */
+    setup(); schedule_reminder();
+    standin()->refuse_writes = HOST_ERR_FAILED;
+    standin_pass(1000); standin_alarm(0); assert(standin()->notices == 0);
+    reload();
+    assert(standin()->timer_due_ms[RETRY_TIMER] == 0);
+    standin_pass(60000); assert(standin_alarm_due(0)); standin_alarm(0);
+    assert(standin()->notices == 0);
+    reload(); standin()->refuse_writes = HOST_OK;
+    standin_pass(60000); assert(standin_alarm_due(0)); standin_alarm(0);
     assert(standin()->notices == 1);
+    reload(); app_on_alarm(0); assert(standin()->notices == 1);
+
+    /* A notice stays suppressed if its receipt predates the outage. */
+    setup(); app_on_alarm(0); standin()->refuse_writes = HOST_ERR_FAILED;
+    reload(); standin_pass(60000); app_on_alarm(0);
+    assert(standin()->notices == 1);
+
+    /* An outage that outlasts the delivery window cannot produce a stale notice. */
+    setup(); standin()->refuse_writes = HOST_ERR_FAILED;
+    app_on_alarm(0); reload(); standin_pass((LATE_SECONDS + 1) * 1000);
+    standin()->refuse_writes = HOST_OK; standin_alarm(0);
+    assert(standin()->notices == 0);
 
     setup(); no_read = true; reload(); app_on_alarm(0);
     assert(standin()->notices == 0 && standin_alarm_left(0) == 60);
     assert(stored.count == 1); /* A receipt read failure keeps the cached list. */
     no_read = false; app_on_alarm(0); assert(standin()->notices == 1);
 
+    /* The OS re-arms before delivery, even when every scheduling attempt
+     * in the handler fails. Termination cancels timers, but not this alarm. */
     setup(); stored.events[0].start += 120;
-    no_at = 1; schedule_reminder(); assert(standin_alarm_left(0) == 60);
-    no_at = 1; no_alarm = true; schedule_reminder();
-    assert(standin()->error_logs > 0 && standin()->timer_due_ms[1] != 0);
+    sources[0].data = stored; sources[0].data.version = EVENTS_VERSION; save_events();
+    schedule_reminder();
+    assert(standin_alarm_left(0) == 120);
+    no_alarm = true; capacity = 0; standin_pass(120000); standin_alarm(0);
+    assert(standin()->error_logs > 0 && standin()->timer_due_ms[RETRY_TIMER] != 0);
     assert(standin()->status_icon[HOST_HEADER_RIGHT] == HOST_ICON_WARNING);
-    no_alarm = false; standin_pass(120000); app_on_timer(1);
+    reload(); assert(standin()->timer_due_ms[RETRY_TIMER] == 0);
+    assert(standin_alarm_left(0) == 60);
+    no_alarm = false; capacity = 1; standin_pass(60000);
+    assert(standin_alarm_due(0)); standin_alarm(0);
     assert(standin()->notices == 1);
     assert(standin()->status_icon[HOST_HEADER_RIGHT] == HOST_ICON_NONE);
-    puts("calendar: refused receipt writes across background unload, recovery, read errors and alarm refusal passed");
+
+    /* The first callback is bounded to a day; it then moves to the event. */
+    setup(); stored.events[0].start += 2 * SECONDS_PER_DAY;
+    stored.events[0].end += 2 * SECONDS_PER_DAY;
+    schedule_reminder(); assert(standin_alarm_left(0) == SECONDS_PER_DAY);
+    standin_pass(SECONDS_PER_DAY * 1000); standin_alarm(0);
+    assert(standin()->notices == 0 && standin_alarm_left(0) == SECONDS_PER_DAY);
+    puts("calendar: background storage outages, timely recovery, receipt migration and retained alarm recovery passed");
 }

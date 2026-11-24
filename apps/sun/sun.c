@@ -319,13 +319,14 @@ typedef struct {
 static receipts_t receipts;
 static bool receipts_ready, receipts_dirty;
 
-static void save_receipts(void)
+static bool save_receipts(void)
 {
     receipts.revision++;
     receipts_dirty = kv_set(NOTIFIED_KEY, sizeof NOTIFIED_KEY - 1, &receipts, sizeof receipts) != HOST_OK;
     if (receipts_dirty) {
-        file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &receipts, sizeof receipts);
+        return file_write(RETRY_FILE, sizeof RETRY_FILE - 1, 0, &receipts, sizeof receipts) == HOST_OK;
     }
+    return true;
 }
 
 static bool load_receipts(void)
@@ -341,15 +342,23 @@ static bool load_receipts(void)
     return true;
 }
 
-static void retry_alarm(void)
+/* Repeating alarms are re-armed by the OS before delivery. A failed move
+ * leaves that background wakeup alive even after this instance unloads. */
+static void set_notification_alarm(int64_t seconds)
 {
-    if (alarm_set(NOTIFY_ALARM, SECONDS_PER_MINUTE) != HOST_OK) {
+    if (seconds > SECONDS_PER_DAY) { seconds = SECONDS_PER_DAY; }
+    if (alarm_set_every(NOTIFY_ALARM, SECONDS_PER_MINUTE, (int32_t)seconds) != HOST_OK) {
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_WARNING, "", 0);
         log_write(HOST_LOG_ERROR, "Notification alarm refused", 26);
         timer_set(RETRY_TIMER, SECONDS_PER_MINUTE * MS_PER_SECOND);
     } else {
         header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
     }
+}
+
+static void retry_alarm(void)
+{
+    set_notification_alarm(SECONDS_PER_MINUTE);
 }
 
 /* Values belong to the manifest, even when the labels are translated. An
@@ -425,7 +434,9 @@ static void update_notifications(bool deliver)
             }
             int64_t due = at - lead[i];
             if (deliver && due <= now) {
-                if (notify_of(i, at)) {
+                /* Defer while both stores refuse writes; a background
+                 * instance cannot retain an accepted receipt in memory. */
+                if (save_receipts() && notify_of(i, at)) {
                     receipts.at[i] = at;
                     changed = true;
                     continue;
@@ -443,8 +454,7 @@ static void update_notifications(bool deliver)
         next = now + SECONDS_PER_MINUTE;
     }
     if (next > now && next <= HOST_TIME_MAX) {
-        if (alarm_set_at(NOTIFY_ALARM, next) != HOST_OK) { retry_alarm(); }
-        else { header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0); }
+        set_notification_alarm(next - now);
     }
 }
 
