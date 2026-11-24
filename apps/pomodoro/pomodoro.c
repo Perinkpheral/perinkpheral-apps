@@ -128,18 +128,34 @@ static void schedule(void)
 }
 static void phase_notice(void)
 {
+    if (!state.notice_until || uptime_seconds() > state.notice_until) { return; }
+    int64_t notice_until = state.notice_until;
+    /* Persist the receipt before delivery; an update must not replay a notice
+     * merely because writes were refused after it was accepted. */
+    state.notice_until = 0;
+    if (!save()) {
+        state.notice_until = notice_until;
+        check_alarm(alarm_set(NOTICE_ALARM, RETRY_SECONDS));
+        return;
+    }
     host_notice_t notice = { .icon = HOST_ICON_BELL };
     app_text_copy(notice.first, sizeof notice.first, phase_name());
     if (state.phase == WORK) {
         host_text_argument_t args[] = { { .number = state.round }, { .number = state.rounds } };
         fill(app_string(STR_ROUND), args, 2, notice.second, sizeof notice.second);
     } else { minutes_text(state.phase_length, notice.second, sizeof notice.second); }
-    if (!state.notice_until || uptime_seconds() > state.notice_until) { return; }
     if (notification_post(&notice) == HOST_OK) {
-        /* The alarm is the retry receipt; a later failed save cannot recreate it. */
+        if (save_pending) { pending.notice_until = 0; }
         alarm_set(NOTICE_ALARM, 0);
-        state.notice_until = 0;
-    } else { check_alarm(alarm_set(NOTICE_ALARM, RETRY_SECONDS)); }
+    } else {
+        state.notice_until = notice_until;
+        if (!save() && !save_pending) {
+            pending = state;
+            save_pending = true;
+            timer_set(RETRY_TIMER, RETRY_SECONDS * 1000);
+        }
+        check_alarm(alarm_set(NOTICE_ALARM, RETRY_SECONDS));
+    }
 }
 static bool commit_change(state_t before)
 {
@@ -229,7 +245,13 @@ void app_on_load(void)
     }
 }
 void app_on_focus(void) { retry_save(); show_header(); schedule_timer(); }
-void app_on_updated(void) { schedule(); }
+void app_on_updated(void)
+{
+    schedule();
+    if (state.notice_until && uptime_seconds() <= state.notice_until) {
+        check_alarm(alarm_set(NOTICE_ALARM, RETRY_SECONDS));
+    }
+}
 /* Removal keeps the phase's store but drops its alarms. */
 void app_on_installed(void)
 {

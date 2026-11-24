@@ -47,6 +47,7 @@ static timer_state_t state, pending;
 static bool save_pending;
 static void retry_save(void);
 static void restore_running(void);
+static void say_if_unset(int32_t result, const char *what);
 
 static int32_t uptime_seconds(void)
 {
@@ -140,15 +141,29 @@ static void release_header_status(void)
 static void post_completion(void)
 {
     if (state.notice_until == 0 || uptime_seconds() > state.notice_until) { return; }
+    int32_t notice_until = state.notice_until;
+    /* Save the receipt before posting, so update recovery cannot replay an
+     * accepted notice when storage subsequently refuses writes. */
+    state.notice_until = 0;
+    if (!save()) {
+        state.notice_until = notice_until;
+        say_if_unset(alarm_set(NOTICE_ALARM, RETRY_SECONDS), "no room for the notice's alarm");
+        return;
+    }
     host_notice_t time_is_up = { .icon = HOST_ICON_BELL };
     app_text_copy(time_is_up.first, sizeof time_is_up.first, app_string(STR_TIME));
     app_text_copy(time_is_up.second, sizeof time_is_up.second, app_string(STR_IS_UP));
     if (notification_post(&time_is_up) == HOST_OK) {
-        /* The retry alarm is the receipt. Never recreate it from the stored deadline. */
+        if (save_pending) { pending.notice_until = 0; }
         alarm_set(NOTICE_ALARM, 0);
-        state.notice_until = 0;
     } else {
-        alarm_set(NOTICE_ALARM, RETRY_SECONDS);
+        state.notice_until = notice_until;
+        if (!save() && !save_pending) {
+            pending = state;
+            save_pending = true;
+            timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND);
+        }
+        say_if_unset(alarm_set(NOTICE_ALARM, RETRY_SECONDS), "no room for the notice's alarm");
     }
 }
 
@@ -200,7 +215,13 @@ static void restore_running(void)
     show_in_header();
 }
 
-void app_on_updated(void) { restore_running(); }
+void app_on_updated(void)
+{
+    restore_running();
+    if (state.notice_until && uptime_seconds() <= state.notice_until) {
+        say_if_unset(alarm_set(NOTICE_ALARM, RETRY_SECONDS), "no room for the notice's alarm");
+    }
+}
 
 /* Changes remain invisible until stored. Retry without acknowledging an unsaved edit. */
 static void apply_state(void)

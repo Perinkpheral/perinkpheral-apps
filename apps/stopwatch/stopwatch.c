@@ -205,6 +205,14 @@ static void retry_change(void)
     }
     stopwatch_t before = state;
     state = pending;
+    /* The clock may have synchronized or changed while this start was rolled
+     * back. Anchor the original uptime start before persisting the retry. */
+    int64_t now = time_now();
+    if (state.is_running && state.boot == time_boot_id() && now != 0) {
+        int64_t run = time_uptime_ms() - state.started_uptime_ms;
+        if (run >= 0) { state.started_at = now - run / MS_PER_SECOND; }
+    }
+    pending = state;
     if (save()) {
         change_pending = false;
         refresh_state();

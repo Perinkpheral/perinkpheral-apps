@@ -37,7 +37,8 @@ int main(void)
     app_on_terminate();
     reload();
     app_on_alarm(COUNTDOWN_ALARM);
-    app_on_updated();
+    standin_handlers.on_updated = app_on_updated;
+    standin_updated();
     assert(standin()->notices == 1 && standin_alarms() == 0);
 
     fail_receipt = false;

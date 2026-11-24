@@ -39,7 +39,10 @@ int main(void)
     app_on_terminate();
     reload();
     app_on_alarm(END_ALARM);
+    standin_handlers.on_updated = app_on_updated;
+    standin_updated();
     assert(state.phase == BREAK && standin()->notices == 1);
+    assert(standin_alarm_left(NOTICE_ALARM) == 0);
 
     fail_receipt = false;
     queue_full = true;
