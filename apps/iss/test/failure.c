@@ -29,6 +29,7 @@ int main(void)
         assert(failed != current && standin()->refused_draws == 0);
         state_t retained = state;
         retained.status = good.status;
+        retained.unused[0] = good.unused[0];
         assert(memcmp(&retained, &good, sizeof good) == 0);
         int32_t writes = standin()->store_writes;
         picked(failures[i], answer);

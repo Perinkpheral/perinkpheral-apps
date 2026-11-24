@@ -56,6 +56,10 @@ static bool valid_screen(const char *text, int32_t length);
 static void follow_pairing(void)
 {
     uint32_t current = pairing();
+    char page = (char)('0' + current_page);
+    char saved_page[2];
+    if ((app_setting("page", saved_page, sizeof saved_page) != 1 || saved_page[0] != page) &&
+        kv_set("page", 4, &page, 1) != HOST_OK) { source_ready = false; return; }
     if (!source_ready || source.pairing != current || source.page != current_page) {
         request_source_t next = { .pairing = current, .page = current_page,
             .tag = source.tag >= HOST_REQUEST_FIRST && source.tag < HOST_REQUEST_LAST
@@ -88,7 +92,7 @@ static uint32_t screen_pairing;
 static char    coming[SCREEN_MAX + 1];
 static int32_t coming_length;
 static int32_t coming_status;
-static bool receiving, screen_dirty;
+static bool receiving, screen_dirty, coming_poll;
 
 static void save_screen(void)
 {
@@ -133,8 +137,6 @@ static void ask(void)
 {
     if (!focused) { restore_page(); }
     last_ask_ms = time_uptime_ms();
-    /* Background instances cannot update the session used when returning. */
-    kv_set("last_ask", 8, &last_ask_ms, sizeof last_ask_ms);
     follow_pairing();
     if (!source_ready) {
         asked_by_press = false;
@@ -160,20 +162,12 @@ static void ask(void)
     }
 }
 
-/* The screen is asked for now and again from now on. */
-/* An alarm the device has no room for: said in the log, or what depends on it is taken for a hang. */
-static void say_if_unset(int32_t result, const char *what)
-{
-    if (result != HOST_OK) {
-        log_write(HOST_LOG_WARN, what, app_text_length(what));
-    }
-}
-
+/* Ordinary refreshes belong to the OS poller: reconnect recovery, replay of
+ * interrupted GETs and the power-saving floor all apply there. Raw requests
+ * are only for explicit page changes, whose tags protect against late replies. */
 static void keep_fresh(void)
 {
-    say_if_unset(alarm_set_every(REFRESH_ALARM, app_setting_seconds("every", REFRESH_DEFAULT_S), 0),
-                 "no room for the refresh's alarm");
-    ask();
+    alarm_set(REFRESH_ALARM, 0); /* Remove the periodic raw GET from older versions. */
 }
 
 /* ---- the answer ---- */
@@ -188,6 +182,10 @@ static void accept_answer(void)
         current_page = shown_page; /* what was shown before stays, and so does its number */
         return;
     }
+    /* A poll prepared before a page press can finish after it. Its page header
+     * identifies that old screen; an integration removing pages may clamp down. */
+    if (coming_poll && coming_length >= 9 && app_text_starts(coming, "page|") &&
+        coming[5] != '0' + source.page && coming[7] >= '0' + source.page) { return; }
     bool changed = coming_length != screen_length;
     for (int32_t i = 0; i < coming_length; i++) {
         changed |= screen[i] != coming[i];
@@ -199,6 +197,7 @@ static void accept_answer(void)
     read_page();
     if (previous_page != shown_page) { list.first = list.count = 0; }
     current_page = shown_page;
+    follow_pairing();
     if (changed || screen_dirty) {
         screen_pairing = pairing();
         save_screen();
@@ -208,7 +207,9 @@ static void accept_answer(void)
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
                  int32_t http_status)
 {
-    if (!source_ready || source.pairing != pairing() || request != request_screen()) {
+    /* The OS discards manifest-poll replies invalidated by a settings change. */
+    if (request == 0 && (!source_ready || source.pairing != pairing())) { follow_pairing(); }
+    if (!source_ready || source.pairing != pairing() || (request != 0 && request != request_screen())) {
         return;
     }
     if (flags & HOST_DATA_FAILED) {
@@ -221,6 +222,7 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
         return;
     }
     if (flags & HOST_DATA_FIRST) {
+        coming_poll = request == 0;
         coming_status = http_status;
         coming_length = 0;
         receiving = true;
@@ -244,12 +246,11 @@ void app_on_load(void)
 {
     focused = false;
     current_page = page_count = shown_page = 1;
-    if (kv_get("last_ask", 8, &last_ask_ms, sizeof last_ask_ms) != sizeof last_ask_ms) {
-        last_ask_ms = -1;
-    }
+    last_ask_ms = -1;
     source_ready = kv_get("source", 6, &source, sizeof source) == sizeof source &&
                    source.tag >= HOST_REQUEST_FIRST && source.tag <= HOST_REQUEST_LAST;
-    if (!source_ready || source.pairing != pairing()) { follow_pairing(); }
+    if (source_ready) { current_page = source.page; }
+    follow_pairing(); /* Also initialise the scheduled page when upgrading an existing source. */
     cached_screen_t cache;
     int32_t length = kv_get(SCREEN_KEY, sizeof SCREEN_KEY - 1, &cache, sizeof cache);
     screen_pairing = pairing();
@@ -312,7 +313,9 @@ void app_on_blur(void)
 {
     place_t place = { .first = list.first, .count = list.count, .page = current_page, .shown = shown_page,
                       .last_ask_ms = last_ask_ms };
-    app_session_save(&place, sizeof place);
+    if (!app_session_save(&place, sizeof place)) {
+        log_write(HOST_LOG_WARN, "HA session save failed", app_text_length("HA session save failed"));
+    }
     focused = false;
 }
 
@@ -328,11 +331,8 @@ void app_on_focus(void)
         list.first = place.shown == shown_page ? place.first : 0;
         list.count = place.shown == shown_page ? place.count : 0;
         if (last_ask_ms < place.last_ask_ms) { last_ask_ms = place.last_ask_ms; }
-        if (last_ask_ms < 0 || time_uptime_ms() - last_ask_ms >= 60000) { ask(); }
     }
-    if (!restored && !has_asked) {
-        keep_fresh();
-    }
+    keep_fresh();
 }
 
 void app_on_settings(void)
@@ -349,13 +349,14 @@ void app_on_settings(void)
         current_page = page_count = shown_page = 1;
         screen_redraw(HOST_REDRAW_NORMAL);
     }
+    follow_pairing();
     keep_fresh();
 }
 
 void app_on_alarm(int32_t id)
 {
     (void)id;
-    ask();
+    keep_fresh();
 }
 
 void app_on_button(int32_t event)

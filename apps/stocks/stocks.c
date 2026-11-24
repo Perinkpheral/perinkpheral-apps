@@ -116,6 +116,13 @@ static state_t saved;
 static quote_t quote;   /* the record of state.index */
 static int32_t loaded = -1;
 
+static void save_preferences(void)
+{
+    if (state.rotating == saved.rotating) { return; }
+    state_t preferences = { .version = STATE_VERSION, .rotating = state.rotating };
+    if (app_state_save(STATE_KEY, &preferences, sizeof preferences)) { saved = preferences; }
+}
+
 static int32_t ticker_count(void)
 {
     int32_t count = app_setting_count(TICKERS);
@@ -209,21 +216,32 @@ void app_on_load(void)
     if (!app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION)) {
         state = (state_t){ .version = STATE_VERSION };
     }
+    state.index = 0; /* Selection belongs to the scene, including for legacy records. */
     saved = state;
-    if (state.index >= ticker_count()) {
-        state.index = 0;
-    }
 }
 
 void app_on_terminate(void)
 {
-    if (state.index != saved.index || state.rotating != saved.rotating) {
-        app_state_save(STATE_KEY, &state, sizeof state);
-    }
+    save_preferences();
+}
+
+typedef struct { state_t state, saved; } scene_t;
+APP_SESSION_FITS(scene_t);
+
+void app_on_blur(void)
+{
+    scene_t scene = { .state = state, .saved = saved };
+    app_session_save(&scene, sizeof scene);
 }
 
 void app_on_focus(void)
 {
+    scene_t scene;
+    if (app_session_load(&scene, sizeof scene) && scene.state.version == STATE_VERSION) {
+        state.index = scene.state.index;
+        if (state.rotating == scene.saved.rotating) { state.rotating = scene.state.rotating; }
+    }
+    if (state.index < 0 || state.index >= ticker_count()) { state.index = 0; }
     load_current();
     update_header();
     update_rotation();
@@ -255,8 +273,7 @@ void app_on_button(int32_t event)
     case BTN_OK_PRESSED:
         /* The user's choice is kept at once, so a power loss does not undo it. */
         state.rotating = !state.rotating;
-        app_state_save(STATE_KEY, &state, sizeof state);
-        saved = state;
+        save_preferences();
         update_header();
         break;
     default:
@@ -419,10 +436,8 @@ static void moex_quote(int32_t item, int32_t http_status)
                 char day[MOEX_DATE_LENGTH + 2];
                 bool is_new_day = app_setting(MOEX_DAY_KEY, day, sizeof day) != MOEX_DATE_LENGTH ||
                                   !app_text_starts(now, day);
-                if (is_new_day) {
-                    app_state_save(MOEX_DAY_KEY, now, MOEX_DATE_LENGTH);
-                }
-                if (is_new_day || record.count == 0) {
+                bool day_ready = !is_new_day || app_state_save(MOEX_DAY_KEY, now, MOEX_DATE_LENGTH);
+                if (day_ready && (is_new_day || record.count == 0)) {
                     poll_run(POLL_MOEX_DAY);
                 }
             }

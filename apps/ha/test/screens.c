@@ -26,7 +26,7 @@ int main(void)
     standin_reset();
     standin()->is_session_writable = true;
     standin_handlers.on_data = app_on_data;
-    app_on_load(); app_on_focus(); asked(1);
+    app_on_load(); app_on_focus(); ask(); asked(1);
     answer("page|1|3\nhero|21|sunny");
     assert(page_count == 3 && shown_page == 1);
     int32_t old_request = request_screen();
@@ -39,14 +39,14 @@ int main(void)
     item_t items[ITEMS_MAX];
     assert(read_items(items) == 1);
     app_on_button(BTN_OK_PRESSED); asked(2);
-    app_on_alarm(0); asked(2);
+    ask(); asked(2);
 
     /* Scene restore and background refresh use the selected page without writing the session. */
     app_on_blur();
     place_t before, after;
     assert(app_session_load(&before, sizeof before) && before.page == 2);
     standin()->is_session_writable = false;
-    app_on_load(); app_on_alarm(0); asked(2);
+    app_on_load(); ask(); asked(2);
     assert(app_session_load(&after, sizeof after));
     assert(before.page == after.page && before.first == after.first);
     app_on_load();
@@ -107,7 +107,7 @@ int main(void)
     int sends = standin()->sends;
     app_on_button(BTN_DOWN_PRESSED);
     assert(list.first > 0 && standin()->sends == sends);
-    app_on_alarm(0); asked(1);
+    ask(); asked(1);
     for (int i = 0; i < 5; i++) {
         const char *bad[] = {"page|0|3\nhero|1|", "page|2|1\nhero|1|", "page|1|5\nhero|1|",
                              "page|1|33\nhero|1|", "page|x|3\nhero|1|"};
@@ -127,13 +127,13 @@ int main(void)
     has_asked = false;
     /* Opened anew it asks for the screen it was left on, the one its kept picture shows: no
      * picture of screen 2 followed by a jump to screen 1 (the owner, 2026-11-23). */
-    app_on_load(); app_on_focus(); asked(2);
+    app_on_load(); app_on_focus(); ask(); asked(2);
     answer("page|2|3\nhero|22|sunny");
     app_on_button(BTN_DOWN_PRESSED); asked(3);
     answer("page|3|3\nhero|23|sunny");
     app_on_blur();
     standin_restart();
     has_asked = false;
-    app_on_load(); app_on_intent(HOST_INTENT_STARTED); asked(3);
+    app_on_load(); app_on_intent(HOST_INTENT_STARTED); app_on_focus(); ask(); asked(3);
     puts("ha: page queries, wrap, refresh, legacy lists, stale replies, sessions, background delivery, removal and restart passed");
 }

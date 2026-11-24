@@ -6,12 +6,16 @@
 #include "fixtures.h"
 #include "json_pick.h"
 /* Login and picked-response header tests share the recorded-header seam. */
+#define alarm_set_every fixture_alarm_every
+#define alarm_set fixture_alarm
 #define poll_run fixture_poll_run
 #define answer_header fixture_header
 #define gfx_draw_line fixture_draw_line
 #define gfx_draw_rect fixture_draw_rect
 #define ui_draw_text fixture_draw_text
 #include "../keenetic.c"
+#undef alarm_set_every
+#undef alarm_set
 #undef poll_run
 #undef answer_header
 #undef ui_draw_text
@@ -25,6 +29,17 @@
 #include "../details.c"
 #include "standin.h"
 
+static bool refuse_every, refuse_watchdog;
+int32_t alarm_set_every(int32_t id, int32_t seconds, int32_t first);
+int32_t alarm_set(int32_t id, int32_t seconds);
+int32_t fixture_alarm_every(int32_t id, int32_t seconds, int32_t first)
+{
+    return refuse_every ? HOST_ERR_NO_SPACE : alarm_set_every(id, seconds, first);
+}
+int32_t fixture_alarm(int32_t id, int32_t seconds)
+{
+    return refuse_watchdog && id == WATCHDOG && seconds ? HOST_ERR_NO_SPACE : alarm_set(id, seconds);
+}
 static int refused_poll = -1;
 int32_t poll_run(int32_t poll);
 int32_t fixture_poll_run(int32_t poll)
@@ -394,7 +409,7 @@ static void stream_failures(void)
         assert(scene.status != 200 && scene.snapshot.reading.down == good);
     }
     picked(BATCH, HOST_FAILED_NO_NETWORK, "");
-    assert(scene.status == HOST_FAILED_NO_NETWORK && scene.down == -1 && standin_alarm_left(REFRESH) >= 120);
+    assert(scene.status == HOST_FAILED_NO_NETWORK && scene.down == good && standin_alarm_left(REFRESH) >= 120);
     puts("keenetic: OS picker rejects malformed/truncated responses; network failures retain good snapshot and back off");
 }
 static void hash_vectors(void)
@@ -1077,9 +1092,33 @@ static void network_variants(void)
     puts("keenetic: gateway omission, independent DNS, IPoE gateway/carrier and one/two/three links passed");
 }
 
+static void timeout_scene(void)
+{
+    logged_in(true); poll_fixture(BATCH, "v9-batch-sample-a.json");
+    refuse_every = true;
+    int logs = standin()->logs;
+    schedule(60);
+    assert(standin()->logs > logs && standin()->alarms[REFRESH].kind == STANDIN_ALARM_IN);
+    refuse_every = false;
+    refuse_watchdog = true;
+    app_on_button(BTN_OK_PRESSED);
+    assert(!scene.pending && standin()->logs > logs);
+    refuse_watchdog = false;
+    scene.page = 2;
+    int64_t down = scene.down, up = scene.up;
+    int points = scene.history.count;
+    app_on_blur(); in_scene = false;
+    app_on_load(); app_on_alarm(WATCHDOG);
+    assert(scene.down == down && scene.up == up);
+    app_on_load(); in_scene = true; app_on_focus();
+    assert(scene.page == 2 && scene.history.count == points);
+    assert(scene.down == down && scene.up == up);
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
+    timeout_scene();
     chart_neighbours(); refresh_phase(); optional_rates();
     restart_login(); detail_failures(); long_host_cut(); network_variants();
     network_delivery_order(); network_loading(); device_two_lines(); live_v9(); system_temperatures(); protocol(); background(); interface_settings(); router_rates(); bounds(); stream_failures();

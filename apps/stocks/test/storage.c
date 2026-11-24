@@ -108,6 +108,12 @@ int main(void)
     standin_set("tickers", "MOEX:SBER");
     moex_quote_answer();
     assert(quote.price == 20500 && !strcmp(quote.currency, "RUB") && quote.count == 0);
+    int candles = standin()->polls_run[POLL_MOEX_DAY];
+    standin_set("day", "2026-11-17");
+    fail_writes(true); moex_quote_answer();
+    assert(standin()->polls_run[POLL_MOEX_DAY] == candles);
+    fail_writes(false); moex_quote_answer();
+    assert(standin()->polls_run[POLL_MOEX_DAY] == candles + 1);
     int before_writes = writes();
     moex_quote_answer();
     assert(writes() == before_writes);
@@ -120,5 +126,12 @@ int main(void)
     assert(!write_quote(3, &record) && quotes_size() == sizeof record);
     fail_writes(false);
     assert(write_quote(3, &record) && quotes_size() == 4 * sizeof record);
+    standin()->is_session_writable = true;
+    standin_set("tickers", "AAPL\nIBM");
+    app_on_load();
+    fail_writes(true); app_on_button(BTN_DOWN_PRESSED);
+    app_on_button(BTN_OK_PRESSED); assert(state.rotating && state.index == 1);
+    app_on_blur(); app_on_terminate(); app_on_load(); app_on_focus(); assert(state.rotating && state.index == 1);
+    fail_writes(false); app_on_terminate(); app_on_load(); assert(state.rotating);
     puts("Stocks storage: 100 unchanged polls write nothing; changed quotes, full storage and retries passed");
 }

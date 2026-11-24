@@ -18,11 +18,12 @@ chooses the layout and entities; this application draws their values on the disp
 The integration writes the server address and its own pairing secret to the
 application. These fields are hidden on the device's page; no long-lived Home
 Assistant access token or template sensor is required. The application's visible
-setting is the refresh interval. Opening it or pressing OK refreshes immediately.
+setting is the refresh interval. Perinkpheral OS schedules refreshes, with a five-minute
+minimum while power saving is active; pressing OK refreshes immediately.
 UP and DOWN switch screens and wrap at the ends. The corner shows `2 of 3` (or
 `2 из 3`) when there is more than one screen. In a list, hold UP or DOWN to scroll.
 Returning from another scene keeps the selected screen; opening from the menu or
-restarting begins with screen 1. The previous picture stays until the reply arrives.
+restarting uses the screen of the cached picture. The previous picture stays until the reply arrives.
 
 ## Screen format
 

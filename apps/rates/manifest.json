@@ -3,7 +3,7 @@
   "title": "Exchange rates",
   "author": "Perinkpheral",
   "description": "Exchange rates of the Bank of Russia",
-  "version": "0.1.10",
+  "version": "0.1.12",
   "abi": 3,
   "fullscreen": false,
   "hosts": [
@@ -13,6 +13,7 @@
   "certificates": [
     "russian-root-ca.pem"
   ],
+  "intents": ["started", "network_up"],
   "polls": [
     {
       "url": "https://www.cbr-xml-daily.ru/daily_json.js",

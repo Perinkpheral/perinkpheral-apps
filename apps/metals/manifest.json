@@ -3,8 +3,9 @@
   "title": "Bank of Russia metals",
   "author": "Perinkpheral",
   "description": "Bank of Russia prices of precious metals",
-  "version": "0.1.6",
+  "version": "0.1.8",
   "abi": 3,
+  "firmware": "0.1.61",
   "icon": [
     "...........",
     "...........",

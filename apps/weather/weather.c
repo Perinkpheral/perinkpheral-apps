@@ -125,7 +125,17 @@ static const condition_t *condition_of(int32_t code)
 
 /* What the last answer came to, for when there is nothing to show. */
 #define STATUS_KEY "status"
-static int32_t last_status;
+static int32_t last_status, saved_status;
+static bool forget_forecast;
+typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
+static cooldown_t cooldown, saved_cooldown;
+APP_SESSION_FITS(cooldown_t);
+
+static void save_cooldown(void)
+{
+    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
+        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
+}
 
 static void load_forecast(void)
 {
@@ -133,6 +143,7 @@ static void load_forecast(void)
         sizeof last_status) {
         last_status = 0;
     }
+    saved_status = last_status;
     int32_t length = kv_get(FORECAST_KEY, sizeof FORECAST_KEY - 1, &forecast, sizeof forecast);
     /* v5 is the same prefix, with dates in the device's zone. Keep that
      * interpretation until a response supplies the forecast city's zone. */
@@ -180,22 +191,56 @@ static void show_header(void)
 void app_on_load(void)
 {
     load_forecast();
+    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown || cooldown.boot != time_boot_id()) {
+        cooldown = (cooldown_t){ .boot = time_boot_id() };
+    }
+    saved_cooldown = cooldown;
     show_header();
+}
+
+void app_on_terminate(void)
+{
+    save_cooldown();
+    if (last_status != saved_status && app_state_save(STATUS_KEY, &last_status, sizeof last_status)) {
+        saved_status = last_status;
+    }
+    if (forecast_dirty) { forecast_dirty = !app_state_save(FORECAST_KEY, &forecast, sizeof forecast); }
+    if (forget_forecast) { forget_forecast = !app_state_forget(FORECAST_KEY); }
 }
 
 void app_on_focus(void)
 {
+    cooldown_t live;
+    if (app_session_load(&live, sizeof live) && live.boot == cooldown.boot && live.retry_at > cooldown.retry_at) {
+        cooldown = live;
+        save_cooldown();
+    }
     show_header();
+}
+
+void app_on_blur(void)
+{
+    save_cooldown();
+    app_session_save(&cooldown, sizeof cooldown);
 }
 
 void app_on_picked(int32_t request, int32_t http_status)
 {
     (void)request;
+    if (http_status == 429) {
+        host_answer_info_t info = {0};
+        answer_info(&info, sizeof info);
+        int32_t delay = info.retry_after > 0 ? info.retry_after : 60;
+        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
+        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
+        save_cooldown();
+    }
     if (http_status != last_status) {
         last_status = http_status;
-        kv_set(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status);
         screen_redraw(HOST_REDRAW_NORMAL);
     }
+    if (last_status != saved_status &&
+        app_state_save(STATUS_KEY, &last_status, sizeof last_status)) { saved_status = last_status; }
     forecast_t fresh = { .version = FORECAST_VERSION };
     bool is_whole = http_status == HTTP_OK &&
                     app_value_number(VALUE_TEMPERATURE, 0, &fresh.temperature) &&
@@ -231,6 +276,7 @@ void app_on_picked(int32_t request, int32_t http_status)
     }
     forecast = fresh;
     has_forecast = true;
+    forget_forecast = false;
     if (changed || forecast_dirty) {
         forecast_dirty = !app_state_save(FORECAST_KEY, &forecast, sizeof forecast);
     }
@@ -245,7 +291,7 @@ void app_on_settings(void)
     if (has_forecast && !same_place()) {
         has_forecast = false;
         forecast_dirty = false;
-        app_state_forget(FORECAST_KEY);
+        forget_forecast = !app_state_forget(FORECAST_KEY);
     }
     show_header();
     screen_redraw(HOST_REDRAW_NORMAL);
@@ -255,7 +301,9 @@ void app_on_button(int32_t event)
 {
     switch (event) {
     case BTN_OK_PRESSED:
-        poll_run(WEATHER_POLL); /* "refresh": the answer redraws the screen */
+        if (time_uptime_ms() >= cooldown.retry_at) {
+            poll_run(WEATHER_POLL); /* "refresh": the answer redraws the screen */
+        }
         break;
     }
 }
