@@ -61,7 +61,7 @@ int main(void)
     live = stored; live.minute++; live.altitude = 422; live.status = 503;
     assert(session_set(&live, sizeof live) == HOST_OK);
     app_on_focus();
-    assert(state.altitude == 422000 && state.status == 200 && state.minute == live.minute);
+    assert(state.altitude == 422000 && state.status == 503 && state.minute == live.minute);
     app_on_blur();
     read_live();
     assert(live.version == 2 && live.altitude == 422000);

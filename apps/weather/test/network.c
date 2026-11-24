@@ -32,6 +32,10 @@ int main(void)
     standin_set("lat", "55.75"); standin_set("lon", "37.62"); standin_set("units", "celsius");
     app_on_load(); picked(200);
     assert(has_forecast && forecast.temperature == 12);
+    standin()->refuse_writes = HOST_ERR_FAILED; picked(503);
+    standin()->refuse_writes = HOST_OK; picked(503);
+    app_on_load(); assert(last_status == 503);
+    picked(200);
     int first_writes = writes();
     for (int poll = 0; poll < 96; poll++) picked(200);
     assert(writes() == first_writes);
@@ -84,6 +88,11 @@ int main(void)
     assert(forecast_day() - forecast.day == 1);
     forecast = (forecast_t){0}; app_on_load();
     assert(forecast.zone_offset == 32400 && forecast_day() - forecast.day == 1);
+    standin()->refuse_writes = HOST_ERR_FAILED;
+    standin_set("lat", "1"); app_on_settings();
+    standin()->refuse_writes = HOST_OK;
+    app_on_terminate();
+    assert(standin_value("forecast", NULL) == NULL);
     date = ""; values[0] = 99; picked(200);
     assert(forecast.temperature == 13);
     puts("weather: forecast-city dates, cached rollover, source binding, unchanged polls and failed save retry passed");

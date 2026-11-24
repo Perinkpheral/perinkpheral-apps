@@ -31,6 +31,7 @@ static bool    state_unsaved; /* the store refused the last write of it */
 typedef struct {
     int32_t index;
     int64_t next_rotation_ms;
+    int32_t rotating, saved_rotating;
 } navigation_t;
 APP_SESSION_FITS(navigation_t);
 typedef struct {
@@ -40,7 +41,7 @@ typedef struct {
 } cached_history_t;
 _Static_assert(sizeof(cached_history_t) * CURRENCIES_MAX <= 4096, "history fits one storage block");
 static navigation_t navigation;
-static int32_t rotating;
+static int32_t rotating, saved_rotating;
 static history_parser_t history_parser;
 static bool history_reading;
 static cached_history_t chart;
@@ -290,6 +291,15 @@ void app_on_load(void)
     saved_status = status;
     navigation = (navigation_t){0};
     if (kv_get("rotating", 8, &rotating, sizeof rotating) != sizeof rotating) rotating = 0;
+    saved_rotating = rotating;
+}
+
+void app_on_terminate(void)
+{
+    if (rotating != saved_rotating && app_state_save("rotating", &rotating, sizeof rotating)) {
+        saved_rotating = rotating;
+    }
+    if (state_unsaved) { state_unsaved = !app_state_save("state", &state, sizeof state); }
 }
 
 void app_on_updated(void)
@@ -299,10 +309,12 @@ void app_on_updated(void)
 
 void app_on_focus(void)
 {
-    if (!app_session_load(&navigation, sizeof navigation))
+    if (!app_session_load(&navigation, sizeof navigation)) {
         navigation = (navigation_t){0};
+    } else if (rotating == navigation.saved_rotating) {
+        rotating = navigation.rotating; /* A refused preference save stays visible and retryable. */
+    }
     if (navigation.index < 0 || navigation.index >= currency_count()) navigation.index = 0;
-    if (!state.has_data) poll_run(0);
     load_chart();
     update_header();
     update_rotation(false);
@@ -310,6 +322,8 @@ void app_on_focus(void)
 
 void app_on_blur(void)
 {
+    navigation.rotating = rotating;
+    navigation.saved_rotating = saved_rotating;
     app_session_save(&navigation, sizeof navigation);
 }
 
@@ -331,7 +345,7 @@ void app_on_button(int32_t event)
     else if (event == BTN_DOWN_PRESSED || event == BTN_DOWN_LONG_PRESSED) select_currency(1);
     else if (event == BTN_OK_PRESSED) {
         rotating = !rotating;
-        kv_set("rotating", 8, &rotating, sizeof rotating);
+        if (app_state_save("rotating", &rotating, sizeof rotating)) { saved_rotating = rotating; }
         update_header();
     } else return;
     update_rotation(true);

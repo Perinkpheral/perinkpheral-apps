@@ -256,18 +256,18 @@
     {
       "name": "ha",
       "title": "HA Companion",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 9578,
-          "sha256": "d070835013410b9d863667e9c22b0579b0be43f4b37ca67b60f03dcfbfe25953"
+          "size": 9398,
+          "sha256": "0515d469df5e6f6d6df234062767644902a504cfc1760d4477fe41ed16c06418"
         },
         {
           "name": "manifest.ru",
-          "size": 263,
-          "sha256": "1badfe334c8d72db9623e8a2010e1a83853700e8e70ba9d64b8b1e947672b1f5"
+          "size": 299,
+          "sha256": "2cf919eb9943143368bc930635f111b375ff45d28307928e056dcea2d70700cb"
         },
         {
           "name": "strings.ru",
@@ -276,8 +276,8 @@
         },
         {
           "name": "manifest.json",
-          "size": 909,
-          "sha256": "f8254b78ee7a1789bafd9be40b7ab5a70635562296e1a4205ef56fc2ffe2a19a"
+          "size": 1227,
+          "sha256": "ff3bbf5124f39108fb1c424ab7017fceee827ec1c35e8d123e4cd1b351ef57b4"
         }
       ],
       "author": "Perinkpheral",
@@ -305,13 +305,13 @@
     {
       "name": "iss",
       "title": "ISS",
-      "version": "0.1.15",
+      "version": "0.1.16",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6528,
-          "sha256": "c680cfbfbd2cb3a393fb9e543dc2c190b459a366c4e16700a65ab9df5abad423"
+          "size": 6983,
+          "sha256": "ace554785211d6c6f9775ddfc498fa684664ed60ff23b7e81fa9325632b56d0e"
         },
         {
           "name": "manifest.ru",
@@ -326,7 +326,7 @@
         {
           "name": "manifest.json",
           "size": 718,
-          "sha256": "80ec8f1bd694560681401abce7730c41cd4dde33e34f39be0e8367e7a7f87c97"
+          "sha256": "ed045378f3d023eb5fb2a1f9877e13b20cdae623a932b42b4498fb7082ac2faa"
         }
       ],
       "author": "Perinkpheral",
@@ -355,13 +355,13 @@
     {
       "name": "keenetic",
       "title": "Keenetic",
-      "version": "0.4.6",
+      "version": "0.4.7",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 16032,
-          "sha256": "e4d7d28bd997e3e7936bdb75c35203438d1681ac739485822b9ef98042d1043f"
+          "size": 16470,
+          "sha256": "92008d0a02c8008417d087caeb222cc9d982bfe25a8c6ccb10f23756354142ce"
         },
         {
           "name": "manifest.ru",
@@ -376,7 +376,7 @@
         {
           "name": "manifest.json",
           "size": 3052,
-          "sha256": "1a76323570bcfd5c96e61cae75e124f907d91c6ad810fdcd2096f53e660f320e"
+          "sha256": "49c7c9e3e0189e00171a4364c66fd79250fe5d1c75085d4fa9d77b5197fd58dc"
         }
       ],
       "author": "Perinkpheral",
@@ -505,13 +505,13 @@
     {
       "name": "metals",
       "title": "Bank of Russia metals",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 9209,
-          "sha256": "3c3c48100f2326b874d2fabc9a4b5789e4afaf462012afac0f75527aa44118a8"
+          "size": 10570,
+          "sha256": "e62df8bf84453e7f04c66d3896b1c520186ea9262710611dcfeffcab22afdef9"
         },
         {
           "name": "manifest.ru",
@@ -531,11 +531,11 @@
         {
           "name": "manifest.json",
           "size": 818,
-          "sha256": "6b18cd0cffd41385fe08d006e97c9f360f138f0212eec0518da7cec2d27a7b13"
+          "sha256": "62654b2dd03939c62b6b9660f045cb7a71dc08f4de44d6a82a517d9eafb5b3e1"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.1.61",
       "trusts": [
         "Russian Trusted Root CA"
       ],
@@ -613,13 +613,13 @@
     {
       "name": "rates",
       "title": "Exchange rates",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 14717,
-          "sha256": "d93f97c2cb2cede673c0411a700ddc67a0bb7e9d4548ad15c21339795aa61efa"
+          "size": 14982,
+          "sha256": "0781aed1c1e973b6aa5b701b5462c56a42eeaa63904f91ced0ce7444148b5493"
         },
         {
           "name": "manifest.ru",
@@ -639,7 +639,7 @@
         {
           "name": "manifest.json",
           "size": 1288,
-          "sha256": "e4b412c8358af93af30b5860137f4ee832650fb82fed7bd496ff6517245e1b86"
+          "sha256": "19575f65e19da2bd07671d1cc1e81d339b70008dfec3c6407ff16933265c9374"
         }
       ],
       "author": "Perinkpheral",
@@ -728,13 +728,13 @@
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.14",
+      "version": "0.2.15",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 8846,
-          "sha256": "8557353653b5bbffa63cee907983df823372c3d62f7c26c8962a6de7bf6eb525"
+          "size": 9212,
+          "sha256": "b3073626020727b04e1911e3147a8771a4b4aa746b294fe96d10a979e92fcf6e"
         },
         {
           "name": "manifest.ru",
@@ -749,7 +749,7 @@
         {
           "name": "manifest.json",
           "size": 2799,
-          "sha256": "f98c105857d2d703e747f0f449b6d70c912a6a6af5faa8777296ac954e25576c"
+          "sha256": "ba08a9d2520e1a05acf712134d99f91046409311810950bb466b63c16f9b78a0"
         }
       ],
       "author": "Perinkpheral",
@@ -929,13 +929,13 @@
     {
       "name": "weather",
       "title": "Weather",
-      "version": "0.2.18",
+      "version": "0.2.19",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6475,
-          "sha256": "1ab33dd548a2ed8134bf37c5ee20984afbc9aaef9b52ba22e2dee6ad9fbb1f94"
+          "size": 6775,
+          "sha256": "6bcb0bcda73c704501bf5253904ab19cbff36e046feff3f71edc5bb541e903e7"
         },
         {
           "name": "manifest.ru",
@@ -950,7 +950,7 @@
         {
           "name": "manifest.json",
           "size": 2040,
-          "sha256": "56dc7f31f40996eae0158f8a98b174cd166622c11a95f88bd130c5829d2a8fc7"
+          "sha256": "b1b968dfee601bc693494f733a0c33e0c0d1344ce33b7084ec48f8c46d369d1d"
         }
       ],
       "author": "Perinkpheral",

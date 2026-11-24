@@ -65,7 +65,7 @@ int main(void)
     standin_set("codes", "USD\nJPY");
     app_on_load();
     app_on_focus();
-    assert(standin()->polls_run[0] == 1);
+    assert(standin()->polls_run[0] == 0);
     deliver(0, daily, 200);
     assert(state.has_data && currency_count() == 2 && requests() == 2);
     assert(strstr(standin()->requests[0].url, "VAL_NM_RQ=R01235"));

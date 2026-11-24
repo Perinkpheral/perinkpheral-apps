@@ -23,12 +23,13 @@ enum {
 };
 typedef struct {
     int32_t version, has_data, status, latitude, longitude, altitude, velocity;
-    int32_t unused[2]; /* The sun's position, in snapshots stored before 0.1.12: the layout is kept. */
+    int32_t unused[2]; /* Revision and marker in the retired sun-position slots; keeps the stored layout. */
     int32_t second, minute; /* Older snapshots stored 0 or 1 in the seconds slot. */
     orbit_track_t track;
 } state_t;
 static state_t state;
 static int32_t saved_minute, saved_status;
+static bool state_dirty;
 _Static_assert(sizeof(state_t) <= HOST_SESSION_MAX, "ISS snapshot fits scene storage");
 _Static_assert(sizeof(state_t) <= HOST_KV_VALUE_MAX, "ISS snapshot fits one store value");
 static bool restore_state(state_t *saved)
@@ -40,6 +41,7 @@ static bool restore_state(state_t *saved)
         saved->altitude *= 1000;
         saved->version = VERSION;
     }
+    if (saved->unused[1] != 0x495353) { saved->unused[0] = 0; saved->unused[1] = 0x495353; }
     return saved->version == VERSION && saved->altitude >= 0 && saved->altitude < MAX_ALTITUDE_METERS;
 }
 
@@ -47,25 +49,31 @@ void app_on_load(void)
 {
     if ((!app_state_load("state", &state, sizeof state, VERSION) &&
          !app_state_load("state", &state, sizeof state, 1)) || !restore_state(&state)) {
-        state = (state_t){ .version = VERSION };
+        state = (state_t){ .version = VERSION, .unused = { 0, 0x495353 } };
     }
     saved_minute = state.minute;
     saved_status = state.status;
+    state_dirty = false;
 }
 
 void app_on_focus(void)
 {
     state_t live;
     if (session_get(&live, sizeof live) == sizeof live && restore_state(&live) &&
-        (live.minute > state.minute || (live.minute == state.minute && live.second > state.second))) {
-        live.status = state.status;
+        (live.unused[0] > state.unused[0] ||
+         (live.unused[0] == state.unused[0] &&
+          (live.minute > state.minute || (live.minute == state.minute && live.second > state.second))))) {
         state = live;
+        state_dirty = true;
     }
 }
 
 void app_on_blur(void)
 {
-    if (state.has_data) { session_set(&state, sizeof state); }
+    if (session_set(&state, sizeof state) != HOST_OK) {
+        state_dirty = !app_state_save("state", &state, sizeof state);
+        if (state_dirty) { log_write(HOST_LOG_WARN, "ISS state save failed", app_text_length("ISS state save failed")); }
+    }
 }
 
 void app_on_button(int32_t event)
@@ -76,7 +84,9 @@ void app_on_button(int32_t event)
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request) { return; }
+    app_on_focus(); /* Background replies also follow the latest unsaved scene. */
     state_t fresh = state;
+    int32_t previous_status = state.status;
     int64_t timestamp;
     bool success = http_status >= 200 && http_status < 300;
     bool valid = success &&
@@ -92,16 +102,30 @@ void app_on_picked(int32_t request, int32_t http_status)
         fresh.minute = (int32_t)(timestamp / SECONDS_PER_MINUTE);
         fresh.second = (int32_t)(timestamp % SECONDS_PER_MINUTE);
         orbit_track_sample(&fresh.track, fresh.minute, fresh.latitude, fresh.longitude, TRACK_SAMPLE_MINUTES);
+        const uint8_t *a = (const uint8_t *)&state, *b = (const uint8_t *)&fresh;
+        for (int32_t i = 0; i < (int32_t)sizeof state; i++) { state_dirty |= a[i] != b[i]; }
         state = fresh;
     } else {
         state.status = success ? HOST_FAILED_NO_ANSWER : http_status;
     }
+    state_dirty |= previous_status != state.status;
+    if (state_dirty) { state.unused[0]++; } /* Orders status changes as well as fixes across unloads. */
     if ((state.status != saved_status || state.minute - saved_minute >= TRACK_SAMPLE_MINUTES) &&
         app_state_save("state", &state, sizeof state)) {
         saved_minute = state.minute;
         saved_status = state.status;
+        state_dirty = false;
     }
     screen_redraw(HOST_REDRAW_NORMAL);
+}
+
+void app_on_terminate(void)
+{
+    if (state_dirty && app_state_save("state", &state, sizeof state)) {
+        saved_minute = state.minute;
+        saved_status = state.status;
+        state_dirty = false;
+    }
 }
 
 static void draw_world(void)

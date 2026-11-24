@@ -59,6 +59,19 @@ __attribute__((noinline)) static const char *word(int id)
     return app_string(id);
 }
 
+/* Scene validity follows settings, independently of disposable request tags. */
+static int32_t scene_identity(void)
+{
+    static const char *const keys[] = { "router", "username", "password", "wan", "links" };
+    uint32_t hash = 2166136261u;
+    char value[256];
+    for (int32_t key = 0; key < 5; key++) {
+        app_setting(keys[key], value, sizeof value);
+        for (int32_t i = 0; value[i]; i++) { hash = (hash ^ (uint8_t)value[i]) * 16777619u; }
+        hash = (hash ^ 255u) * 16777619u;
+    }
+    return (int32_t)hash;
+}
 static void clear_cookie(void)
 {
     cookie[0] = 0;
@@ -69,7 +82,7 @@ static void save_control(void) { app_state_save("control", &control, sizeof cont
 static bool load_scene(void)
 {
     return app_session_load(&previous, sizeof previous) &&
-           previous.magic == SCENE_MAGIC && previous.epoch == control.epoch;
+           previous.magic == SCENE_MAGIC && previous.epoch == scene.epoch;
 }
 static void restore(void)
 {
@@ -94,7 +107,6 @@ static void restore(void)
         /* The old read may have finished off screen; start another without writing flash. */
         scene.pending = 0;
     }
-    scene.epoch = control.epoch;
     if (control.auth) scene.pending = control.auth;
     app_setting("session", cookie, sizeof cookie);
 }
@@ -124,8 +136,15 @@ static void header(void)
 /* Share scheduling and setting lookup to keep the interpreter code within its budget. */
 __attribute__((noinline)) static void schedule(int32_t seconds)
 {
-    if (seconds) alarm_set_every(REFRESH, seconds < 60 ? 60 : seconds, seconds);
-    else alarm_set(REFRESH, 0);
+    int32_t result = seconds ? alarm_set_every(REFRESH, seconds < 60 ? 60 : seconds, seconds)
+                             : alarm_set(REFRESH, 0);
+    if (result != HOST_OK) {
+        log_write(HOST_LOG_WARN, "Keenetic refresh alarm refused", app_text_length("Keenetic refresh alarm refused"));
+        /* A one-shot uses no repeating-alarm slot. */
+        if (seconds && alarm_set(REFRESH, seconds) != HOST_OK) {
+            log_write(HOST_LOG_WARN, "Keenetic retry alarm refused", app_text_length("Keenetic retry alarm refused"));
+        }
+    }
 }
 __attribute__((noinline)) static int32_t pace(void)
 {
@@ -158,8 +177,6 @@ static void finish(int32_t status)
     }
     alarm_set(WATCHDOG, 0);
     if (status != 200 && !detail) {
-        scene.down = -1;
-        scene.up = -1;
         scene.history.baseline = false;
         if (visible)
             keenetic_history_add(&scene.history, -1, -1);
@@ -193,11 +210,21 @@ static bool safe_name(const char *name)
     }
     return true;
 }
-__attribute__((noinline)) static void requested(int pending)
+static bool set_watchdog(int32_t seconds)
+{
+    if (alarm_set(WATCHDOG, seconds) == HOST_OK) { return true; }
+    log_write(HOST_LOG_WARN, "Keenetic watchdog refused", 24);
+    return false;
+}
+__attribute__((noinline)) static bool requested(int pending)
 {
     scene.pending = pending;
     schedule(pace());
-    alarm_set(WATCHDOG, 330);
+    if (!set_watchdog(330)) {
+        finish(HOST_FAILED_NO_MEMORY);
+        return false;
+    }
+    return true;
 }
 __attribute__((noinline)) static void request_poll(int poll)
 {
@@ -216,7 +243,7 @@ static void send_login(int phase, int retry_poll, bool renewed, const char *body
     const char *headers = phase == LOGIN ? login_headers : "";
     int tag = HOST_REQUEST_FIRST + control.epoch * 16 + retry_poll * 2 + phase + (renewed ? RENEW : 0);
     control.auth = tag;
-    requested(tag);
+    if (!requested(tag)) { return; }
     if (!app_state_save("control", &control, sizeof control)) {
         control.auth = 0;
         finish(HOST_FAILED_NO_MEMORY);
@@ -453,6 +480,7 @@ void app_on_load(void)
         control.epoch = 0;
     keenetic_clear(&scene, sizeof scene);
     scene.magic = SCENE_MAGIC;
+    scene.epoch = scene_identity();
     scene.down = scene.up = -1;
     if (!app_state_load("snapshot", &scene.snapshot, sizeof scene.snapshot, 4)) {
         keenetic_clear(&scene.snapshot, sizeof scene.snapshot);
@@ -510,7 +538,7 @@ void app_on_settings(void)
 {
     restore();
     control.epoch = (control.epoch + 1) % 14;
-    scene.epoch = control.epoch;
+    scene.epoch = scene_identity();
     control.blocked = control.renewing = control.auth = 0;
     save_control();
     clear_cookie();
@@ -529,7 +557,9 @@ void app_on_intent(int32_t intent)
 {
     if (intent == HOST_INTENT_STARTED) {
         restore();
-        if (scene.pending) alarm_set(WATCHDOG, 1);
+        if (scene.pending) {
+            if (!set_watchdog(1)) { finish(HOST_FAILED_NO_MEMORY); }
+        }
         else if (!control.blocked) schedule(1);
     }
 }
@@ -542,8 +572,9 @@ void app_on_updated(void)
     if (!control.blocked) {
         schedule(pace());
         /* The package lost its alarms; a queued request still needs its watchdog. */
-        if (control.auth || (load_scene() && previous.pending))
-            alarm_set(WATCHDOG, 330);
+        if (control.auth || (load_scene() && previous.pending)) {
+            if (!set_watchdog(330)) { finish(HOST_FAILED_NO_MEMORY); }
+        }
     }
 }
 void app_on_button(int32_t event)

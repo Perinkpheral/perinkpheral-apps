@@ -125,7 +125,8 @@ static const condition_t *condition_of(int32_t code)
 
 /* What the last answer came to, for when there is nothing to show. */
 #define STATUS_KEY "status"
-static int32_t last_status;
+static int32_t last_status, saved_status;
+static bool forget_forecast;
 
 static void load_forecast(void)
 {
@@ -133,6 +134,7 @@ static void load_forecast(void)
         sizeof last_status) {
         last_status = 0;
     }
+    saved_status = last_status;
     int32_t length = kv_get(FORECAST_KEY, sizeof FORECAST_KEY - 1, &forecast, sizeof forecast);
     /* v5 is the same prefix, with dates in the device's zone. Keep that
      * interpretation until a response supplies the forecast city's zone. */
@@ -183,6 +185,15 @@ void app_on_load(void)
     show_header();
 }
 
+void app_on_terminate(void)
+{
+    if (last_status != saved_status && app_state_save(STATUS_KEY, &last_status, sizeof last_status)) {
+        saved_status = last_status;
+    }
+    if (forecast_dirty) { forecast_dirty = !app_state_save(FORECAST_KEY, &forecast, sizeof forecast); }
+    if (forget_forecast) { forget_forecast = !app_state_forget(FORECAST_KEY); }
+}
+
 void app_on_focus(void)
 {
     show_header();
@@ -193,9 +204,10 @@ void app_on_picked(int32_t request, int32_t http_status)
     (void)request;
     if (http_status != last_status) {
         last_status = http_status;
-        kv_set(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status);
         screen_redraw(HOST_REDRAW_NORMAL);
     }
+    if (last_status != saved_status &&
+        app_state_save(STATUS_KEY, &last_status, sizeof last_status)) { saved_status = last_status; }
     forecast_t fresh = { .version = FORECAST_VERSION };
     bool is_whole = http_status == HTTP_OK &&
                     app_value_number(VALUE_TEMPERATURE, 0, &fresh.temperature) &&
@@ -231,6 +243,7 @@ void app_on_picked(int32_t request, int32_t http_status)
     }
     forecast = fresh;
     has_forecast = true;
+    forget_forecast = false;
     if (changed || forecast_dirty) {
         forecast_dirty = !app_state_save(FORECAST_KEY, &forecast, sizeof forecast);
     }
@@ -245,7 +258,7 @@ void app_on_settings(void)
     if (has_forecast && !same_place()) {
         has_forecast = false;
         forecast_dirty = false;
-        app_state_forget(FORECAST_KEY);
+        forget_forecast = !app_state_forget(FORECAST_KEY);
     }
     show_header();
     screen_redraw(HOST_REDRAW_NORMAL);

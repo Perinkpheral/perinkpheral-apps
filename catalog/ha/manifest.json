@@ -1,6 +1,6 @@
 {
   "name": "ha",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "title": "HA Companion",
   "author": "Perinkpheral",
   "description": "Home Assistant dashboard",
@@ -19,6 +19,13 @@
       "hidden": true
     },
     {
+      "key": "page",
+      "type": "number",
+      "title": "Page",
+      "default": "1",
+      "hidden": true
+    },
+    {
       "key": "every",
       "type": "choice",
       "title": "Refresh",
@@ -33,6 +40,15 @@
   ],
   "hosts": [
     "{{server}}"
+  ],
+  "polls": [
+    {
+      "url": "{{server}}/api/perinkpheral/screen?page={{page}}",
+      "headers": {
+        "Authorization": "Bearer {{token}}"
+      },
+      "every": "{{every}}"
+    }
   ],
   "intents": [
     "started"
