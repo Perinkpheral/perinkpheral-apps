@@ -3,8 +3,9 @@
   "title": "Weather",
   "author": "Perinkpheral",
   "description": "Weather now and for three days",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "abi": 3,
+  "format": "json",
   "icon": [
     "...#.......",
     ".#...#.....",

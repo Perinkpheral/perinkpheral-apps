@@ -3,8 +3,9 @@
   "title": "Air quality",
   "author": "Perinkpheral",
   "description": "Harmful particles, UV and the strongest irritants",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "abi": 3,
+  "format": "json",
   "fullscreen": false,
   "hosts": [
     "air-quality-api.open-meteo.com"

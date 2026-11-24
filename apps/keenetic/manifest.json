@@ -3,8 +3,9 @@
   "title": "Keenetic",
   "author": "Perinkpheral",
   "description": "Router traffic, system, network and devices",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "abi": 3,
+  "format": "json",
   "firmware": "0.1.95",
   "fullscreen": false,
   "hosts": [

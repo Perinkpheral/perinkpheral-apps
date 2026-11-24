@@ -1,10 +1,11 @@
 {
   "name": "earthquakes",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "title": "Earthquakes",
   "author": "Perinkpheral",
   "description": "Recent earthquakes worldwide, with optional nearby notices",
   "abi": 3,
+  "format": "json",
   "writes_files": true,
   "settings": [
     {

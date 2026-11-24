@@ -1,10 +1,11 @@
 {
   "name": "calendar",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "title": "Calendar",
   "author": "Perinkpheral",
   "description": "Calendar events",
   "abi": 3,
+  "format": "raw",
   "writes_files": true,
   "settings": [
     { "key": "feed", "type": "link", "title": "Calendar 1",

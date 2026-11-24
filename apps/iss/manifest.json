@@ -3,9 +3,10 @@
   "title": "ISS",
   "author": "Perinkpheral",
   "description": "International Space Station over a world map",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "firmware": "0.1.61",
   "abi": 3,
+  "format": "json",
   "fullscreen": false,
   "icon": [
     "...........",
