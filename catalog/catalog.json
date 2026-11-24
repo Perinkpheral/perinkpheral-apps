@@ -4,13 +4,13 @@
     {
       "name": "air",
       "title": "Air quality",
-      "version": "0.1.12",
+      "version": "0.1.11",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7854,
-          "sha256": "0f991b22585317b516cbb1b52b9f26b3900298536d788b3779acb55e5093b280"
+          "size": 8486,
+          "sha256": "adadfc1b76d83e8e21929e96f575d88376e9a7a7984a960b42232cdb1867bcad"
         },
         {
           "name": "manifest.ru",
@@ -25,7 +25,7 @@
         {
           "name": "manifest.json",
           "size": 2179,
-          "sha256": "c1669e9b30bbf3e0ca19cae84af6aded470a9c12ea8baf4013ffd2b1b179d95f"
+          "sha256": "ff9120f779f24b09a193aa5a5b21fad395e7d54375883feb8e8e7c4cd00df63e"
         }
       ],
       "author": "Perinkpheral",
@@ -46,8 +46,8 @@
       "description": "Harmful particles, UV and the strongest irritants",
       "translations": {
         "ru": {
-          "title": "Качество воздуха",
-          "description": "Вредные частицы, УФ и главные раздражители"
+          "title": "\u041a\u0430\u0447\u0435\u0441\u0442\u0432\u043e \u0432\u043e\u0437\u0434\u0443\u0445\u0430",
+          "description": "\u0412\u0440\u0435\u0434\u043d\u044b\u0435 \u0447\u0430\u0441\u0442\u0438\u0446\u044b, \u0423\u0424 \u0438 \u0433\u043b\u0430\u0432\u043d\u044b\u0435 \u0440\u0430\u0437\u0434\u0440\u0430\u0436\u0438\u0442\u0435\u043b\u0438"
         }
       }
     },
@@ -97,8 +97,8 @@
       "description": "Calendar events",
       "translations": {
         "ru": {
-          "title": "Календарь",
-          "description": "События из календаря"
+          "title": "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c",
+          "description": "\u0421\u043e\u0431\u044b\u0442\u0438\u044f \u0438\u0437 \u043a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044f"
         }
       }
     },
@@ -147,8 +147,8 @@
       "description": "Large clock with the date",
       "translations": {
         "ru": {
-          "title": "Часы",
-          "description": "Крупные часы с датой"
+          "title": "\u0427\u0430\u0441\u044b",
+          "description": "\u041a\u0440\u0443\u043f\u043d\u044b\u0435 \u0447\u0430\u0441\u044b \u0441 \u0434\u0430\u0442\u043e\u0439"
         }
       }
     },
@@ -198,20 +198,20 @@
       "translations": {
         "ru": {
           "title": "donut.c",
-          "description": "Тот самый вращающийся тор"
+          "description": "\u0422\u043e\u0442 \u0441\u0430\u043c\u044b\u0439 \u0432\u0440\u0430\u0449\u0430\u044e\u0449\u0438\u0439\u0441\u044f \u0442\u043e\u0440"
         }
       }
     },
     {
       "name": "earthquakes",
       "title": "Earthquakes",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 17493,
-          "sha256": "5fae4060e1f7613754ca5d56362232f5881bbacdbed3c309c7808f1f41aceee0"
+          "size": 18904,
+          "sha256": "eadbc06cc1cf78417dd6cec8704fe9fddb54961205d59ea56a2601c0923e5a9c"
         },
         {
           "name": "manifest.ru",
@@ -220,13 +220,13 @@
         },
         {
           "name": "strings.ru",
-          "size": 367,
-          "sha256": "2ccfd222bfc01adb9c291344320058da4bade38cfcade5f833400fcd7505da5d"
+          "size": 400,
+          "sha256": "5b21eafbe46d31f8abe3ee079dbdd64d46c147cbecbcbd511b26a0337e9c6615"
         },
         {
           "name": "manifest.json",
-          "size": 3094,
-          "sha256": "a842f08617533efd51cd86a7dce83347c82cc3e4b913293a0d3763ad8352f903"
+          "size": 3146,
+          "sha256": "1e1ce81725310eda8fdc855d723cd10fb38aeaa8b4cc98c38b938cc6a16f16fc"
         }
       ],
       "author": "Perinkpheral",
@@ -248,21 +248,21 @@
       "description": "Recent earthquakes worldwide, with optional nearby notices",
       "translations": {
         "ru": {
-          "title": "Землетрясения",
-          "description": "Землетрясения в мире и уведомления о событиях рядом"
+          "title": "\u0417\u0435\u043c\u043b\u0435\u0442\u0440\u044f\u0441\u0435\u043d\u0438\u044f",
+          "description": "\u0417\u0435\u043c\u043b\u0435\u0442\u0440\u044f\u0441\u0435\u043d\u0438\u044f \u0432 \u043c\u0438\u0440\u0435 \u0438 \u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f \u043e \u0441\u043e\u0431\u044b\u0442\u0438\u044f\u0445 \u0440\u044f\u0434\u043e\u043c"
         }
       }
     },
     {
       "name": "ha",
       "title": "HA Companion",
-      "version": "0.4.8",
+      "version": "0.4.9",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 9398,
-          "sha256": "0515d469df5e6f6d6df234062767644902a504cfc1760d4477fe41ed16c06418"
+          "size": 10635,
+          "sha256": "368f2e834442c4cd1848abd523e3c037ed882251a8010ed7476072c78653c9b4"
         },
         {
           "name": "manifest.ru",
@@ -277,7 +277,7 @@
         {
           "name": "manifest.json",
           "size": 1227,
-          "sha256": "ff3bbf5124f39108fb1c424ab7017fceee827ec1c35e8d123e4cd1b351ef57b4"
+          "sha256": "5cff70b959c46babfb334b3380b46cb72346ac868cfe61e7b46a477a23d7ab11"
         }
       ],
       "author": "Perinkpheral",
@@ -298,20 +298,20 @@
       "description": "Home Assistant dashboard",
       "translations": {
         "ru": {
-          "description": "Панель Home Assistant"
+          "description": "\u041f\u0430\u043d\u0435\u043b\u044c Home Assistant"
         }
       }
     },
     {
       "name": "iss",
       "title": "ISS",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6983,
-          "sha256": "ace554785211d6c6f9775ddfc498fa684664ed60ff23b7e81fa9325632b56d0e"
+          "size": 7703,
+          "sha256": "bc640cefb766a2659bdd0528438f9f257b5404bc5c26cc36e7e2968049836235"
         },
         {
           "name": "manifest.ru",
@@ -326,7 +326,7 @@
         {
           "name": "manifest.json",
           "size": 718,
-          "sha256": "ed045378f3d023eb5fb2a1f9877e13b20cdae623a932b42b4498fb7082ac2faa"
+          "sha256": "f81934c47d3a9c0cb6659f72fdff58a05fb24ef0a7dde6b4d18fbc4cfaaef678"
         }
       ],
       "author": "Perinkpheral",
@@ -347,21 +347,21 @@
       "description": "International Space Station over a world map",
       "translations": {
         "ru": {
-          "title": "МКС",
-          "description": "МКС на мировой карте"
+          "title": "\u041c\u041a\u0421",
+          "description": "\u041c\u041a\u0421 \u043d\u0430 \u043c\u0438\u0440\u043e\u0432\u043e\u0439 \u043a\u0430\u0440\u0442\u0435"
         }
       }
     },
     {
       "name": "keenetic",
       "title": "Keenetic",
-      "version": "0.4.8",
+      "version": "0.4.9",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 16682,
-          "sha256": "5bf7eed4c475ec30a29f333111e88b8672a7111a4ebe58025669b217a706f1b3"
+          "size": 17287,
+          "sha256": "ebafe61e44d72328e10c2f3b7f9626f0791f6a5e9ab24e8ba7d8d63474196ce1"
         },
         {
           "name": "manifest.ru",
@@ -376,7 +376,7 @@
         {
           "name": "manifest.json",
           "size": 3052,
-          "sha256": "f722c3fb490870630eb0c05758f496fc413039ae0fff073174c63a3aafaa47c6"
+          "sha256": "a505bfbf35a48de9a2e04ed9339857b9965e68336998ec21bf321178cdc6e167"
         }
       ],
       "author": "Perinkpheral",
@@ -398,7 +398,7 @@
       "translations": {
         "ru": {
           "title": "Keenetic",
-          "description": "Трафик, система, сеть и устройства роутера"
+          "description": "\u0422\u0440\u0430\u0444\u0438\u043a, \u0441\u0438\u0441\u0442\u0435\u043c\u0430, \u0441\u0435\u0442\u044c \u0438 \u0443\u0441\u0442\u0440\u043e\u0439\u0441\u0442\u0432\u0430 \u0440\u043e\u0443\u0442\u0435\u0440\u0430"
         }
       }
     },
@@ -447,8 +447,8 @@
       "description": "Interface elements for app developers",
       "translations": {
         "ru": {
-          "title": "Кит UI",
-          "description": "Элементы интерфейса для разработчиков"
+          "title": "\u041a\u0438\u0442 UI",
+          "description": "\u042d\u043b\u0435\u043c\u0435\u043d\u0442\u044b \u0438\u043d\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430 \u0434\u043b\u044f \u0440\u0430\u0437\u0440\u0430\u0431\u043e\u0442\u0447\u0438\u043a\u043e\u0432"
         }
       }
     },
@@ -497,8 +497,8 @@
       "description": "Conway's Game of Life",
       "translations": {
         "ru": {
-          "title": "Жизнь",
-          "description": "Игра \"Жизнь\" Конвея"
+          "title": "\u0416\u0438\u0437\u043d\u044c",
+          "description": "\u0418\u0433\u0440\u0430 \"\u0416\u0438\u0437\u043d\u044c\" \u041a\u043e\u043d\u0432\u0435\u044f"
         }
       }
     },
@@ -555,8 +555,8 @@
       "description": "Bank of Russia prices of precious metals",
       "translations": {
         "ru": {
-          "title": "Металлы Банка России",
-          "description": "Цены Банка России на драгоценные металлы"
+          "title": "\u041c\u0435\u0442\u0430\u043b\u043b\u044b \u0411\u0430\u043d\u043a\u0430 \u0420\u043e\u0441\u0441\u0438\u0438",
+          "description": "\u0426\u0435\u043d\u044b \u0411\u0430\u043d\u043a\u0430 \u0420\u043e\u0441\u0441\u0438\u0438 \u043d\u0430 \u0434\u0440\u0430\u0433\u043e\u0446\u0435\u043d\u043d\u044b\u0435 \u043c\u0435\u0442\u0430\u043b\u043b\u044b"
         }
       }
     },
@@ -605,8 +605,8 @@
       "description": "Work and breaks in turns",
       "translations": {
         "ru": {
-          "title": "Помодоро",
-          "description": "Работа и перерывы по очереди"
+          "title": "\u041f\u043e\u043c\u043e\u0434\u043e\u0440\u043e",
+          "description": "\u0420\u0430\u0431\u043e\u0442\u0430 \u0438 \u043f\u0435\u0440\u0435\u0440\u044b\u0432\u044b \u043f\u043e \u043e\u0447\u0435\u0440\u0435\u0434\u0438"
         }
       }
     },
@@ -664,21 +664,21 @@
       "description": "Exchange rates of the Bank of Russia",
       "translations": {
         "ru": {
-          "title": "Курсы валют",
-          "description": "Курсы валют ЦБ РФ"
+          "title": "\u041a\u0443\u0440\u0441\u044b \u0432\u0430\u043b\u044e\u0442",
+          "description": "\u041a\u0443\u0440\u0441\u044b \u0432\u0430\u043b\u044e\u0442 \u0426\u0411 \u0420\u0424"
         }
       }
     },
     {
       "name": "space-launch",
       "title": "Space Launch",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 18957,
-          "sha256": "d56c086fd5534668ded67916a83dfcac6b009aaefdcd0e50b244132cf2dbc073"
+          "size": 19044,
+          "sha256": "3a9a1f4e4b5ceba7ed987a780261a4aaef72647cfec6fa1b6ee7851bd1282c35"
         },
         {
           "name": "history.bin",
@@ -698,7 +698,7 @@
         {
           "name": "manifest.json",
           "size": 2644,
-          "sha256": "d238d7bcc61c0bc862090023683454ffcdb30b743c5e97d34da3d3448d1e9662"
+          "sha256": "c463a2e68fb6da0980d5910a4b41f6adbcbf0ceddd6cb730720e68be244815a1"
         }
       ],
       "author": "Perinkpheral",
@@ -720,15 +720,15 @@
       "description": "Space launches, upcoming and past",
       "translations": {
         "ru": {
-          "title": "Космические пуски",
-          "description": "Космические пуски: ближайшие и прошедшие"
+          "title": "\u041a\u043e\u0441\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u043f\u0443\u0441\u043a\u0438",
+          "description": "\u041a\u043e\u0441\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u043f\u0443\u0441\u043a\u0438: \u0431\u043b\u0438\u0436\u0430\u0439\u0448\u0438\u0435 \u0438 \u043f\u0440\u043e\u0448\u0435\u0434\u0448\u0438\u0435"
         }
       }
     },
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.19",
+      "version": "0.2.18",
       "abi": 3,
       "files": [
         {
@@ -754,7 +754,7 @@
         {
           "name": "manifest.json",
           "size": 2850,
-          "sha256": "276f562567d215bc8945d2010f7778accdaca14ec27cf235d55265bc844f9341"
+          "sha256": "d4ade378904e13b2238c98e8f682174a90bd1666c5b9799105ed646802270cd3"
         }
       ],
       "author": "Perinkpheral",
@@ -779,8 +779,8 @@
       "description": "Stock prices",
       "translations": {
         "ru": {
-          "title": "Акции",
-          "description": "Котировки акций"
+          "title": "\u0410\u043a\u0446\u0438\u0438",
+          "description": "\u041a\u043e\u0442\u0438\u0440\u043e\u0432\u043a\u0438 \u0430\u043a\u0446\u0438\u0439"
         }
       }
     },
@@ -829,8 +829,8 @@
       "description": "Stopwatch",
       "translations": {
         "ru": {
-          "title": "Секундомер",
-          "description": "Секундомер"
+          "title": "\u0421\u0435\u043a\u0443\u043d\u0434\u043e\u043c\u0435\u0440",
+          "description": "\u0421\u0435\u043a\u0443\u043d\u0434\u043e\u043c\u0435\u0440"
         }
       }
     },
@@ -880,8 +880,8 @@
       "description": "Sunrise, sunset and the moon's phase",
       "translations": {
         "ru": {
-          "title": "Солнце и Луна",
-          "description": "Восход, закат и фаза Луны"
+          "title": "\u0421\u043e\u043b\u043d\u0446\u0435 \u0438 \u041b\u0443\u043d\u0430",
+          "description": "\u0412\u043e\u0441\u0445\u043e\u0434, \u0437\u0430\u043a\u0430\u0442 \u0438 \u0444\u0430\u0437\u0430 \u041b\u0443\u043d\u044b"
         }
       }
     },
@@ -930,8 +930,8 @@
       "description": "Countdown",
       "translations": {
         "ru": {
-          "title": "Таймер",
-          "description": "Обратный отсчёт"
+          "title": "\u0422\u0430\u0439\u043c\u0435\u0440",
+          "description": "\u041e\u0431\u0440\u0430\u0442\u043d\u044b\u0439 \u043e\u0442\u0441\u0447\u0451\u0442"
         }
       }
     },
@@ -980,8 +980,8 @@
       "description": "Weather now and for three days",
       "translations": {
         "ru": {
-          "title": "Погода",
-          "description": "Погода сейчас и на три дня"
+          "title": "\u041f\u043e\u0433\u043e\u0434\u0430",
+          "description": "\u041f\u043e\u0433\u043e\u0434\u0430 \u0441\u0435\u0439\u0447\u0430\u0441 \u0438 \u043d\u0430 \u0442\u0440\u0438 \u0434\u043d\u044f"
         }
       }
     }

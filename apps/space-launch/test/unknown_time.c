@@ -23,7 +23,10 @@ int main(void)
     standin_reset(); standin_handlers.on_draw = app_on_draw; app_on_load();
     answer_text(POLL_UPCOMING, -1, 200, "{\"count\":1,\"results\":[{"
         "\"id\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"Soyuz | Mission\","
-        "\"net\":\"2026-11-25T10:00:00Z\",\"net_precision\":null}]}");
+        "\"status\":{\"id\":1},\"net\":\"2026-11-25T10:00:00Z\",\"net_precision\":null}]}");
+    assert(cache.count[0] == 1 && cache.lists[0][0].precision == PRECISION_UNKNOWN);
+    app_on_load();
+    assert(cache.count[0] == 1 && cache.lists[0][0].precision == PRECISION_UNKNOWN);
     place.nav.screen = SCREEN_LAUNCHES; place.nav.depth = 1;
     static const uint8_t PRECISIONS[] = { PRECISION_UNKNOWN, 3, PRECISION_MONTH, 14 };
     for (size_t i = 0; i < sizeof PRECISIONS / sizeof PRECISIONS[0]; i++) {

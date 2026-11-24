@@ -42,7 +42,10 @@ Visible refresh options are 1, 5 and 15 minutes. Background refresh runs every
 its session at about five idle minutes, so the 5- and 15-minute visible choices
 can require login on each refresh. The app renews after 401, blocks repeated
 refusal until OK or settings changes, and recovers interrupted logins after a
-restart. An unconfigured app does not schedule recurring refreshes.
+restart. An unconfigured app does not schedule recurring refreshes. Retry-After gates login and
+read requests across OK, settings changes and instance replacement, using uptime
+so a wall-clock edit cannot waive the deadline. The control-record migration
+preserves an existing authentication refusal. Refused session saves are logged.
 
 Only GET/POST `/auth` uses `http_send`; reads use four manifest polls: the
 system/stat/Internet/DNS batch, selected WAN, carrier/radios and hotspot list.

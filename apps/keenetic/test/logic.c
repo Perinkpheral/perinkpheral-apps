@@ -1115,10 +1115,57 @@ static void timeout_scene(void)
     assert(scene.down == down && scene.up == up);
 }
 
+static int cooldown_requests(void)
+{
+    int total = sends;
+    for (int poll = 0; poll < POLLS; poll++) { total += standin()->polls_run[poll]; }
+    return total;
+}
+
+static void cooldown_and_sessions(void)
+{
+    reset(true);
+    control_t old = { .version = 3, .epoch = 7, .blocked = 1 };
+    assert(kv_set("control", 7, &old, offsetof(control_t, boot)) == HOST_OK);
+    app_on_load();
+    assert(control.version == 4 && control.epoch == 7 && control.blocked && !control.retry_at);
+    for (int raw = 0; raw < 2; raw++) {
+        reset(true);
+        if (!raw) { challenge(); recorded_answer("login-success", NULL); }
+        standin_pair_t headers[] = { { "Retry-After", "300" } };
+        standin_answer_headers(headers, 1);
+        if (raw) { answer(429, "{}", 2); }
+        else { standin_picked(BATCH, -1, 429, "{}", 2); }
+        int before = cooldown_requests();
+        assert(control.retry_at == uptime_ms + 300000);
+        assert(standin_alarm_left(REFRESH) >= 300);
+        app_on_button(BTN_OK_PRESSED); app_on_settings(); app_on_alarm(REFRESH);
+        assert(cooldown_requests() == before);
+        app_on_blur(); app_on_load(); app_on_focus();
+        standin_clock(time_now() + 3600);
+        standin_pass(299999); app_on_button(BTN_OK_PRESSED); app_on_alarm(REFRESH);
+        assert(cooldown_requests() == before);
+        standin_pass(1); app_on_button(BTN_OK_PRESSED);
+        assert(cooldown_requests() == before + 1);
+        /* A second refusal starts a full new cooldown. */
+        standin_answer_headers(headers, 1);
+        answer(429, "{}", 2);
+        before = cooldown_requests();
+        standin_pass(299999); app_on_alarm(REFRESH);
+        assert(cooldown_requests() == before);
+    }
+    reset(true);
+    uint64_t diagnostics = standin()->diagnostics;
+    standin_refuse_session(HOST_ERR_NO_SPACE);
+    app_on_blur();
+    assert(standin_refused_sessions() == 1 && standin()->diagnostics != diagnostics);
+    puts("keenetic: login and poll cooldowns survive settings, clock changes and unload; session failures are diagnosed");
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
-    timeout_scene();
+    cooldown_and_sessions(); timeout_scene();
     chart_neighbours(); refresh_phase(); optional_rates();
     restart_login(); detail_failures(); long_host_cut(); network_variants();
     network_delivery_order(); network_loading(); device_two_lines(); live_v9(); system_temperatures(); protocol(); background(); interface_settings(); router_rates(); bounds(); stream_failures();

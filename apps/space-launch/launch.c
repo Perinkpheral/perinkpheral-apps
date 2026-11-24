@@ -478,11 +478,6 @@ __attribute__((noinline)) static int32_t picked_number(int32_t path, int32_t ele
     char text[16];
     return value_text(path, element, text, sizeof text) ? number_of(text) : -1;
 }
-__attribute__((noinline)) static uint8_t number_column(int32_t path, int32_t element, int32_t count, uint8_t otherwise)
-{
-    int32_t number = value_count(path) == count ? picked_number(path, element) : -1;
-    return number < 0 || number >= PRECISION_UNKNOWN ? otherwise : (uint8_t)number;
-}
 
 static launch_t incoming[LIST_MAX];
 /* A picked list of launches; false when the answer is not one. */
@@ -515,9 +510,16 @@ static bool take_launches(int32_t list)
         value_text(PICK_NET, i, text, sizeof text);
         launch->net = parse_moment(text);
         if (launch->net == 0) { return false; }
-        launch->status = number_column(PICK_STATUS, i, count, 0);
-        launch->precision = number_column(PICK_PRECISION, i, count, PRECISION_UNKNOWN);
-        if (launch->precision > 16) { launch->precision = PRECISION_UNKNOWN; }
+        int32_t status = value_count(PICK_STATUS) == count ? picked_number(PICK_STATUS, i) : -1;
+        if (status < ST_GO || status > ST_DEPLOYED) { return false; }
+        launch->status = (uint8_t)status;
+        launch->precision = PRECISION_UNKNOWN;
+        if (value_count(PICK_PRECISION) == count && value_text(PICK_PRECISION, i, text, sizeof text) &&
+            !is_same(text, "null", 5)) {
+            int32_t precision = number_of(text);
+            if (precision < 0 || precision > 16) { return false; }
+            launch->precision = (uint8_t)precision;
+        }
         /* A launch whose time moved says so for a day. */
         const launch_t *before = find_launch(launch->id);
         if (before != NULL) {
@@ -919,7 +921,9 @@ __attribute__((noinline)) static void fit_rows(void)
 
 void app_on_blur(void)
 {
-    app_session_save(&place, sizeof place);
+    if (!app_session_save(&place, sizeof place)) {
+        log_write(HOST_LOG_WARN, "Space Launch session save failed", sizeof "Space Launch session save failed" - 1);
+    }
 }
 
 void app_on_focus(void)

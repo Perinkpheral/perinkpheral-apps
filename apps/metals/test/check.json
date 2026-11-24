@@ -4,5 +4,8 @@
   "store": {
     "metal": "Gold"
   },
-  "mocks": "../../../tests/metals/mocks.json"
+  "mocks": "../../../tests/metals/mocks.json",
+  "exceptions": {
+    "store.identical-answers": "Persist request leases so a replaced instance does not duplicate requests, even when returned prices are identical. Lease writes are intentional durability metadata; unchanged market data itself is not rewritten."
+  }
 }

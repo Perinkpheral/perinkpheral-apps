@@ -50,7 +50,7 @@ static void status_scopes(void)
     setup();scene.scope=scene.nav.screen=1;maybe_browse();
     loading=false;standin_draw();assert(loading);
     app_on_picked(1,HOST_FAILED_NO_NETWORK);
-    const char *empty="{\"type\":\"FeatureCollection\",\"features\":[]}";
+    const char *empty="{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":0},\"features\":[]}";
     standin_picked(0,-1,200,empty,(int)strlen(empty));
     offline=loading=false;standin_draw();assert(offline && !loading);
     /* HTTP, extraction and transport failures with connectivity are not Offline. */

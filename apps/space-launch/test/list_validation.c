@@ -7,8 +7,30 @@
 #include "standin.h"
 #include "fixtures.h"
 
+static void invalid_status_and_precision(void)
+{
+    static const char *const INVALID[] = { "null", "\"invalid\"", "9223372036854775807", "-1", "255" };
+    for (int field = 0; field < 2; field++) {
+        for (size_t index = 0; index < sizeof INVALID / sizeof INVALID[0]; index++) {
+            standin_reset(); app_on_load(); answer_file(0, -1, "upcoming.json");
+            cache_t before = cache;
+            char body[512];
+            snprintf(body, sizeof body,
+                "{\"count\":1,\"results\":[{\"id\":\"00000000-0000-0000-0000-000000000001\","
+                "\"name\":\"Mission\",\"net\":\"2026-11-25T10:00:00Z\","
+                "\"status\":{\"id\":%s},\"net_precision\":{\"id\":%s}}]}",
+                field ? "1" : INVALID[index], field ? INVALID[index] : "1");
+            if (field && index == 0) { continue; } /* null precision legitimately means unknown */
+            answer_text(0, -1, 200, body);
+            assert(state.status[0] == HOST_FAILED_NO_ANSWER && !memcmp(&cache, &before, sizeof cache));
+            app_on_load(); assert(!memcmp(&cache, &before, sizeof cache));
+        }
+    }
+}
+
 int main(void)
 {
+    invalid_status_and_precision();
     for (int32_t list = 0; list < 2; list++) {
         standin_reset(); app_on_load();
         const char *name = list ? "previous.json" : "upcoming.json";

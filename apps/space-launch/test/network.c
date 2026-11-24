@@ -61,7 +61,7 @@ static void records(void)
     }
     char long_name[512];
     snprintf(long_name, sizeof long_name,
-        "{\"count\":1,\"results\":[{\"id\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"Electron | %080d\",\"net\":\"2026-11-25T10:00:00Z\"}]}", 1);
+        "{\"count\":1,\"results\":[{\"id\":\"00000000-0000-0000-0000-000000000003\",\"status\":{\"id\":1},\"name\":\"Electron | %080d\",\"net\":\"2026-11-25T10:00:00Z\"}]}", 1);
     answer_text(0, -1, 200, long_name);
     assert(cache.count[0] == 1 && !strcmp(cache.lists[0][0].name + 60, "..."));
     answer_text(0, -1, 200, "{\"count\":0,\"results\":[]}");

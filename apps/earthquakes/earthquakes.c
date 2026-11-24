@@ -39,6 +39,7 @@ __attribute__((noinline)) static void paper_rect(int32_t x, int32_t y, int32_t w
 
 enum { V_TYPE, V_ID, V_MAG, V_PLACE, V_TIME,
        V_UPDATED, V_EVENTTYPE, V_IDS, V_LON, V_LAT, V_DEPTH, V_COUNT };
+#define V_LENGTH V_COUNT /* metadata.count follows the per-event columns */
 typedef struct {
     char id[32], aliases[64], place[64];
     int32_t lat, lon, mag, depth;
@@ -80,11 +81,11 @@ typedef struct {
 static cache_t cache;
 #define state (cache.control)
 static scene_t scene;
-static bool placed, notices_on, requesting;
+static bool placed, notices_on, requesting, cache_unsaved;
 static char header_place[HOST_HEADER_TEXT_MAX + 1];
 static int32_t requested_page;
 static int32_t latitude, longitude, radius_km, minimum, refresh;
-static uint32_t saved_checksum;
+static uint32_t saved_checksum, query_unsaved;
 static int64_t success[2];
 
 _Static_assert(offsetof(event_t, aliases) == 32 && offsetof(identity_t, aliases) == 32, "identity prefix");
@@ -124,13 +125,21 @@ static uint32_t checksum(const cache_t *data)
  * rejects it as a whole; a lost cache always bootstraps notices silently.
  * Delivery intent is written before posting. There is no fallback snapshot
  * that could replay an older notification ledger after an interrupted write. */
+static void cache_save_result(bool unsaved)
+{
+    if (cache_unsaved != unsaved) {
+        cache_unsaved = unsaved;
+        screen_redraw(HOST_REDRAW_NORMAL);
+    }
+}
 static bool save_cache(void)
 {
     uint32_t sum = checksum(&cache);
-    if (sum == saved_checksum) { return true; }
+    if (sum == saved_checksum) { cache_save_result(false); return true; }
     cache.checksum = sum;
-    if (file_write("cache", 5, 0, &cache, sizeof cache) != HOST_OK) { return false; }
+    if (file_write("cache", 5, 0, &cache, sizeof cache) != HOST_OK) { cache_save_result(true); return false; }
     saved_checksum = sum;
+    cache_save_result(false);
     return true;
 }
 static void load_cache(void)
@@ -144,6 +153,24 @@ static void load_cache(void)
         cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1;
     }
     saved_checksum = cache.checksum;
+    cache_unsaved = false;
+    query_unsaved = 0;
+}
+
+/* Remember each failed query-key write until that key is saved successfully. */
+static int32_t save_query(const char *key, int32_t key_length, const void *value, int32_t length)
+{
+    static const char *const KEYS[] = { "lat", "lon", "near", "end", "offset" };
+    int32_t result = kv_set(key, key_length, value, length);
+    uint32_t before = query_unsaved;
+    for (int32_t index = 0; index < 5; index++) {
+        if (app_text_equal(key, KEYS[index])) {
+            if (result == HOST_OK) { query_unsaved &= ~(1u << index); }
+            else { query_unsaved |= 1u << index; }
+        }
+    }
+    if (before != query_unsaved) { screen_redraw(HOST_REDRAW_NORMAL); }
+    return result;
 }
 
 /* Sine in Q30, argument in microdegrees. The reduced Taylor series has
@@ -252,7 +279,7 @@ static void settings(void)
         int32_t values[] = { latitude, longitude };
         char raw[256];
         for (int32_t i = 0; i < 2; i++) if (app_setting(keys[i], raw, sizeof raw) > 16) {
-            coordinate_text(raw, values[i]); kv_set(keys[i], 3, raw, app_text_length(raw));
+            coordinate_text(raw, values[i]); save_query(keys[i], 3, raw, app_text_length(raw));
         }
     }
     radius_km = 1000; minimum = 30;
@@ -272,7 +299,7 @@ static bool stale(int32_t scope)
 }
 static void cancel_browse(void)
 {
-    requesting = 0; kv_set("offset", 6, NULL, 0);
+    requesting = 0; save_query("offset", 6, NULL, 0);
 }
 static void reset_configuration(void)
 {
@@ -282,17 +309,24 @@ static void reset_configuration(void)
     success[0] = state.success[0] = 0;
 }
 
+static void schedule_alarm(int32_t id, int32_t seconds)
+{
+    if (alarm_set(id, seconds) != HOST_OK) {
+        log_write(HOST_LOG_WARN, "Earthquakes alarm save failed", sizeof "Earthquakes alarm save failed" - 1);
+    }
+}
+
 static void provider_pause(void)
 {
     int64_t remaining = state.pause_until - time_now();
     if (remaining > 0) {
         cancel_browse();
-        kv_set("near", 4, NULL, 0);
-        alarm_set(0, remaining > 86400 ? 86400 : (int32_t)remaining);
+        save_query("near", 4, NULL, 0);
+        schedule_alarm(0, remaining > 86400 ? 86400 : (int32_t)remaining);
     } else {
         state.pause_until = 0;
-        kv_set("near", 4, placed ? "earthquake" : NULL, placed ? 10 : 0);
-        alarm_set(0, 0);
+        save_query("near", 4, placed ? "earthquake" : NULL, placed ? 10 : 0);
+        schedule_alarm(0, 0);
     }
 }
 /* Picked arrays are accepted as a single transaction. An identity at the
@@ -342,7 +376,8 @@ static bool extract(event_t *events, int32_t *count)
     char text[64];
     if (!element(V_TYPE, 0, text, sizeof text) || !app_text_equal(text, "FeatureCollection")) { return false; }
     int32_t n = answer_count(V_ID);
-    if ((uint32_t)n > BATCH) { return false; }
+    int32_t declared;
+    if ((uint32_t)n > BATCH || !app_value_number(V_LENGTH, 0, &declared) || declared != n) { return false; }
     for (int32_t k = V_ID; k < V_COUNT; k++) { if (answer_count(k) != n) { return false; } }
     static const uint8_t paths[] = { V_LAT, V_LON, V_MAG, V_DEPTH, V_TIME, V_UPDATED };
     static const uint8_t decimals[] = { 6, 6, 1, 0, 0, 0 };
@@ -661,7 +696,7 @@ void app_on_picked(int32_t request, int32_t http_status)
         success[request] = now;
         if (!request) {
             int32_t grace = refresh * 3 > 900 ? refresh * 3 : 900;
-            alarm_set(1, grace + 1);
+            schedule_alarm(1, grace + 1);
         }
         if ((uint64_t)(now - state.success[request]) >= 3600) { state.success[request] = now; }
     }
@@ -722,9 +757,9 @@ static void browse(int32_t page)
     }
     if (!requesting) { cache.browse_offset = 1; }
     utc_text(text, cache.browse_end);
-    if (kv_set("end", 3, text, app_text_length(text)) < 0) { return; }
+    if (save_query("end", 3, text, app_text_length(text)) < 0) { return; }
     FILL(text, "{0}", cache.browse_offset, NULL, NULL);
-    if (kv_set("offset", 6, text, app_text_length(text)) < 0) { return; }
+    if (save_query("offset", 6, text, app_text_length(text)) < 0) { return; }
     if (cache.browse_page != page) { scene.list.selected = scene.list.first = 0; }
     scene.page = requested_page = cache.request_page = page; requesting = true;
     save_cache();
@@ -775,7 +810,9 @@ void app_on_terminate(void)
 }
 void app_on_blur(void)
 {
-    app_session_save(&scene, sizeof scene);
+    if (!app_session_save(&scene, sizeof scene)) {
+        log_write(HOST_LOG_WARN, "Earthquakes session save failed", sizeof "Earthquakes session save failed" - 1);
+    }
     app_on_terminate();
 }
 void app_on_settings(void)
@@ -787,7 +824,7 @@ void app_on_intent(int32_t intent)
 {
     if (intent == HOST_INTENT_STARTED || intent == HOST_INTENT_TIME_CHANGED) {
         state.seed = 1; state.pending = 0;
-        if (success[0]) { alarm_set(1, (refresh * 3 > 900 ? refresh * 3 : 900) + 1); }
+        if (success[0]) { schedule_alarm(1, (refresh * 3 > 900 ? refresh * 3 : 900) + 1); }
         provider_pause(); save_cache();
         screen_redraw(HOST_REDRAW_NORMAL);
     }
@@ -1037,6 +1074,12 @@ static void draw_detail(void)
 }
 void app_on_draw(void)
 {
+    if (cache_unsaved || query_unsaved) {
+        host_notice_t notice = { .icon = HOST_ICON_WARNING };
+        app_text_copy(notice.first, sizeof notice.first, word(STR_STORAGE_ERROR));
+        ui_draw_notice(&notice);
+        return;
+    }
     if (scene.nav.depth != 0) { draw_detail(); }
     else if (scene.nav.screen == 0) { draw_main(); }
     else { draw_list(); }

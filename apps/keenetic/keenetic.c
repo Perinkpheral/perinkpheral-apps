@@ -22,6 +22,8 @@ enum { shown_rows = 3, WAN_FACTS = 0x10f, LINK_FACTS = 0xc4 };
 _Static_assert(device_track_height * shown_rows / KEENETIC_HOSTS_MAX >= 12, "kit scrollbar minimum thumb");
 typedef struct {
     int32_t version, epoch, blocked, renewing, auth;
+    uint32_t boot;
+    int64_t retry_at;
 } control_t;
 typedef struct {
     int32_t version, has_data;
@@ -37,7 +39,7 @@ typedef struct {
         struct { keenetic_host_t rows[shown_rows]; int count, total, first; } viewport;
     } details;
     int32_t detail_status;
-    int64_t down, up;
+    int64_t down, up, retry_at;
     int32_t page, status, pending, epoch;
     keenetic_history_t history;
 } scene_t;
@@ -99,6 +101,10 @@ static void restore(void)
             previous.up = scene.snapshot.reading.up;
         }
         scene = previous;
+        if (scene.retry_at > control.retry_at) {
+            control.retry_at = scene.retry_at;
+            save_control();
+        }
         if (scene.page == 3) {
             hosts.count = scene.details.viewport.count;
             hosts.total = scene.details.viewport.total;
@@ -139,6 +145,8 @@ static void header(void)
 /* Share scheduling and setting lookup to keep the interpreter code within its budget. */
 __attribute__((noinline)) static void schedule(int32_t seconds)
 {
+    int64_t remaining = (control.retry_at - time_uptime_ms() + 999) / 1000;
+    if (seconds && remaining > seconds) { seconds = remaining > 86400 ? 86400 : (int32_t)remaining; }
     int32_t result = seconds ? alarm_set_every(REFRESH, seconds < 60 ? 60 : seconds, seconds)
                              : alarm_set(REFRESH, 0);
     if (result != HOST_OK) {
@@ -200,6 +208,27 @@ static void finish(int32_t status)
     header();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
+/* All router requests share Retry-After, including login and explicit retries.
+ * Uptime prevents a wall-clock edit from cancelling the server's deadline. */
+static void receive_cooldown(int32_t status)
+{
+    host_answer_info_t info = {0};
+    answer_info(&info, sizeof info);
+    int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
+    if (delay > 0) {
+        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
+        if (retry_at > control.retry_at) { control.retry_at = retry_at; save_control(); }
+    }
+}
+
+static bool cooling_down(void)
+{
+    if (time_uptime_ms() >= control.retry_at) { return false; }
+    save_control();
+    schedule(1);
+    return true;
+}
+
 static bool safe_name(const char *name)
 {
     if (!*name || app_text_length(name) >= 32)
@@ -231,6 +260,7 @@ __attribute__((noinline)) static bool requested(int pending)
 }
 __attribute__((noinline)) static void request_poll(int poll)
 {
+    if (cooling_down()) { return; }
     int result = poll_run(poll);
     if (result != HOST_OK) {
         scene.pending = poll + 1;
@@ -241,6 +271,7 @@ __attribute__((noinline)) static void request_poll(int poll)
 }
 static void send_login(int phase, int retry_poll, bool renewed, const char *body)
 {
+    if (cooling_down()) { return; }
     static const char url[] = "{{router}}/auth";
     static const char login_headers[] = "Content-Type: application/json\nCookie: {{session}}";
     const char *headers = phase == LOGIN ? login_headers : "";
@@ -277,6 +308,7 @@ static void start(bool explicit_retry)
 {
     restore();
     if (!configured()) { finish(HOST_FAILED_NOT_READY); return; }
+    if (cooling_down()) { return; }
     if (scene.pending || (control.blocked && !explicit_retry)) return;
     if (explicit_retry && control.blocked) {
         control.blocked = control.renewing = 0;
@@ -408,6 +440,7 @@ void app_on_picked(int32_t poll, int32_t status)
 {
     restore();
     if (poll < 0 || poll >= POLLS || control.blocked || control.auth) return;
+    receive_cooldown(status);
     if (asks_for_login(status)) {
         if (control.renewing) { finish(401); return; }
         clear_cookie();
@@ -460,6 +493,7 @@ void app_on_data(int32_t tag, const uint8_t *data, int32_t length, int32_t flags
     int phase = bits & 1, retry_poll = (bits & 7) / 2;
     bool renewed = (bits & RENEW) != 0;
     if (retry_poll >= POLLS) return;
+    receive_cooldown(status);
     if (flags & HOST_DATA_FAILED) { finish(status); return; }
     if (flags & HOST_DATA_FIRST) {
         response_status = status; receiving = true;
@@ -475,10 +509,16 @@ void app_on_data(int32_t tag, const uint8_t *data, int32_t length, int32_t flags
 }
 void app_on_load(void)
 {
-    if (!app_state_load("control", &control, sizeof control, 3)) {
+    int32_t length = kv_get("control", 7, &control, sizeof control);
+    if (length == offsetof(control_t, boot) && control.version == 3) {
+        control.version = 4;
+        control.boot = 0;
+        control.retry_at = 0;
+    } else if (length != sizeof control || control.version != 4) {
         keenetic_clear(&control, sizeof control);
-        control.version = 3;
+        control.version = 4;
     }
+    if (control.boot != time_boot_id()) { control.boot = time_boot_id(); control.retry_at = 0; }
     if (control.epoch < 0 || control.epoch > 13)
         control.epoch = 0;
     keenetic_clear(&scene, sizeof scene);
@@ -518,7 +558,10 @@ void app_on_blur(void)
         scene.details.viewport.total = hosts.total;
         scene.details.viewport.first = device_first;
     }
-    app_session_save(&scene, sizeof scene);
+    scene.retry_at = control.retry_at;
+    if (!app_session_save(&scene, sizeof scene)) {
+        log_write(HOST_LOG_WARN, "Keenetic session save failed", sizeof "Keenetic session save failed" - 1);
+    }
     visible = false;
     if (!scene.pending && !control.blocked && configured())
         schedule(pace());

@@ -113,7 +113,7 @@ static void background_liveness(void)
     e.mag=60;e.time=(time_now()-60)*1000;e.updated=e.time;
     char body[1024];
     int size=snprintf(body,sizeof body,
-        "{\"type\":\"FeatureCollection\",\"features\":[{\"id\":\"late-background\","
+        "{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":1},\"features\":[{\"id\":\"late-background\","
         "\"properties\":{\"ids\":\",late-background,\",\"place\":\"Pánormos, Greece\","
         "\"mag\":6,\"time\":%lld,\"updated\":%lld,\"type\":\"earthquake\"},"
         "\"geometry\":{\"coordinates\":[26.5913,36.86,15]}}]}",
@@ -133,7 +133,7 @@ static void hourly_world_checkpoint(void)
 }
 static void model_reply(const event_t *events, int count)
 {
-    char body[8192];int used=snprintf(body,sizeof body,"{\"type\":\"FeatureCollection\",\"features\":[");
+    char body[8192];int used=snprintf(body,sizeof body,"{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":%d},\"features\":[",count);
     for(int i=0;i<count;i++) {
         const event_t *e=&events[i];
         used+=snprintf(body+used,sizeof body-(size_t)used,
@@ -247,9 +247,57 @@ static void equal_time_history(void)
     }
     assert(shown_events()[shown_count()-1].time<reports[15].time);
 }
+static void refused_state(void)
+{
+    static const int32_t REFUSALS[] = { HOST_ERR_NO_SPACE, HOST_ERR_FAILED };
+    for (size_t index = 0; index < sizeof REFUSALS / sizeof REFUSALS[0]; index++) {
+        setup(); feed(0, "near", 200);
+        standin()->refuse_writes = REFUSALS[index];
+        feed(0, "new", 200);
+        assert(cache_unsaved);
+        standin_draw();
+        assert(strstr(standin()->draw_text, "Storage error."));
+        standin()->refuse_writes = HOST_OK;
+        assert(save_cache() && !cache_unsaved);
+        load_cache(); assert(!strcmp(cache.events[0][0].id, "us6000ucz2"));
+    }
+    setup();
+    standin()->refuse_writes = HOST_ERR_FAILED;
+    assert(save_query("end", 3, "2026-11-01", 10) == HOST_ERR_FAILED && query_unsaved);
+    standin_draw(); assert(strstr(standin()->draw_text, "Storage error."));
+    standin()->refuse_writes = HOST_OK;
+    assert(save_query("end", 3, "2026-11-01", 10) == HOST_OK && !query_unsaved);
+    setup();
+    uint64_t diagnostics = standin()->diagnostics;
+    standin_refuse_session(HOST_ERR_NO_SPACE);
+    app_on_blur();
+    assert(standin_refused_sessions() == 1 && standin()->diagnostics != diagnostics);
+    diagnostics = standin()->diagnostics;
+    standin()->refuse_alarms = HOST_ERR_NO_SPACE;
+    schedule_alarm(1, 60);
+    assert(standin()->diagnostics != diagnostics);
+    standin()->refuse_alarms = HOST_OK;
+    schedule_alarm(1, 60);
+    assert(standin_alarm_left(1) == 60);
+
+    setup(); feed(0, "near", 200);
+    uint32_t good = hash_bytes(cache.events[0], sizeof cache.events[0]);
+    const char *bad[] = {
+        "{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":8},\"features\":[]}",
+        "{\"type\":\"FeatureCollection\",\"features\":[]}",
+        "{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":1},\"features\":[{}]}"
+    };
+    for (size_t index = 0; index < sizeof bad / sizeof bad[0]; index++) {
+        standin_picked(0, -1, 200, bad[index], (int32_t)strlen(bad[index]));
+        assert(state.status[0] == HOST_FAILED_NO_ANSWER);
+        assert(hash_bytes(cache.events[0], sizeof cache.events[0]) == good);
+        load_cache(); assert(hash_bytes(cache.events[0], sizeof cache.events[0]) == good);
+    }
+}
+
 int main(void)
 {
-    changing_equal_time_history(); equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
+    refused_state(); changing_equal_time_history(); equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
     puts("earthquakes: atomic extraction, nulls, failures, unchanged data, cache recovery and history");
     return 0;
 }

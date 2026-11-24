@@ -50,7 +50,7 @@ static void unchanged_headers(void)
 {
     standin_reset();standin_handlers=(standin_handlers_t){.on_picked=app_on_picked};retry=0;retry_text=response_age=NULL;cache_control="max-age=60";
     app_on_load();
-    const char *empty="{\"type\":\"FeatureCollection\",\"features\":[]}";
+    const char *empty="{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":0},\"features\":[]}";
     for(int i=0;i<2;i++)standin_picked(0,-1,200,empty,(int)strlen(empty));
     int files=standin()->file_writes, changes=standin()->store_changes;
     for(int minute=1;minute<60;minute++) {
@@ -65,7 +65,7 @@ static void unchanged_long_headers(void)
 {
     standin_reset();standin_handlers=(standin_handlers_t){.on_picked=app_on_picked};
     retry=0;retry_text=response_age=NULL;cache_control="max-age=600";app_on_load();
-    const char *empty="{\"type\":\"FeatureCollection\",\"features\":[]}";
+    const char *empty="{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":0},\"features\":[]}";
     standin_picked(0,-1,200,empty,(int)strlen(empty));
     requesting=true;cache_control="max-age=900";
     standin_picked(1,-1,200,empty,(int)strlen(empty));
@@ -82,7 +82,7 @@ static void unchanged_long_headers(void)
 }
 static void world_deadline(void)
 {
-    const char *empty="{\"type\":\"FeatureCollection\",\"features\":[]}";
+    const char *empty="{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":0},\"features\":[]}";
     for(int background=0;background<2;background++) {
         standin_reset();retry=0;retry_text=response_age=NULL;cache_control="max-age=900";
         standin_handlers=(standin_handlers_t){.on_load=app_on_load,.on_focus=app_on_focus,

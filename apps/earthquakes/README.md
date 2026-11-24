@@ -151,7 +151,10 @@ baseline harness leaves that optional callback unset. All final native checks
 pass. The cache format is now version 4; an old snapshot is discarded and the
 next Nearby reply seeds silently.
 
-The measured runtime peak is **72.477 KB (74,216 bytes)** of interpreter
+The following measurements describe the earlier module pinned by source and module hashes in
+[test/arena.json](test/arena.json); they are not measurements of later builds.
+
+That measured runtime peak is **72.477 KB (74,216 bytes)** of interpreter
 area, **7,704 bytes below the 80 KB capacity** and 488 bytes above the previous
 72 KB target. This includes map scratch, allocator metadata
 and moving realloc overlap; the 65,536-byte linear page is counted separately.
@@ -160,11 +163,19 @@ malformed-reply, notice, background-unload and foreground-return path at the
 80 KB interpreter capacity, with no allocation failures. The separate eager
 compile-all probe reports 75.727 KB including scratch; that sizing sweep is
 recorded separately from scenario runtime peaks in [test/arena.json](test/arena.json).
-The delivered module is 16,750 bytes and requires firmware 0.1.95.
+That measured module is 16,750 bytes and requires firmware 0.1.95.
 
-Validation: all 19 applications pass `app-check apps` (125 checks); all 80
+Historical validation for that module: all 19 applications pass `app-check apps` (125 checks); all 80
 Earthquakes pictures were visually reviewed in both languages and fonts.
 The full `sim-test tests --jobs 3` run passes 132 scenarios and 435 pictures;
 the final Earthquakes rerun passes 20 scenarios and 80 pictures without updates.
 Only Earthquakes references changed. `./build.sh` rebuilt all 19 catalog
 applications; the measured module hash matches the delivered module.
+
+The failure-path fixes in 0.1.4 diagnose refused session and alarm allocation and
+show storage failures until the cache or affected query key is saved. Picked rows
+must agree with `metadata.count` in the [USGS GeoJSON format](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php),
+so omitted records cannot silently replace a complete cached page. Synthetic
+fixtures include that count. Exact null magnitude, depth and place variants in
+`test/check.json` retain their documented unavailable-field fallbacks; required
+identity, time, coordinates and row counts remain validated.

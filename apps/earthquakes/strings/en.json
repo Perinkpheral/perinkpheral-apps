@@ -20,5 +20,6 @@
   "offset": "{0} km {1}",
   "from_you": "{1} from you",
   "set_location": "Set location",
-  "location_help": "Choose Place in app settings"
+  "location_help": "Choose Place in app settings",
+  "storage_error": "Storage error."
 }
