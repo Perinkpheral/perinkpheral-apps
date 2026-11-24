@@ -3,11 +3,11 @@
   "app_version": "0.1.2",
   "module": {
     "path": "catalog/earthquakes/app.wasm",
-    "bytes": 16191,
-    "sha256": "f974e6efa42bd131fbcaae24f520a14020c59290717f956e408444040714d490"
+    "bytes": 16750,
+    "sha256": "66315a46d040871095b7b449bd6291190a3aa1b97148ffa3b3fd3b0555bfa77e"
   },
   "sources": {
-    "apps/earthquakes/earthquakes.c": "278661228049dc0976366ce8adac5f56c47a74a78a86756abd050efcf09e56e8",
+    "apps/earthquakes/earthquakes.c": "a211716cd1c41879aec6f84a7ca4bf47bbb5ae98d58840ab122c1d0a2b6fc9e5",
     "apps/earthquakes/manifest.json": "994977e284631e96a5ce194f5eeb671b256a1ae756fb38f7f75a6918677da594",
     "apps/earthquakes/strings/en.json": "5de4ff0a6c3517774818716667655b8b9e1a68f5122b9a88db4a82d5b2c2771e",
     "apps/earthquakes/strings/ru.json": "3079b75bf5f3c9eec00c1a0ae81a7821a81e10b9736fa074f4e8ad07091228bb"
@@ -27,10 +27,10 @@
   "sdk_commit": "3dde7efb74fb629028604b0f3070296f70e7d3b4",
   "runtime": {
     "scenarios": 21,
-    "combined_peak_bytes": 138964,
-    "interpreter_peak_bytes": 73428,
+    "combined_peak_bytes": 139752,
+    "interpreter_peak_bytes": 74216,
     "interpreter_limit_bytes": 73728,
-    "headroom_bytes": 300,
+    "headroom_bytes": -488,
     "allocation_failures": 0,
     "includes": [
       "map scratch",
@@ -43,156 +43,158 @@
         "app": "earthquakes",
         "scenario": "earthquakes-empty-en-departure",
         "notifications": 0,
-        "peak": 128848,
+        "peak": 129628,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-empty-en-jersey",
         "notifications": 0,
-        "peak": 128848,
+        "peak": 129628,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-empty-ru-departure",
         "notifications": 0,
-        "peak": 128848,
+        "peak": 129628,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-empty-ru-jersey",
         "notifications": 0,
-        "peak": 128848,
+        "peak": 129628,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-en-departure",
         "notifications": 0,
-        "peak": 135648,
+        "peak": 136428,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-en-jersey",
         "notifications": 0,
-        "peak": 135648,
+        "peak": 136428,
         "failures": 0
       },
       {
         "app": "notice-app",
         "scenario": "earthquakes-notice-en-departure",
         "notifications": 1,
-        "peak": 122576,
+        "peak": 122836,
         "failures": 0
       },
       {
         "app": "notice-app",
         "scenario": "earthquakes-notice-en-jersey",
         "notifications": 1,
-        "peak": 122576,
+        "peak": 122836,
         "failures": 0
       },
       {
         "app": "notice-app",
         "scenario": "earthquakes-notice-ru-departure",
         "notifications": 1,
-        "peak": 122576,
+        "peak": 122836,
         "failures": 0
       },
       {
         "app": "notice-app",
         "scenario": "earthquakes-notice-ru-jersey",
         "notifications": 1,
-        "peak": 122576,
+        "peak": 122836,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-notification-measure",
         "notifications": 1,
-        "peak": 138964,
+        "peak": 139752,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-offline-en-departure",
         "notifications": 0,
-        "peak": 128812,
+        "peak": 129076,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-offline-en-jersey",
         "notifications": 0,
-        "peak": 128812,
+        "peak": 129076,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-offline-ru-departure",
         "notifications": 0,
-        "peak": 128812,
+        "peak": 129076,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-offline-ru-jersey",
         "notifications": 0,
-        "peak": 128812,
+        "peak": 129076,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-ru-departure",
         "notifications": 0,
-        "peak": 135648,
+        "peak": 136428,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-ru-jersey",
         "notifications": 0,
-        "peak": 135648,
+        "peak": 136428,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-unset-en-departure",
         "notifications": 0,
-        "peak": 124604,
+        "peak": 125392,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-unset-en-jersey",
         "notifications": 0,
-        "peak": 124604,
+        "peak": 125392,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-unset-ru-departure",
         "notifications": 0,
-        "peak": 124604,
+        "peak": 125392,
         "failures": 0
       },
       {
         "app": "earthquakes",
         "scenario": "earthquakes-unset-ru-jersey",
         "notifications": 0,
-        "peak": 124604,
+        "peak": 125392,
         "failures": 0
       }
-    ]
+    ],
+    "interpreter_capacity_bytes": 81920,
+    "capacity_headroom_bytes": 7704
   },
   "eager_compile_probe": {
     "pointer_bytes": 4,
     "area_bytes": 147456,
-    "compile_peak": 132984,
-    "peak_with_scratch": 141180,
+    "compile_peak": 134884,
+    "peak_with_scratch": 143080,
     "failures": 0,
     "complete": true
   },
@@ -258,7 +260,8 @@
     "All network traffic is confined to simulator loopback mocks.",
     "Subtract only the 65536-byte linear page from a combined runtime peak.",
     "The compile-all sweep is a distinct sizing measurement, not a scenario runtime peak.",
-    "The first eight-review regression assertions also fail against the original production source."
+    "The first eight-review regression assertions also fail against the original production source.",
+    "The deletion-safe cursor remains within the 80 KB interpreter capacity; the measured peak exceeds the previous 72 KB target by 488 bytes."
   ],
   "regression_baseline": {
     "commit": "27a5dbe3ca6cd94f4ae8af85436f1fcab50ab2a6",
@@ -298,5 +301,12 @@
     "pictures_inspected": 80,
     "updated_references": 40,
     "catalog_applications": 19
+  },
+  "deletion_regression_baseline": {
+    "commit": "b0550d5962e6e25a08305ec72cc879d00e126192",
+    "test": "changing_equal_time_history",
+    "assertion": "seen[i]",
+    "case": "24 equal-time reports, show 1-16, delete report 1; report 17 must still be shown",
+    "result": "fails before the cursor correction; passes after it"
   }
 }

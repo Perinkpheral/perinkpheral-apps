@@ -145,6 +145,60 @@ static void model_reply(const event_t *events, int count)
     used+=snprintf(body+used,sizeof body-(size_t)used,"]}");
     standin_picked(1,-1,200,body,used);
 }
+/* Answer each actual query, including overlap scans, from a mutable feed. */
+static void model_feed(const event_t *events, int count)
+{
+    for(int queries=0;requesting;queries++) {
+        assert(queries<100);
+        int start=0;
+        while(start<count && events[start].time>cache.browse_end)start++;
+        start+=cache.browse_offset-1;
+        int n=start<count?count-start:0;if(n>BATCH)n=BATCH;
+        model_reply(events+(start<count?start:count),n);
+    }
+}
+static void changing_equal_time_history(void)
+{
+    for(int insertion=0;insertion<2;insertion++) {
+        setup();feed(1,"world",200);scene.nav.screen=scene.scope=1;
+        event_t reports[25];zero(reports,sizeof reports);
+        for(int i=0;i<25;i++) {
+            snprintf(reports[i].id,sizeof reports[i].id,"tie-%02d",i);
+            reports[i].time=reports[i].updated=cache.events[1][0].time;
+        }
+        requesting=true;requested_page=0;model_reply(reports,8);
+        history_page(1);model_feed(reports,24);
+        assert(!strcmp(shown_events()[shown_count()-1].id,"tie-15"));
+        /* Mutate an earlier page, then unload with the next request pending. */
+        if(insertion) {
+            memmove(reports+1,reports,24*sizeof *reports);
+            strcpy(reports[0].id,"inserted");
+        } else { memmove(reports,reports+1,23*sizeof *reports); }
+        int count=insertion?25:23;
+        /* Refused identity persistence must leave the cursor/page intact. */
+        if(insertion) {
+            standin()->refuse_writes=HOST_ERR_FAILED;
+            history_page(1);assert(!requesting && scene.page==1);
+            standin()->refuse_writes=HOST_OK;
+        }
+        history_page(1);assert(requesting);
+        standin_leave();standin_load();standin_focus();
+        model_feed(reports,count);
+        bool seen[24]={0}, inserted=false;
+        for(int page=0;page<4;page++) {
+            for(int i=0;i<shown_count();i++) {
+                const char *id=shown_events()[i].id;
+                if(!strcmp(id,"inserted")) { assert(!inserted);inserted=true;continue; }
+                int index=-1;assert(sscanf(id,"tie-%d",&index)==1);
+                assert(index>=16 && index<24 && !seen[index]);seen[index]=true;
+            }
+            if(!shown_count())break;
+            history_page(1);model_feed(reports,count);
+        }
+        for(int i=16;i<24;i++)assert(seen[i]);
+        assert(inserted==!!insertion);
+    }
+}
 static void changing_boundary(void)
 {
     event_t older[BATCH], inclusive[BATCH];
@@ -182,24 +236,20 @@ static void equal_time_history(void)
     requesting=true;requested_page=0;model_reply(reports,8);
     for(int page=1,next=8;page<=3;page++) {
         history_page(1);assert(requesting);
-        int start=0;
-        while(start<24 && reports[start].time>cache.browse_end)start++;
-        start+=cache.browse_offset-1;
-        int n=24-start;if(n>8)n=8;
-        model_reply(reports+start,n);
+        model_feed(reports,24);
         assert(!requesting && shown_count()>0);
         for(int i=0;i<shown_count();i++) {
             assert(next<24 && !strcmp(shown_events()[i].id,reports[next].id));next++;
         }
         /* Refresh uses the same boundary and does not repeat earlier pages. */
-        requesting=true;requested_page=page;model_reply(reports+start,n);
+        browse(page);model_feed(reports,24);
         standin_leave();standin_load();standin_focus();
     }
     assert(shown_events()[shown_count()-1].time<reports[15].time);
 }
 int main(void)
 {
-    equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
+    changing_equal_time_history(); equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
     puts("earthquakes: atomic extraction, nulls, failures, unchanged data, cache recovery and history");
     return 0;
 }

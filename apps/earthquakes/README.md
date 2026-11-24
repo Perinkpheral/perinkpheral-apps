@@ -30,8 +30,14 @@ supported date, 2026-01-01; the client stops at the 120-day boundary. Pages
 continue from the oldest displayed origin timestamp, so insertions or removals
 earlier in the live feed do not shift the next page. Inclusive boundary queries
 remove already displayed identities, including when the boundary report itself
-has disappeared. Equal timestamps advance within that boundary; history pages
-can contain fewer than eight new reports. Missing Place leaves Worldwide available.
+has disappeared. Each page and refresh restarts at that time, de-duplicating
+against all identities already shown there, so deletion or insertion within a
+timestamp cannot move unseen reports behind a retained offset. Older boundary
+identities live in a checksummed `history` file without growing the RAM cache.
+If that identity file cannot be extended, the current page stays available and
+advancement can be retried; storage failure never silently discards identities.
+History pages can contain fewer than eight new reports. Missing Place leaves
+Worldwide available.
 
 The map's filled point is the report; the house and You/Вы label mark your
 configured place. Dashed circles show the editorial radius. The regional map
@@ -69,7 +75,9 @@ A rearmed host alarm tracks Nearby liveness across background unloads without
 minute-by-minute file writes. After an unload, displayed freshness can still
 be conservative. Nearby keeps its Cache-Control duration in the snapshot and the platform
 retains its poll interval/deadline. Worldwide replies preserve that full interval,
-so identical headers cause neither snapshot writes nor interval changes. Packaged data and the two-block cache fit the 32 KB file allowance. Seven
+so identical headers cause neither snapshot writes nor interval changes.
+Packaged data and the two-block cache fit the 32 KB file allowance; the boundary
+identity file uses the remaining room and refuses advancement if it fills. Seven
 settings, even with maximum-length numeric values, plus the three query keys
 remain below the 2 KB KV allowance. Valid long coordinates are normalized to
 six decimals before use in requests.
@@ -118,7 +126,10 @@ Final review regressions cover all eight findings:
 2. Delivery rechecks cluster eligibility after revisions, preserving an unused
    escalation (`revised_escalation` in `test/notices.c`).
 3. Equal-time history advances past prior boundary identities, including after
-   refresh/unload (`equal_time_history` in `test/network.c`).
+   refresh/unload (`equal_time_history` in `test/network.c`). Deleting an already
+   shown report or inserting a report during a 24-report tie preserves every
+   unseen report (`changing_equal_time_history`); the deletion assertion fails
+   against the previous offset cursor.
 4. Worldwide's latest deadline survives foreground and background unloads
    (`world_deadline` in `test/pacing.c`).
 5. Identical 60/600-second Cache-Control replies across reloads write no cache
@@ -137,18 +148,19 @@ Final review regressions cover all eight findings:
 Each finding was reproduced as an assertion failure against the original
 production source. The original module has no termination export, so its
 baseline harness leaves that optional callback unset. All final native checks
-pass. The cache format is now version 3; an old snapshot is discarded and the
+pass. The cache format is now version 4; an old snapshot is discarded and the
 next Nearby reply seeds silently.
 
-The measured runtime peak is **71.707 KB (73,428 bytes)** of interpreter
-area, **300 bytes below 72 KB**. This includes map scratch, allocator metadata
+The measured runtime peak is **72.477 KB (74,216 bytes)** of interpreter
+area, **7,704 bytes below the 80 KB capacity** and 488 bytes above the previous
+72 KB target. This includes map scratch, allocator metadata
 and moving realloc overlap; the 65,536-byte linear page is counted separately.
 The 32-bit ARM/QEMU harness ran all twenty scenarios and a combined history,
 malformed-reply, notice, background-unload and foreground-return path at the
 80 KB interpreter capacity, with no allocation failures. The separate eager
-compile-all probe reports 73.871 KB including scratch; that sizing sweep is
+compile-all probe reports 75.727 KB including scratch; that sizing sweep is
 recorded separately from scenario runtime peaks in [test/arena.json](test/arena.json).
-The delivered module is 16,191 bytes and requires firmware 0.1.95.
+The delivered module is 16,750 bytes and requires firmware 0.1.95.
 
 Validation: all 19 applications pass `app-check apps` (125 checks); all 80
 Earthquakes pictures were visually reviewed in both languages and fonts.

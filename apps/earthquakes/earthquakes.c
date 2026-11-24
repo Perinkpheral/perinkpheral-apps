@@ -77,7 +77,7 @@ typedef struct {
     ledger_t ledger[LEDGER];
     identity_t seen[SEEN];
     struct { char id[32], aliases[64]; } boundary[BATCH];
-    int32_t boundary_count;
+    int32_t boundary_count, boundary_stored;
 } cache_t;
 typedef struct {
     app_nav_t nav;
@@ -143,11 +143,11 @@ static bool save_cache(void)
 static void load_cache(void)
 {
     if (file_read("cache", 5, 0, &cache, sizeof cache) != sizeof cache ||
-        cache.version != 3 || cache.checksum != checksum(&cache) ||
+        cache.version != 4 || cache.checksum != checksum(&cache) ||
         cache.count[0] < 0 || cache.count[0] > BATCH ||
         cache.count[1] < 0 || cache.count[1] > BATCH) {
         zero(&cache, sizeof cache);
-        cache.version = 3;
+        cache.version = 4;
         cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1;
     }
     saved_checksum = cache.checksum;
@@ -584,6 +584,36 @@ static void selection(void)
     if (scene.list.selected >= scene.list.count) { scene.list.selected = 0; }
 }
 static void browse(int32_t page);
+/* Keep older equal-time identities on disk, leaving the bounded RAM cache
+ * unchanged in size. The snapshot commits the length after each append; an
+ * interrupted append cannot add identities to the committed prefix. */
+typedef struct { identity_t id; uint32_t checksum; } boundary_record_t;
+__attribute__((noinline)) static int32_t stored_boundary_matches(const event_t *events, int32_t n)
+{
+    int32_t matches = 0;
+    for (int32_t j = 0; j < cache.boundary_stored; j++) {
+        boundary_record_t record;
+        if (file_read("history", 7, j * sizeof record, &record, sizeof record) != sizeof record ||
+            record.id.until != cache.browse_end ||
+            record.checksum != hash_bytes(&record.id, sizeof record.id)) { return -1; }
+        for (int32_t i = 0; i < n; i++) {
+            if (same_identity(&events[i], &record.id)) { matches |= 1 << i; }
+        }
+    }
+    return matches;
+}
+__attribute__((noinline)) static bool store_boundary(void)
+{
+    for (int32_t j = 0; j < cache.boundary_count; j++) {
+        boundary_record_t record; zero(&record, sizeof record);
+        copy_bytes(&record.id, &cache.boundary[j], sizeof cache.boundary[j]);
+        record.id.until = cache.browse_end;
+        record.checksum = hash_bytes(&record.id, sizeof record.id);
+        if (file_write("history", 7, (cache.boundary_stored + j) * sizeof record,
+                       &record, sizeof record) != HOST_OK) { return false; }
+    }
+    return true;
+}
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request < 0 || request > 1 || (request == 0 && !placed)) { return; }
@@ -593,6 +623,8 @@ void app_on_picked(int32_t request, int32_t http_status)
     int32_t n = 0;
     event_t fresh[BATCH]; zero(fresh, sizeof fresh);
     bool ok = http_status == 204 || (http_status == 200 && extract(fresh, &n));
+    int32_t stored = ok && request && cache.boundary_stored ? stored_boundary_matches(fresh, n) : 0;
+    if (stored < 0) { ok = false; }
     if (ok) {
         int32_t accepted = 0;
         bool seed = state.seed;
@@ -607,7 +639,7 @@ void app_on_picked(int32_t request, int32_t http_status)
             }
             if (!request) { observe(&fresh[i], seed || known); }
             revise_notice(&fresh[i]);
-            bool boundary = false;
+            bool boundary = stored & (1 << i);
             if (request) for (int32_t j = 0; j < cache.boundary_count; j++) {
                 boundary |= same_identity(&fresh[i], &cache.boundary[j]);
             }
@@ -615,7 +647,7 @@ void app_on_picked(int32_t request, int32_t http_status)
         }
         if (request && n == BATCH && !accepted) {
             cache.browse_offset += BATCH;
-            pace(1, true); save_cache(); browse(requested_page); return;
+            pace(1, true); requesting = true; save_cache(); browse(requested_page); return;
         }
         n = accepted;
         copy_bytes(cache.events[request], fresh, sizeof fresh); cache.count[request] = n;
@@ -646,9 +678,9 @@ void app_on_picked(int32_t request, int32_t http_status)
 /* Latest uses the platform's date ceiling, so it remains live without a
  * changing timestamp in every snapshot. Older pages retain their boundary.
  * Pages use a time boundary instead of an offset into the moving feed.
- * Boundary identities are removed after an inclusive query, so deleting a
- * boundary report cannot skip the following event. Offset advances only
- * when a complete reply consists of already displayed equal-time reports. */
+ * Every page/refresh rescans the inclusive boundary from offset one and
+ * removes all identities shown at that time. Offsets only scan the known
+ * prefix within one request; they never carry across navigation/refresh. */
 static void utc_text(char out[32], int64_t millis)
 {
     int32_t days = millis / 86400000;
@@ -677,16 +709,20 @@ static void browse(int32_t page)
         if (page && cache.count[1]) {
             int32_t n = cache.count[1];
             int64_t end = cache.events[1][n - 1].time;
-            if (end != cache.browse_end) { cache.browse_offset = 1; }
-            else { cache.browse_offset += cache.boundary_count; }
+            if (end != cache.browse_end) { cache.boundary_stored = 0; }
+            else {
+                if (!store_boundary()) { return; }
+                cache.boundary_stored += cache.boundary_count;
+            }
             cache.browse_end = end;
             cache.boundary_count = 0;
             for (int32_t i = 0; i < n; i++) if (cache.events[1][i].time == end) {
                 int32_t j = cache.boundary_count++;
                 copy_bytes(&cache.boundary[j], &cache.events[1][i], sizeof cache.boundary[j]);
             }
-        } else { cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1; cache.boundary_count = 0; }
+        } else { cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1; cache.boundary_count = cache.boundary_stored = 0; }
     }
+    if (!requesting) { cache.browse_offset = 1; }
     utc_text(text, cache.browse_end);
     if (kv_set("end", 3, text, app_text_length(text)) < 0) { return; }
     FILL(text, "{0}", cache.browse_offset, NULL, NULL);
