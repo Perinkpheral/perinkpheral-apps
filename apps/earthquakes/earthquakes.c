@@ -21,11 +21,19 @@ static int32_t length(const char *s) { return app_text_length(s); }
 #define app_text_equal equal
 #define app_text_length length
 
+/* Shared paper backing keeps map labels legible over either land or sea. */
+__attribute__((noinline)) static void paper_rect(int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    gfx_set_color(HOST_PAPER); gfx_draw_rect(x, y, w, h, HOST_RECT_FILLED);
+    gfx_set_color(HOST_INK);
+}
+
 /* Two top-level screens and one event view use app_nav state. */
 static void nav_title(const app_nav_t *nav)
 {
     const char *count = nav->screen ? "2/2" : "1/2";
     int32_t width = ui_text_width(HOST_UI_CAPTION, count, 3);
+    paper_rect(380 - width, 12, width + 8, ui_text_height(HOST_UI_CAPTION) + 8);
     ui_draw_text(384 - width, 16, HOST_UI_CAPTION, count, 3, width);
 }
 #define BATCH 8
@@ -50,8 +58,8 @@ typedef struct {
 } ledger_t;
 typedef struct {
     uint32_t boot;
-    int32_t seed, failures[2], status;
-    int64_t success[2], not_before, pause_until, near_until, cache_seconds;
+    int32_t seed, failures[2], status[2];
+    int64_t success[2], not_before, pause_until, near_seconds, cache_seconds;
     int32_t pending; /* 1 retryable, 2 persisted delivery intent (never replay) */
     event_t notice;
 } state_t;
@@ -69,7 +77,7 @@ typedef struct {
     ledger_t ledger[LEDGER];
     identity_t seen[SEEN];
     struct { char id[32], aliases[64]; } boundary[BATCH];
-    int32_t boundary_count;
+    int32_t boundary_count, boundary_stored;
 } cache_t;
 typedef struct {
     app_nav_t nav;
@@ -135,11 +143,11 @@ static bool save_cache(void)
 static void load_cache(void)
 {
     if (file_read("cache", 5, 0, &cache, sizeof cache) != sizeof cache ||
-        cache.version != 2 || cache.checksum != checksum(&cache) ||
+        cache.version != 4 || cache.checksum != checksum(&cache) ||
         cache.count[0] < 0 || cache.count[0] > BATCH ||
         cache.count[1] < 0 || cache.count[1] > BATCH) {
         zero(&cache, sizeof cache);
-        cache.version = 2;
+        cache.version = 4;
         cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1;
     }
     saved_checksum = cache.checksum;
@@ -418,10 +426,15 @@ static void revise_notice(const event_t *e)
 static void time_string(char out[32], int64_t at, int32_t style);
 #define when_text(out, at) time_string(out, at, HOST_TIME_NEAR)
 static bool notice_cluster(const event_t *e, bool commit);
+static bool pending_eligible(void)
+{
+    return (uint64_t)(time_now() - state.notice.time / 1000) <= FRESH &&
+        notices_on && relevant(&state.notice) && notice_cluster(&state.notice, false);
+}
 static void try_notice(void)
 {
     if (state.pending != 1) { return; }
-    if ((uint64_t)(time_now() - state.notice.time / 1000) > FRESH || !notices_on || !relevant(&state.notice)) {
+    if (!pending_eligible()) {
         state.pending = 0; save_cache(); return;
     }
     state.pending = 2; /* commit intent before posting: a crash may lose a notice */
@@ -471,6 +484,8 @@ static bool notice_cluster(const event_t *e, bool commit)
  * silently rather than evicting identities that could interrupt twice. */
 static void observe(const event_t *e, bool seed)
 {
+    /* Retire expired or revised intent before comparing a new candidate. */
+    if (state.pending == 1 && !pending_eligible()) { state.pending = 0; }
     int64_t now = time_now();
     int32_t free = -1;
     for (int32_t i = 0; i < SEEN; i++) {
@@ -545,13 +560,16 @@ static void pace(int32_t request, bool ok)
     if (state.not_before) { cancel_browse(); }
     /* Waiting the full max-age is conservative when an Age header is present. */
     int64_t ttl = header_seconds("Cache-Control", "max-age=");
-    if (request && ok) { state.cache_seconds = ttl > 900 ? ttl : 900; }
-    if (!request) { state.near_until = ttl ? now + ttl : 0; }
-    if (state.near_until - now > ttl) { ttl = state.near_until - now; }
+    /* The host retains the interval and its deadline across unloads. A
+     * duration stays unchanged on identical answers; an absolute timestamp
+     * would rewrite the snapshot every poll. Other scopes keep this floor. */
+    if (request) {
+        if (ok) { state.cache_seconds = ttl > 900 ? ttl : 900; }
+        ttl = state.near_seconds;
+    } else { state.near_seconds = ttl; }
     if (ttl > retry) { retry = ttl; }
     if (retry > delay) { delay = retry > 86400 ? 86400 : (int32_t)retry; }
     poll_set_interval(0, delay > refresh ? delay : 0);
-    state.status = ok ? 200 : HOST_FAILED_NO_ANSWER;
     if (retry > 86400) { state.pause_until = now + retry; provider_pause(); }
 }
 static int32_t shown_slot(void) { return scene.scope; }
@@ -566,6 +584,36 @@ static void selection(void)
     if (scene.list.selected >= scene.list.count) { scene.list.selected = 0; }
 }
 static void browse(int32_t page);
+/* Keep older equal-time identities on disk, leaving the bounded RAM cache
+ * unchanged in size. The snapshot commits the length after each append; an
+ * interrupted append cannot add identities to the committed prefix. */
+typedef struct { identity_t id; uint32_t checksum; } boundary_record_t;
+__attribute__((noinline)) static int32_t stored_boundary_matches(const event_t *events, int32_t n)
+{
+    int32_t matches = 0;
+    for (int32_t j = 0; j < cache.boundary_stored; j++) {
+        boundary_record_t record;
+        if (file_read("history", 7, j * sizeof record, &record, sizeof record) != sizeof record ||
+            record.id.until != cache.browse_end ||
+            record.checksum != hash_bytes(&record.id, sizeof record.id)) { return -1; }
+        for (int32_t i = 0; i < n; i++) {
+            if (same_identity(&events[i], &record.id)) { matches |= 1 << i; }
+        }
+    }
+    return matches;
+}
+__attribute__((noinline)) static bool store_boundary(void)
+{
+    for (int32_t j = 0; j < cache.boundary_count; j++) {
+        boundary_record_t record; zero(&record, sizeof record);
+        copy_bytes(&record.id, &cache.boundary[j], sizeof cache.boundary[j]);
+        record.id.until = cache.browse_end;
+        record.checksum = hash_bytes(&record.id, sizeof record.id);
+        if (file_write("history", 7, (cache.boundary_stored + j) * sizeof record,
+                       &record, sizeof record) != HOST_OK) { return false; }
+    }
+    return true;
+}
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request < 0 || request > 1 || (request == 0 && !placed)) { return; }
@@ -575,6 +623,8 @@ void app_on_picked(int32_t request, int32_t http_status)
     int32_t n = 0;
     event_t fresh[BATCH]; zero(fresh, sizeof fresh);
     bool ok = http_status == 204 || (http_status == 200 && extract(fresh, &n));
+    int32_t stored = ok && request && cache.boundary_stored ? stored_boundary_matches(fresh, n) : 0;
+    if (stored < 0) { ok = false; }
     if (ok) {
         int32_t accepted = 0;
         bool seed = state.seed;
@@ -589,7 +639,7 @@ void app_on_picked(int32_t request, int32_t http_status)
             }
             if (!request) { observe(&fresh[i], seed || known); }
             revise_notice(&fresh[i]);
-            bool boundary = false;
+            bool boundary = stored & (1 << i);
             if (request) for (int32_t j = 0; j < cache.boundary_count; j++) {
                 boundary |= same_identity(&fresh[i], &cache.boundary[j]);
             }
@@ -597,7 +647,7 @@ void app_on_picked(int32_t request, int32_t http_status)
         }
         if (request && n == BATCH && !accepted) {
             cache.browse_offset += BATCH;
-            pace(1, true); save_cache(); browse(requested_page); return;
+            pace(1, true); requesting = true; save_cache(); browse(requested_page); return;
         }
         n = accepted;
         copy_bytes(cache.events[request], fresh, sizeof fresh); cache.count[request] = n;
@@ -618,6 +668,7 @@ void app_on_picked(int32_t request, int32_t http_status)
         if ((uint64_t)(now - state.success[request]) >= 3600) { state.success[request] = now; }
     }
     pace(request, good);
+    state.status[request] = good ? 200 : http_status == 200 ? HOST_FAILED_NO_ANSWER : http_status;
     save_cache();
     if (!request && ok) { try_notice(); }
     selection();
@@ -627,9 +678,9 @@ void app_on_picked(int32_t request, int32_t http_status)
 /* Latest uses the platform's date ceiling, so it remains live without a
  * changing timestamp in every snapshot. Older pages retain their boundary.
  * Pages use a time boundary instead of an offset into the moving feed.
- * Boundary identities are removed after an inclusive query, so deleting a
- * boundary report cannot skip the following event. Offset advances only
- * when a complete reply consists of already displayed equal-time reports. */
+ * Every page/refresh rescans the inclusive boundary from offset one and
+ * removes all identities shown at that time. Offsets only scan the known
+ * prefix within one request; they never carry across navigation/refresh. */
 static void utc_text(char out[32], int64_t millis)
 {
     int32_t days = millis / 86400000;
@@ -658,15 +709,20 @@ static void browse(int32_t page)
         if (page && cache.count[1]) {
             int32_t n = cache.count[1];
             int64_t end = cache.events[1][n - 1].time;
-            if (end != cache.browse_end) { cache.browse_offset = 1; }
+            if (end != cache.browse_end) { cache.boundary_stored = 0; }
+            else {
+                if (!store_boundary()) { return; }
+                cache.boundary_stored += cache.boundary_count;
+            }
             cache.browse_end = end;
             cache.boundary_count = 0;
             for (int32_t i = 0; i < n; i++) if (cache.events[1][i].time == end) {
                 int32_t j = cache.boundary_count++;
                 copy_bytes(&cache.boundary[j], &cache.events[1][i], sizeof cache.boundary[j]);
             }
-        } else { cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1; cache.boundary_count = 0; }
+        } else { cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1; cache.boundary_count = cache.boundary_stored = 0; }
     }
+    if (!requesting) { cache.browse_offset = 1; }
     utc_text(text, cache.browse_end);
     if (kv_set("end", 3, text, app_text_length(text)) < 0) { return; }
     FILL(text, "{0}", cache.browse_offset, NULL, NULL);
@@ -710,9 +766,17 @@ void app_on_focus(void)
     app_session_load(&scene, sizeof scene);
     selection(); maybe_browse(); timer_set(0, 300000);
 }
+void app_on_terminate(void)
+{
+    /* Foreground replies checkpoint hourly while visible. At unload keep
+     * the latest Worldwide deadline, also for an answer delivered offscreen. */
+    state.success[1] = success[1];
+    save_cache();
+}
 void app_on_blur(void)
 {
     app_session_save(&scene, sizeof scene);
+    app_on_terminate();
 }
 void app_on_settings(void)
 {
@@ -796,58 +860,92 @@ static void disc(int32_t x, int32_t y)
 static void marker(const host_map_t *map, int32_t lat, int32_t lon, bool home)
 {
     host_map_point_t p;
-    gfx_map_point(map, lat, lon, &p);
-    gfx_set_color(HOST_PAPER); gfx_draw_rect(p.x - 7, p.y - 7, 15, 15, HOST_RECT_FILLED);
-    gfx_set_color(HOST_INK);
-    if (home) { gfx_draw_icon(p.x - 5, p.y - 5, HOST_ICON_PLUS, 1); }
-    else { disc(p.x, p.y); }
+    if (gfx_map_point(map, lat, lon, &p) != HOST_OK || !p.visible) { return; }
+    if (home) {
+        int32_t width = ui_text_width(HOST_UI_CAPTION, word(STR_YOU), app_text_length(word(STR_YOU)));
+        int32_t height = ui_text_height(HOST_UI_CAPTION);
+        int32_t x = p.x + 10, y = p.y - 32;
+        if (x + width + 18 > map->x + map->w) { x = map->x + map->w - width - 18; }
+        if (y < map->y + 2) { y = map->y + 2; }
+        gfx_draw_line(p.x, p.y, x + 5, y + 10);
+        paper_rect(x - 2, y - 2, width + 18, height + 4);
+        gfx_draw_icon(x, y + 2, HOST_ICON_HOME, 1);
+        draw_text(x + 14, y, HOST_UI_CAPTION, word(STR_YOU), width);
+    } else {
+        paper_rect(p.x - 7, p.y - 7, 15, 15); disc(p.x, p.y);
+    }
 }
-static void event_map(host_map_t *map, const event_t *e, bool label)
+/* On an event-centred AEQD map its relevance radius is a true circle.
+ * Alternate short segments keep this editorial filter distinct from coasts. */
+static void dashed_radius(const host_map_t *map, int32_t km)
+{
+    int32_t r = km * 1000 / map->m_per_px;
+    /* Q7 unit-circle samples, with a repeated quarter for cosine. */
+    static const int8_t circle[40] = {
+        0, 25, 49, 71, 90, 106, 117, 125,
+        127, 125, 117, 106, 90, 71, 49, 25,
+        0, -25, -49, -71, -90, -106, -117, -125,
+        -127, -125, -117, -106, -90, -71, -49, -25,
+        0, 25, 49, 71, 90, 106, 117, 125,
+    };
+    int32_t x = map->x + map->w / 2, y = map->y + map->h / 2;
+    for (int32_t i = 0; i < 32; i += 2) {
+        gfx_draw_line(x + circle[i] * r / 127, y + circle[i + 8] * r / 127,
+                      x + circle[i + 1] * r / 127, y + circle[i + 9] * r / 127);
+    }
+}
+static void event_map(host_map_t *map, const event_t *e, bool home)
 {
     int32_t ring = e ? relevance(e->mag) : 0;
     int32_t r = e ? (ring ? ring : 100) : radius_km;
-    int32_t d = e && label ? from_place(e) / 1000 : 0;
-    bool home_center = label;
-    int32_t extent = (home_center ? d : 0) + r;
-    int32_t scale = extent * 2000 / (map->h - 24);
+    int32_t d = e && home ? from_place(e) / 1000 : 0;
+    int32_t extent = d > r ? d : r;
+    int32_t scale = extent * 2000 / (map->h - 64);
     if (scale < 1500) { scale = 1500; }
     if (scale > 25000) { scale = 25000; }
     map->projection = HOST_MAP_AEQD;
-    map->lat_e6 = home_center ? latitude : e->lat;
-    map->lon_e6 = home_center ? longitude : e->lon;
+    map->lat_e6 = e ? e->lat : latitude;
+    map->lon_e6 = e ? e->lon : longitude;
     map->m_per_px = scale;
     map->land = 4; map->sea = HOST_PAPER; map->flags = HOST_MAP_COASTLINE;
     gfx_draw_map(map);
-    if (ring) { gfx_draw_map_radius(map, e->lat, e->lon, ring * 1000); }
+    if (ring) { dashed_radius(map, ring); }
+    if (home) { marker(map, latitude, longitude, true); }
     if (e) { marker(map, e->lat, e->lon, false); }
-    if (label) { marker(map, latitude, longitude, true); }
-
 }
 static void time_string(char out[32], int64_t at, int32_t style)
 {
     int32_t n = time_text(at, style, out, 31);
     out[n > 0 ? n : 0] = 0;
 }
+static int32_t scope_status(int32_t scope)
+{
+    int32_t status = state.status[scope];
+    if (status == HOST_FAILED_NO_NETWORK) { return STR_OFFLINE; }
+    if (status && status != 200) { return STR_NO_ANSWER; }
+    return success[scope] ? STR_NO_EVENTS : scope && !requesting ? STR_NO_DATA : STR_WAIT;
+}
 static void draw_main(void)
 {
-    nav_title(&scene.nav);
     int32_t i = notable();
     const event_t *e = i < 0 ? NULL : &cache.events[0][i];
     char line[128], a[64], b[32];
     if (!placed) {
+        nav_title(&scene.nav);
         draw_text(16, 96, HOST_UI_TEXT, word(STR_SET_LOCATION), 368);
         draw_text(16, 132, HOST_UI_CAPTION, word(STR_LOCATION_HELP), 368);
         return;
     }
-    host_map_t map = { .x = 0, .y = 44, .w = 400, .h = 180 };
+    host_map_t map = { .x = 0, .y = 0, .w = 400, .h = 224 };
     event_map(&map, e, true);
+    nav_title(&scene.nav);
     gfx_draw_rect(0, 224, 400, 1, HOST_RECT_FILLED);
     if (e) {
         summary(a, e); when_text(b, e->time / 1000);
         FILL(line, "{1}, {2}", 0, a, b);
-    } else { copy_text(line, sizeof line, word(state.status < 0 ? STR_OFFLINE : success[0] ? STR_NO_EVENTS : STR_WAIT)); }
+    } else { copy_text(line, sizeof line, word(scope_status(0))); }
     draw_text(16, 231, HOST_UI_TEXT, line, 368);
-    if (e && (state.status < 0 || stale(0))) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status < 0 ? STR_OFFLINE : STR_STALE), 180); }
+    if (e && (state.status[0] != 200 || stale(0))) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status[0] != 200 ? scope_status(0) : STR_STALE), 180); }
 }
 /* USGS generated distance/direction prefixes are not part of a proper name. */
 static const char *place_name(const event_t *e, char localized[128])
@@ -900,9 +998,9 @@ static void draw_list(void)
             draw_text(16, 132, HOST_UI_CAPTION, word(STR_LOCATION_HELP), 368);
             return;
         }
-        draw_text(16, 100, HOST_UI_TEXT, word(state.status < 0 ? STR_OFFLINE : success[scene.scope] ? STR_NO_EVENTS : STR_WAIT), 368);
+        draw_text(16, 100, HOST_UI_TEXT, word(scope_status(scene.scope)), 368);
     }
-    int32_t caption = scene.scope && requesting ? STR_WAIT : state.status < 0 ? STR_OFFLINE : stale(scene.scope) ? STR_STALE : -1;
+    int32_t caption = scene.scope && requesting ? STR_WAIT : state.status[scene.scope] && state.status[scene.scope] != 200 ? scope_status(scene.scope) : stale(scene.scope) ? STR_STALE : -1;
     if (caption >= 0 && count) { FILL(line, "{1}  USGS", 0, word(caption), NULL); }
     else { copy_text(line, sizeof line, "USGS"); }
     draw_text(16, 225, HOST_UI_CAPTION, line, 368);
@@ -920,9 +1018,9 @@ static void draw_detail(void)
     if (location[0]) { draw_text(16, 68, HOST_UI_CAPTION, location, width); }
     ui_draw_text_lines(16, 84, HOST_UI_TEXT, name, app_text_length(name), width, 2);
     if (inset) {
-        host_map_t map = { .x = 208, .y = 12, .w = 176, .h = 146 };
-        event_map(&map, e, false);
-        gfx_draw_rect(207, 11, 178, 148, HOST_RECT_OUTLINE);
+        host_map_t map = { .x = 208, .y = 12, .w = 176, .h = 164 };
+        event_map(&map, e, true);
+        gfx_draw_rect(207, 11, 178, 166, HOST_RECT_OUTLINE);
     }
     quantity(a, placed ? (distance + 500) / 1000 : UNKNOWN);
     FILL(text, word(STR_FROM_YOU), 0, a, NULL);
@@ -934,8 +1032,9 @@ static void draw_detail(void)
     time_string(date, e->time / 1000, HOST_TIME_DATE);
     time_string(clock, e->time / 1000, HOST_TIME_CLOCK);
     FILL(text, "{1}  {2}", 0, date, clock);
-    draw_text(16, 184, HOST_UI_CAPTION, text, 368);
-    draw_text(16, 204, HOST_UI_CAPTION, "USGS", 368);
+    int32_t source_width = ui_text_width(HOST_UI_CAPTION, "USGS", 4);
+    draw_text(16, 184, HOST_UI_CAPTION, text, 352 - source_width);
+    draw_text(384 - source_width, 184, HOST_UI_CAPTION, "USGS", source_width);
     app_draw_actions(NULL, word(STR_BACK));
 }
 void app_on_draw(void)
