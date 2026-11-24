@@ -269,6 +269,27 @@ static void recovered_coordinates(void)
             assert(!strstr(standin()->draw_text, "Storage error."));
         }
     }
+    for (int32_t coordinate = 0; coordinate < 2; coordinate++) {
+        setup();
+        standin_set(keys[coordinate], "37.010000000000000000");
+        standin()->refuse_writes = HOST_ERR_FAILED;
+        app_on_settings();
+        assert(query_unsaved & (1u << coordinate));
+        assert(save_query("end", 3, "2026-11-01", 10) == HOST_ERR_FAILED);
+        cache_unsaved = true;
+        standin()->refuse_writes = HOST_OK;
+        standin_set("place", "");
+        settings();
+        assert(!placed && !(query_unsaved & 3u));
+        assert(query_unsaved & (1u << 3));
+        assert(cache_unsaved);
+        app_on_settings();
+        assert(query_unsaved & (1u << 3));
+        standin_draw(); assert(strstr(standin()->draw_text, "Storage error."));
+        assert(save_query("end", 3, "2026-11-01", 10) == HOST_OK);
+        cache_unsaved = false;
+        standin_draw(); assert(!strstr(standin()->draw_text, "Storage error."));
+    }
 }
 
 static void refused_state(void)

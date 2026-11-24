@@ -279,7 +279,10 @@ static void settings(void)
     placed = place[0] &&
         setting_number("lat", 6, &latitude) && setting_number("lon", 6, &longitude) &&
         latitude >= -90000000 && latitude <= 90000000 && longitude >= -180000000 && longitude <= 180000000;
-    if (placed) {
+    if (!place[0]) {
+        /* A cleared place no longer uses either coordinate. */
+        query_result("lat", HOST_OK); query_result("lon", HOST_OK);
+    } else if (placed) {
         const char *keys[] = { "lat", "lon" };
         int32_t values[] = { latitude, longitude };
         char raw[256];

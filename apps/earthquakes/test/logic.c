@@ -15,7 +15,8 @@ static void geography(void)
         double a=radians(cases[i][0]/1e6), b=radians(cases[i][2]/1e6);
         double d=radians((cases[i][3]-cases[i][1])/1e6);
         double h=pow(sin((b-a)/2),2)+cos(a)*cos(b)*pow(sin(d/2),2);
-        if(h<0) h=0; if(h>1) h=1;
+        if(h<0) h=0;
+        if(h>1) h=1;
         double expected=2*6371009*asin(sqrt(h));
         int32_t actual=distance_m(cases[i][0],cases[i][1],cases[i][2],cases[i][3]);
         assert(fabs(actual-expected)<(expected>20000000 ? 500 : 50));
@@ -48,7 +49,7 @@ static void utc_boundaries(void)
     for(int year=2026;year<=2100;year++) for(int month=1;month<=12;month++) {
         if(year==2100 && month>1)break;
         int64_t day=(int64_t)app_days_from_date(year,month,1)*86400000;
-        char text[32],expected[32];
+        char text[32],expected[64];
         utc_text(text,day);
         snprintf(expected,sizeof expected,"%04d-%02d-01T00:00:00.000",year,month);
         assert(!strcmp(text,expected));
