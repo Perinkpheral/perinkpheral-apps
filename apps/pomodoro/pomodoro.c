@@ -17,17 +17,24 @@
 #include "strings.h"
 
 enum { WORK, BREAK, LONG_BREAK };
-enum { END_ALARM, MINUTE_ALARM };
+enum { END_ALARM, MINUTE_ALARM, NOTICE_ALARM };
 #define MINUTE_TIMER 0
-#define STATE_VERSION 1
+#define STATE_VERSION 2
+#define RETRY_TIMER 1
+#define RETRY_SECONDS 1
+#define NOTICE_LIFETIME 60
 typedef struct {
     int32_t version, phase, round, rounds;
     int64_t ends_at;
     uint32_t boot;
     int32_t paused_left, phase_length;
+    int64_t notice_until;
 } state_t;
 static state_t state, saved;
 static bool has_saved;
+static state_t pending;
+static bool save_pending;
+static void retry_save(void);
 
 static int64_t uptime_seconds(void) { return time_uptime_ms() / 1000; }
 static int32_t configured_rounds(void)
@@ -42,12 +49,15 @@ static int32_t phase_length(int32_t phase)
     int32_t n = app_setting_seconds(keys[phase], defaults[phase]);
     return n > 0 ? n : defaults[phase];
 }
-static void save(void)
+static bool save(void)
 {
     bool changed = !has_saved;
     const uint8_t *a = (const uint8_t *)&state, *b = (const uint8_t *)&saved;
     for (int32_t i = 0; i < (int32_t)sizeof state; i++) { changed |= a[i] != b[i]; }
-    if (changed && app_state_save("state", &state, sizeof state)) { saved = state; has_saved = true; }
+    if (!changed) { return true; }
+    if (!app_state_save("state", &state, sizeof state)) { return false; }
+    saved = state; has_saved = true;
+    return true;
 }
 static void reset_state(void)
 {
@@ -124,10 +134,56 @@ static void phase_notice(void)
         host_text_argument_t args[] = { { .number = state.round }, { .number = state.rounds } };
         fill(app_string(STR_ROUND), args, 2, notice.second, sizeof notice.second);
     } else { minutes_text(state.phase_length, notice.second, sizeof notice.second); }
-    notification_post(&notice);
+    if (!state.notice_until || uptime_seconds() > state.notice_until) { return; }
+    if (notification_post(&notice) == HOST_OK) {
+        /* The alarm is the retry receipt; a later failed save cannot recreate it. */
+        alarm_set(NOTICE_ALARM, 0);
+        state.notice_until = 0;
+    } else { check_alarm(alarm_set(NOTICE_ALARM, RETRY_SECONDS)); }
 }
+static bool commit_change(state_t before)
+{
+    if (state.ends_at && state.ends_at != before.ends_at) {
+        int32_t left = seconds_left();
+        int32_t result = alarm_set(END_ALARM, left > 0 ? left : 1);
+        check_alarm(result);
+        if (result != HOST_OK) {
+            pending = state;
+            state = before;
+            save_pending = true;
+            timer_set(RETRY_TIMER, RETRY_SECONDS * 1000);
+            return false;
+        }
+    }
+    if (!save()) {
+        pending = state;
+        state = before;
+        save_pending = true;
+        schedule();
+        timer_set(RETRY_TIMER, RETRY_SECONDS * 1000);
+        return false;
+    }
+    save_pending = false;
+    timer_set(RETRY_TIMER, 0);
+    alarm_set(NOTICE_ALARM, 0);
+    schedule();
+    return true;
+}
+static void retry_save(void)
+{
+    if (!save_pending) { return; }
+    state_t before = state;
+    state = pending;
+    if (commit_change(before)) {
+        if (state.notice_until) { phase_notice(); }
+        screen_redraw(HOST_REDRAW_NORMAL);
+    }
+}
+void app_on_terminate(void) { retry_save(); }
+
 static void advance(bool running, bool paused, bool announce)
 {
+    state_t before = state;
     int32_t rounds = configured_rounds();
     if (state.phase == WORK) {
         state.phase = state.round >= rounds ? LONG_BREAK : BREAK;
@@ -141,13 +197,26 @@ static void advance(bool running, bool paused, bool announce)
     state.ends_at = running ? uptime_seconds() + state.phase_length : 0;
     state.paused_left = paused ? state.phase_length : 0;
     state.boot = time_boot_id();
-    save(); schedule();
+    state.notice_until = announce ? before.ends_at + NOTICE_LIFETIME : 0;
+    if (!commit_change(before)) {
+        /* Off-screen instances cannot keep the tentative phase in RAM. The old
+         * expired phase remains authoritative until a later alarm saves it. */
+        if (announce) { check_alarm(alarm_set(END_ALARM, RETRY_SECONDS)); }
+        return;
+    }
     if (announce) { phase_notice(); }
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 void app_on_load(void)
 {
     bool stored = app_state_load("state", &state, sizeof state, STATE_VERSION);
+    if (!stored) {
+        /* Version 1 ends after phase_length; preserve running and paused sessions. */
+        stored = kv_get("state", 5, &state, sizeof state) == 40 && state.version == 1;
+        state.version = STATE_VERSION;
+        state.notice_until = 0;
+    }
+    save_pending = false;
     has_saved = stored;
     if (stored) { saved = state; }
     bool stale = stored && state.boot != time_boot_id();
@@ -159,7 +228,7 @@ void app_on_load(void)
         if (stored) { save(); }
     }
 }
-void app_on_focus(void) { show_header(); schedule_timer(); }
+void app_on_focus(void) { retry_save(); show_header(); schedule_timer(); }
 void app_on_updated(void) { schedule(); }
 /* Removal keeps the phase's store but drops its alarms. */
 void app_on_installed(void)
@@ -172,24 +241,26 @@ void app_on_installed(void)
 }
 void app_on_settings(void)
 {
+    state_t before = state;
     /* A stopped preview follows settings; an active or paused phase keeps its length. */
     if (!state.ends_at && !state.paused_left) {
         state.phase_length = phase_length(state.phase); state.rounds = configured_rounds();
         if (state.round > state.rounds) { state.round = state.rounds; }
-        save();
+        commit_change(before);
     }
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 void app_on_button(int32_t event)
 {
+    state_t before = state;
     switch (event) {
     case BTN_UP_PRESSED:
         if (!state.ends_at && !state.paused_left) { return; }
         /* Stop also discards the paused remainder, so the next start begins
          * a new work session with the user's current duration settings. */
-        reset_state(); save(); schedule(); break;
+        reset_state(); commit_change(before); break;
     case BTN_OK_LONG_PRESSED:
-        reset_state(); save(); schedule(); break;
+        reset_state(); commit_change(before); break;
     case BTN_DOWN_PRESSED:
         advance(state.ends_at != 0, state.paused_left != 0, false); return;
     case BTN_OK_PRESSED:
@@ -201,13 +272,15 @@ void app_on_button(int32_t event)
             int32_t left = state.paused_left ? state.paused_left : state.phase_length;
             state.paused_left = 0; state.ends_at = uptime_seconds() + left; state.boot = time_boot_id();
         }
-        save(); schedule(); break;
+        state.notice_until = 0;
+        commit_change(before); break;
     default: return;
     }
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 void app_on_alarm(int32_t id)
 {
+    if (id == NOTICE_ALARM) { phase_notice(); return; }
     if (!state.ends_at) { return; }
     if (id == END_ALARM) {
         if (seconds_left() == 0) { advance(true, false, true); }
@@ -220,6 +293,7 @@ void app_on_alarm(int32_t id)
 }
 void app_on_timer(int32_t id)
 {
+    if (id == RETRY_TIMER) { retry_save(); return; }
     if (id != MINUTE_TIMER) { return; }
     screen_redraw(HOST_REDRAW_NORMAL); schedule_timer();
 }

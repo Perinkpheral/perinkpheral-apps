@@ -26,6 +26,7 @@
 #define MINUTES_PER_HOUR   60
 #define SECONDS_PER_HOUR   (SECONDS_PER_MINUTE * MINUTES_PER_HOUR)
 
+#define RETRY_TIMER  1
 #define TURN_TIMER   0 /* the picture, while the application is on the screen */
 #define MINUTE_ALARM 0 /* the header, wherever the user is */
 
@@ -48,6 +49,9 @@ typedef struct {
 
 static stopwatch_t state;
 static bool save_pending;
+static stopwatch_t pending;
+static bool change_pending, is_sequence;
+static void retry_change(void);
 
 static bool save(void)
 {
@@ -176,33 +180,41 @@ static void update_header_status(void)
     show_in_header();
 }
 
-static void start(void)
-{
-    state.is_running = 1;
-    state.started_uptime_ms = time_uptime_ms();
-    state.boot = time_boot_id();
-    state.started_at = time_now();
-    update_header_status();
-    schedule_next_change();
-}
-
-static void stop(void)
-{
-    state.banked_ms = elapsed_ms();
-    state.is_running = 0;
-    alarm_set(MINUTE_ALARM, 0);
-    timer_set(TURN_TIMER, 0);
-    header_set_status(HOST_HEADER_LEFT, HOST_ICON_NONE, "", 0);
-}
-
 static void reset(void)
 {
     state.banked_ms = 0;
 }
 
+static void refresh_state(void)
+{
+    if (state.is_running) { update_header_status(); schedule_next_change(); }
+    else {
+        alarm_set(MINUTE_ALARM, 0);
+        timer_set(TURN_TIMER, 0);
+        header_set_status(HOST_HEADER_LEFT, HOST_ICON_NONE, "", 0);
+    }
+    screen_redraw(is_sequence && !state.is_running ? HOST_REDRAW_CLEAN : HOST_REDRAW_NORMAL);
+    if (!state.is_running) { is_sequence = false; }
+}
+
+static void retry_change(void)
+{
+    if (!change_pending) {
+        if (save_pending) { save(); }
+        return;
+    }
+    stopwatch_t before = state;
+    state = pending;
+    if (save()) {
+        change_pending = false;
+        refresh_state();
+    } else { state = before; timer_set(RETRY_TIMER, 1000); }
+}
+void app_on_terminate(void) { retry_change(); }
+
 void app_on_load(void)
 {
-    save_pending = false;
+    save_pending = change_pending = is_sequence = false;
     bool is_stored = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
     if (!is_stored) {
         state = (stopwatch_t){ .version = STATE_VERSION };
@@ -241,6 +253,7 @@ void app_on_updated(void)
 
 void app_on_focus(void)
 {
+    retry_change();
     if (state.is_running && run_ms() >= 0) {
         update_header_status();
     }
@@ -249,10 +262,14 @@ void app_on_focus(void)
 
 void app_on_timer(int32_t id)
 {
-    (void)id;
+    if (id == RETRY_TIMER) { retry_change(); return; }
+    if (id != TURN_TIMER) { return; }
+    if (save_pending && !change_pending) { save(); }
     /* A second after a second: one picture of a row, with no full refresh
      * between them. A minute is an ordinary change. */
-    screen_redraw(shows_seconds() ? HOST_REDRAW_NO_BLINK : HOST_REDRAW_NORMAL);
+    bool seconds = shows_seconds();
+    screen_redraw(seconds ? HOST_REDRAW_NO_BLINK : is_sequence ? HOST_REDRAW_CLEAN : HOST_REDRAW_NORMAL);
+    is_sequence = seconds;
     schedule_next_change();
 }
 
@@ -268,28 +285,29 @@ void app_on_alarm(int32_t id)
 
 void app_on_button(int32_t event)
 {
+    stopwatch_t before = state;
     if (event == BTN_OK_PRESSED) {
         if (state.is_running) {
-            stop();
+            state.banked_ms = elapsed_ms();
+            state.is_running = 0;
         } else {
-            stopwatch_t before = state;
-            start();
-            /* A start the store did not keep is no start: its alarm and the header's status
-             * would outlive what the stopwatch shows when it is opened again. */
-            if (!save()) {
-                stop();
-                state = before;
-            }
-            screen_redraw(HOST_REDRAW_NORMAL);
-            return;
+            state.is_running = 1;
+            state.started_uptime_ms = time_uptime_ms();
+            state.boot = time_boot_id();
+            state.started_at = time_now();
         }
-    } else if (event == BTN_OK_LONG_PRESSED && !state.is_running) {
-        reset();
-    } else {
+    } else if (event == BTN_OK_LONG_PRESSED && !state.is_running) { reset(); }
+    else { return; }
+    if (!save()) {
+        pending = state;
+        state = before;
+        change_pending = true;
+        timer_set(RETRY_TIMER, 1000);
         return;
     }
-    save();
-    screen_redraw(HOST_REDRAW_NORMAL);
+    change_pending = false;
+    timer_set(RETRY_TIMER, 0);
+    refresh_state();
 }
 
 /* The largest of the fonts the time fits in, whichever typeface is chosen -
