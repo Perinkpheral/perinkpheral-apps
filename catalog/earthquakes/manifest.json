@@ -1,0 +1,133 @@
+{
+  "name": "earthquakes",
+  "version": "0.1.1",
+  "title": "Earthquakes",
+  "author": "Perinkpheral",
+  "description": "Recent earthquakes worldwide, with optional nearby notices",
+  "abi": 3,
+  "writes_files": true,
+  "settings": [
+    {
+      "key": "place",
+      "type": "place",
+      "title": "Place",
+      "latitude": "lat",
+      "longitude": "lon"
+    },
+    {
+      "key": "lat",
+      "type": "number",
+      "title": "Latitude",
+      "hidden": true
+    },
+    {
+      "key": "lon",
+      "type": "number",
+      "title": "Longitude",
+      "hidden": true
+    },
+    {
+      "key": "radius",
+      "type": "choice",
+      "title": "Radius",
+      "options": [
+        "100",
+        "300",
+        "1000",
+        "2000"
+      ],
+      "default": "1000",
+      "help": "Search radius in km."
+    },
+    {
+      "key": "minmag",
+      "type": "choice",
+      "title": "Minimum magnitude",
+      "options": [
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "default": "3"
+    },
+    {
+      "key": "notify",
+      "type": "choice",
+      "title": "Notifications",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "default": "Off"
+    },
+    {
+      "key": "every",
+      "type": "choice",
+      "title": "Refresh",
+      "options": [
+        "1 min",
+        "5 min",
+        "15 min"
+      ],
+      "default": "1 min"
+    }
+  ],
+  "polls": [
+    {
+      "url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype={{near}}&latitude={{lat}}&longitude={{lon}}&maxradiuskm={{radius}}&minmagnitude={{minmag}}&orderby=time&limit=8",
+      "every": "{{every}}",
+      "pick": [
+        "type",
+        "features[*].id",
+        "features[*].properties.mag",
+        "features[*].properties.place",
+        "features[*].properties.time",
+        "features[*].properties.updated",
+        "features[*].properties.type",
+        "features[*].properties.ids",
+        "features[*].geometry.coordinates[0]",
+        "features[*].geometry.coordinates[1]",
+        "features[*].geometry.coordinates[2]"
+      ]
+    },
+    {
+      "url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&minmagnitude=4.5&starttime=2026-01-01&orderby=time&limit=8&endtime={{end}}&offset={{offset}}",
+      "every": 86400,
+      "pick": [
+        "type",
+        "features[*].id",
+        "features[*].properties.mag",
+        "features[*].properties.place",
+        "features[*].properties.time",
+        "features[*].properties.updated",
+        "features[*].properties.type",
+        "features[*].properties.ids",
+        "features[*].geometry.coordinates[0]",
+        "features[*].geometry.coordinates[1]",
+        "features[*].geometry.coordinates[2]"
+      ]
+    }
+  ],
+  "hosts": [
+    "earthquake.usgs.gov"
+  ],
+  "intents": [
+    "started",
+    "time_changed"
+  ],
+  "icon": [
+    "...........",
+    ".....#.....",
+    ".....#.....",
+    "....#.#....",
+    "....#.#....",
+    "###.#.#.###",
+    "...#...#...",
+    "...#...#...",
+    ".......#...",
+    "...........",
+    "..........."
+  ],
+  "firmware": "0.1.95"
+}
