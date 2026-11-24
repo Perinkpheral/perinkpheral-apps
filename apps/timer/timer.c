@@ -44,7 +44,7 @@ typedef struct {
 } timer_state_t;
 
 static timer_state_t state, pending;
-static bool save_pending;
+static bool save_pending, receipt_pending;
 static void retry_save(void);
 static void restore_running(void);
 static void say_if_unset(int32_t result, const char *what);
@@ -56,7 +56,9 @@ static int32_t uptime_seconds(void)
 
 static bool save(void)
 {
-    return app_state_save(STATE_KEY, &state, sizeof state);
+    if (!app_state_save(STATE_KEY, &state, sizeof state)) { return false; }
+    receipt_pending = false;
+    return true;
 }
 
 void app_on_load(void)
@@ -68,7 +70,7 @@ void app_on_load(void)
         state.version = STATE_VERSION;
         state.notice_until = 0;
     }
-    save_pending = false;
+    save_pending = receipt_pending = false;
     /* A countdown from before a restart is over: uptime began again. */
     bool is_stale = is_stored && state.ends_at != 0 && state.boot != time_boot_id();
     if (state.boot != time_boot_id()) { state.notice_until = 0; }
@@ -141,33 +143,27 @@ static void release_header_status(void)
 static void post_completion(void)
 {
     if (state.notice_until == 0 || uptime_seconds() > state.notice_until) { return; }
-    int32_t notice_until = state.notice_until;
-    /* Save the receipt before posting, so update recovery cannot replay an
-     * accepted notice when storage subsequently refuses writes. */
-    state.notice_until = 0;
-    if (!save()) {
-        state.notice_until = notice_until;
-        say_if_unset(alarm_set(NOTICE_ALARM, RETRY_SECONDS), "no room for the notice's alarm");
-        return;
-    }
+    /* Keep the durable deadline until the queue accepts the notice. A full
+     * queue must remain retryable even if storage refuses every later write. */
     host_notice_t time_is_up = { .icon = HOST_ICON_BELL };
     app_text_copy(time_is_up.first, sizeof time_is_up.first, app_string(STR_TIME));
     app_text_copy(time_is_up.second, sizeof time_is_up.second, app_string(STR_IS_UP));
     if (notification_post(&time_is_up) == HOST_OK) {
+        state.notice_until = 0;
         if (save_pending) { pending.notice_until = 0; }
         alarm_set(NOTICE_ALARM, 0);
-    } else {
-        state.notice_until = notice_until;
-        if (!save() && !save_pending) {
-            pending = state;
-            save_pending = true;
+        /* Receipt writes are best effort: posting and storage are separate
+         * host operations. Retry in this instance without posting again. */
+        if (!save()) {
+            receipt_pending = true;
             timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND);
         }
+    } else {
         say_if_unset(alarm_set(NOTICE_ALARM, RETRY_SECONDS), "no room for the notice's alarm");
     }
 }
 
-/* Save completion before posting: a refused write cannot replay an accepted notice. */
+/* Persist completion before attempting delivery. */
 void app_on_alarm(int32_t id)
 {
     if (id == NOTICE_ALARM) { post_completion(); return; }
@@ -259,11 +255,13 @@ static bool commit_change(timer_state_t before)
 }
 static void retry_save(void)
 {
-    if (!save_pending) { return; }
-    timer_state_t before = state;
-    state = pending;
-    if (commit_change(before)) { screen_redraw(HOST_REDRAW_NORMAL); }
-    else if (save_pending) { timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND); }
+    if (save_pending) {
+        timer_state_t before = state;
+        state = pending;
+        if (commit_change(before)) { screen_redraw(HOST_REDRAW_NORMAL); }
+        else if (save_pending) { timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND); }
+    }
+    if (receipt_pending && !save()) { timer_set(RETRY_TIMER, RETRY_SECONDS * MS_PER_SECOND); }
 }
 void app_on_terminate(void) { retry_save(); }
 

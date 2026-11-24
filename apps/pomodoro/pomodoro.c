@@ -33,7 +33,7 @@ typedef struct {
 static state_t state, saved;
 static bool has_saved;
 static state_t pending;
-static bool save_pending;
+static bool save_pending, receipt_pending;
 static void retry_save(void);
 
 static int64_t uptime_seconds(void) { return time_uptime_ms() / 1000; }
@@ -54,9 +54,9 @@ static bool save(void)
     bool changed = !has_saved;
     const uint8_t *a = (const uint8_t *)&state, *b = (const uint8_t *)&saved;
     for (int32_t i = 0; i < (int32_t)sizeof state; i++) { changed |= a[i] != b[i]; }
-    if (!changed) { return true; }
+    if (!changed) { receipt_pending = false; return true; }
     if (!app_state_save("state", &state, sizeof state)) { return false; }
-    saved = state; has_saved = true;
+    saved = state; has_saved = true; receipt_pending = false;
     return true;
 }
 static void reset_state(void)
@@ -129,15 +129,8 @@ static void schedule(void)
 static void phase_notice(void)
 {
     if (!state.notice_until || uptime_seconds() > state.notice_until) { return; }
-    int64_t notice_until = state.notice_until;
-    /* Persist the receipt before delivery; an update must not replay a notice
-     * merely because writes were refused after it was accepted. */
-    state.notice_until = 0;
-    if (!save()) {
-        state.notice_until = notice_until;
-        check_alarm(alarm_set(NOTICE_ALARM, RETRY_SECONDS));
-        return;
-    }
+    /* Keep the durable deadline until the queue accepts the notice. A full
+     * queue must remain retryable even if storage refuses every later write. */
     host_notice_t notice = { .icon = HOST_ICON_BELL };
     app_text_copy(notice.first, sizeof notice.first, phase_name());
     if (state.phase == WORK) {
@@ -145,15 +138,16 @@ static void phase_notice(void)
         fill(app_string(STR_ROUND), args, 2, notice.second, sizeof notice.second);
     } else { minutes_text(state.phase_length, notice.second, sizeof notice.second); }
     if (notification_post(&notice) == HOST_OK) {
+        state.notice_until = 0;
         if (save_pending) { pending.notice_until = 0; }
         alarm_set(NOTICE_ALARM, 0);
-    } else {
-        state.notice_until = notice_until;
-        if (!save() && !save_pending) {
-            pending = state;
-            save_pending = true;
+        /* Receipt writes are best effort: posting and storage are separate
+         * host operations. Retry in this instance without posting again. */
+        if (!save()) {
+            receipt_pending = true;
             timer_set(RETRY_TIMER, RETRY_SECONDS * 1000);
         }
+    } else {
         check_alarm(alarm_set(NOTICE_ALARM, RETRY_SECONDS));
     }
 }
@@ -187,13 +181,15 @@ static bool commit_change(state_t before)
 }
 static void retry_save(void)
 {
-    if (!save_pending) { return; }
-    state_t before = state;
-    state = pending;
-    if (commit_change(before)) {
-        if (state.notice_until) { phase_notice(); }
-        screen_redraw(HOST_REDRAW_NORMAL);
+    if (save_pending) {
+        state_t before = state;
+        state = pending;
+        if (commit_change(before)) {
+            if (state.notice_until) { phase_notice(); }
+            screen_redraw(HOST_REDRAW_NORMAL);
+        }
     }
+    if (receipt_pending && !save()) { timer_set(RETRY_TIMER, RETRY_SECONDS * 1000); }
 }
 void app_on_terminate(void) { retry_save(); }
 
@@ -232,7 +228,7 @@ void app_on_load(void)
         state.version = STATE_VERSION;
         state.notice_until = 0;
     }
-    save_pending = false;
+    save_pending = receipt_pending = false;
     has_saved = stored;
     if (stored) { saved = state; }
     bool stale = stored && state.boot != time_boot_id();

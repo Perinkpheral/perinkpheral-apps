@@ -36,13 +36,15 @@ int main(void)
     app_on_alarm(2);
     assert(standin()->notices == 1 && !strcmp(standin()->last_notice.first, "Break"));
     assert(standin_alarm_left(2) == 0);
+    /* While this instance survives, retry only the refused receipt. */
+    app_on_timer(RETRY_TIMER);
+    assert(standin()->notices == 1);
     app_on_terminate();
+    assert(standin()->refuse_writes == HOST_ERR_NO_SPACE);
     reload();
     app_on_alarm(END_ALARM);
-    standin_handlers.on_updated = app_on_updated;
-    standin_updated();
-    assert(state.phase == BREAK && standin()->notices == 1);
-    assert(standin_alarm_left(NOTICE_ALARM) == 0);
+    assert(standin()->notices == 1 && standin_alarm_left(NOTICE_ALARM) == 0);
+    /* Update recovery of an ambiguous receipt is covered in notification_update.c. */
 
     fail_receipt = false;
     queue_full = true;

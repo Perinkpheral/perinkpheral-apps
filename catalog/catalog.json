@@ -563,13 +563,13 @@
     {
       "name": "pomodoro",
       "title": "Pomodoro",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7083,
-          "sha256": "d75f060a71544ca1d4e5d1d0dca5faef7f21eb159c22a45d0fac7018fa89073d"
+          "size": 7021,
+          "sha256": "57f9c379dc06f6f3c744e79d5fcc2b5ec1c93b6ebef49413553c9b2c4dcc7bcc"
         },
         {
           "name": "manifest.ru",
@@ -584,7 +584,7 @@
         {
           "name": "manifest.json",
           "size": 1199,
-          "sha256": "89001c70622196d2aa9038007ef62e397581e2560141831a9ee8aa2a3b5e7e8e"
+          "sha256": "235133ee92a4b701ee12d444bcded3963ea8be76d382971f3d4b078343f89f43"
         }
       ],
       "author": "Perinkpheral",
@@ -879,13 +879,13 @@
     {
       "name": "timer",
       "title": "Timer",
-      "version": "0.3.17",
+      "version": "0.3.18",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 4414,
-          "sha256": "f423b83dfc2fca1ff84815d662e4886a8b3d95d0535e882fda8964ddb937e468"
+          "size": 4352,
+          "sha256": "ec928a249a99b2f909b3f329a01329fd0ad09727bee41fa5f9afd89a65467c50"
         },
         {
           "name": "manifest.ru",
@@ -900,7 +900,7 @@
         {
           "name": "manifest.json",
           "size": 384,
-          "sha256": "f8583a3387ecc345bc9f244a501bf4414246deff25601e553192fb6c41ad4864"
+          "sha256": "b766f285ad1066b9c7d6541123f1e2a9dd7ab85f81525ca71492e44e8c917d78"
         }
       ],
       "author": "Perinkpheral",
