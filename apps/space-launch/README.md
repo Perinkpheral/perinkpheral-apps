@@ -5,8 +5,9 @@ The Space Devs, and orbital launch counts since 1957. No account or key is neede
 
 ## Screens
 
-Held UP and DOWN switch the four screens; the count at the upper right, `1/4`, says
-which one is shown.
+Hold UP or DOWN to switch among the four screens. The system header shows a
+screen count such as `1/4` next to the connection icon, before the `Updated`
+caption when it appears.
 
 1. **Launches.** The next ten launches with the local date, or the time for a launch today,
    the rocket and the status. UP moves into the past: the last ten launches with their
