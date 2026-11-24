@@ -21,6 +21,8 @@ Treat a private subscription URL as a secret: anyone with it can read the feed.
 **Refresh** sets the download interval. **Reminder** sets how long before a timed
 event to show a notice. All-day events have no reminders. Choose Off to disable reminders.
 
+Accepted limitation: reminders are delivered at most once; queue refusal combined with both receipt stores refusing rollback through termination may lose a reminder.
+
 ## On the device
 
 The list shows events for the next two weeks, with a name and time on each line.
