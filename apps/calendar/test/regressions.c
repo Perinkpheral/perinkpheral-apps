@@ -213,19 +213,22 @@ static void upgrade_from_0_4(void)
     _Static_assert(offsetof(state_t, source_hash) == 408, "0.4.20 state length");
     state_t old = { .version = 4, .status = HTTP_OK, .reminded_to = start - 7200, .feed_hash = feed_identity };
     assert(kv_set(STATE_KEY, sizeof STATE_KEY - 1, &old, 408) == HOST_OK);
-    _Static_assert(sizeof(stored_events_t) == 3848, "0.4.20 events file length");
-    stored_events_t file = { .version = 3, .count = 2 };
-    file.events[0] = (ics_event_t){ .start = start, .end = start + 3600, .original = start, .uid = 7 };
-    file.events[1] = (ics_event_t){ .start = start + 7200, .end = start + 9000, .original = start + 7200, .uid = 8 };
+    _Static_assert(offsetof(legacy_source_t, name) == 3848, "0.4.20 events file length");
+    legacy_source_t file = { .version = 3, .count = 2 };
+    file.events[0] = (legacy_event_t){ .start = start, .end = start + 3600, .original = start, .uid = 7 };
+    file.events[1] = (legacy_event_t){ .start = start + 7200, .end = start + 9000, .original = start + 7200, .uid = 8 };
     strcpy(file.events[0].title, "Legacy");
-    strcpy(file.events[1].title, "Second");
+    for (int i = 0; i < 40; i++) { strcpy(file.events[1].title + 2 * i, "\xD0\x90"); } /* 80 bytes */
     file.events[0].source = 0xAB; /* 0.4.20 left this byte as padding */
     file.events[1].source = 0xFF;
-    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &file, 3848) == HOST_OK);
+    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &file,
+                      (int32_t)offsetof(legacy_source_t, name)) == HOST_OK);
     int writes = standin()->store_writes, files = standin()->file_writes;
     reload();
     assert(sources[0].data.count == 2 && stored.count == 2);
     assert(stored.events[0].uid == 7 && stored.events[0].source == 0 && stored.events[1].source == 0);
+    /* Longer than the page allows now: 31 of the 40 characters, cut between them. */
+    assert(strlen(stored.events[1].title) == 62 && app_text_starts(file.events[1].title, stored.events[1].title));
     assert(state.source_hash[0] == feed_identity && state.reminded[0] == start - 7200 && state.status == HTTP_OK);
     assert(standin()->store_writes == writes && standin()->file_writes == files);
     standin_clock(start - 600); capacity = 1; app_on_alarm(0);

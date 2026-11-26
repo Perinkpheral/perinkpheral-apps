@@ -34,6 +34,17 @@ static const char empty[] = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n";
 static const char unnamed[] =
     "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:fourth\r\nDTSTART:20260115T150000Z\r\nDTEND:20260115T153000Z\r\nSUMMARY:Walk\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 
+/* An event as an installed calendar wrote it: 160 bytes, a 127-byte title. */
+static legacy_event_t as_legacy(const ics_event_t *event)
+{
+    legacy_event_t old = {
+        .start = event->start, .end = event->end, .original = event->original,
+        .uid = event->uid, .is_all_day = event->is_all_day,
+    };
+    strcpy(old.title, event->title);
+    return old;
+}
+
 static void answer(int source, const char *data, int chunk)
 {
     standin_data(source, -1, 200, data, (int32_t)strlen(data), chunk, STANDIN_WHOLE, 0);
@@ -161,10 +172,33 @@ int main(void)
 
     /* The existing single-calendar file and reminder state migrate without refetching. */
     setup(); answer(0, first, 1);
-    stored.version = 3;
+    legacy_source_t one = { .version = 3, .count = stored.count };
+    for (int32_t i = 0; i < stored.count; i++) { one.events[i] = as_legacy(&stored.events[i]); }
     assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, NULL, 0) == HOST_OK);
-    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &stored, sizeof stored) == HOST_OK);
+    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &one,
+                      (int32_t)offsetof(legacy_source_t, name)) == HOST_OK);
     reload(); assert(stored.count == 2 && sources[0].name[0] == '\0');
+
+    /* A released four-calendar file, its names and all, migrates the same way. */
+    setup(); standin_set("feed_2", "https://calendar.invalid/two"); app_on_settings();
+    answer(0, first, 1); answer(1, second, 1);
+    char work[ICS_NAME_MAX + 1], family[ICS_NAME_MAX + 1];
+    app_text_copy(work, sizeof work, sources[0].name);
+    app_text_copy(family, sizeof family, sources[1].name);
+    legacy_source_t all[SOURCES_MAX] = { { .version = 4 }, { .version = 4 },
+                                         { .version = 4 }, { .version = 4 } };
+    for (int32_t source = 0; source < SOURCES_MAX; source++) {
+        all[source].count = sources[source].data.count;
+        for (int32_t i = 0; i < sources[source].data.count; i++) {
+            all[source].events[i] = as_legacy(&sources[source].data.events[i]);
+        }
+        app_text_copy(all[source].name, sizeof all[source].name, sources[source].name);
+    }
+    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, NULL, 0) == HOST_OK);
+    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, all, sizeof all) == HOST_OK);
+    reload();
+    assert(stored.count == 4 && app_text_equal(sources[0].name, work) &&
+           app_text_equal(sources[1].name, family) && sources[2].name[0] == '\0');
 
     /* Full source snapshots retain candidates displaced by another calendar's nearest 24. */
     for (int source = 0; source < SOURCES_MAX; source++) {
@@ -192,7 +226,7 @@ int main(void)
     standin_set("every", "30 min"); standin_set("remind", "At start");
     save_state();
     assert(standin_store_bytes() == 2016);
-    assert(sizeof sources == 15904 && sizeof cache == 15920);
+    assert(sizeof sources == 9760 && sizeof cache == 9776);
     assert(standin()->refused_what[0] == '\0');
     printf("calendar: sources, dedup, names, optional polls, reminders, migration and full snapshots passed; KV %d/2048 bytes; cache %zu bytes\n", standin_store_bytes(), sizeof cache);
 }

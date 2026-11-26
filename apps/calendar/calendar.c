@@ -55,12 +55,32 @@ __attribute__((noinline)) static const char *word(int32_t id)
 /* ---- what is kept ---- */
 
 #define EVENTS_FILE    "events"
-#define EVENTS_VERSION 4
+#define EVENTS_VERSION 5
 typedef struct {
     int32_t     version;
     int32_t     count;
     ics_event_t events[ICS_EVENTS_MAX];
 } stored_events_t;
+
+/* What an installed calendar kept: the same records with a 127-byte title,
+ * 160 bytes apiece, a name only from version 4. Its whole file is longer
+ * than the cache has become, so a record is read one at a time. */
+#define LEGACY_TITLE_MAX 127
+typedef struct {
+    int64_t  start, end, original;
+    uint32_t uid;
+    uint8_t  is_all_day;
+    char     title[LEGACY_TITLE_MAX + 1];
+    uint8_t  source;
+} legacy_event_t;
+typedef struct {
+    int32_t        version;
+    int32_t        count;
+    legacy_event_t events[ICS_EVENTS_MAX];
+    char           name[ICS_NAME_MAX + 1];
+} legacy_source_t;
+_Static_assert(sizeof(legacy_event_t) == 160 && sizeof(legacy_source_t) == 3976,
+               "the records an installed calendar wrote");
 
 #define STATE_KEY     "state"
 #define STATE_VERSION 6
@@ -83,8 +103,8 @@ static bool state_dirty;
 static bool state_ready;
 static bool state_unsaved; /* both KV and the recovery journal refused the write */
 
-/* All four bounded source snapshots share one file, outside the 2 KB KV store.
- * The first data record retains the version-3 file layout for migration. */
+/* All four bounded source snapshots share one file, outside the 2 KB KV
+ * store. An older file is adopted record by record where the reader rests. */
 typedef struct {
     stored_events_t data;
     char name[ICS_NAME_MAX + 1];
@@ -309,7 +329,13 @@ void app_on_alarm(int32_t id)
 
 /* ---- the feed ---- */
 
-static ics_t       reader;
+/* The reader is the only room the module has for one record of an older
+ * file, longer than a source of the cache; during a load nothing reads yet. */
+static union {
+    ics_t           reading;
+    legacy_source_t an_old_record;
+} read_room;
+#define reader read_room.reading
 static source_t    incoming;
 static bool        is_reading;
 
@@ -485,6 +511,39 @@ static void sync_sources(const uint32_t hashes[SOURCES_MAX])
     combine_status();
 }
 
+/* One record of a file an installed calendar wrote, come through the reader:
+ * 160-byte events, a name only from version 4, titles cut between characters
+ * for the shorter ones the page allows now. */
+static bool adopt_legacy_source(int32_t source)
+{
+    legacy_source_t *old = &read_room.an_old_record;
+    int32_t length = file_read(EVENTS_FILE, sizeof EVENTS_FILE - 1,
+                               (int32_t)(source * sizeof *old), old, (int32_t)sizeof *old);
+    if (length < (int32_t)offsetof(legacy_source_t, name) ||
+        (old->version != 3 && old->version != 4) ||
+        old->count < 0 || old->count > ICS_EVENTS_MAX) {
+        return false;
+    }
+    source_t *fresh = &sources[source];
+    fresh->data = (stored_events_t){ .version = EVENTS_VERSION, .count = old->count };
+    for (int32_t i = 0; i < old->count; i++) {
+        ics_event_t *event = &fresh->data.events[i];
+        event->start    = old->events[i].start;
+        event->end      = old->events[i].end;
+        event->original = old->events[i].original;
+        event->uid      = old->events[i].uid;
+        event->is_all_day = old->events[i].is_all_day;
+        app_text_copy(event->title, sizeof event->title, old->events[i].title);
+        event->source = (uint8_t)source;
+    }
+    if (length == (int32_t)sizeof *old) {
+        app_text_copy(fresh->name, sizeof fresh->name, old->name);
+    } else {
+        fresh->name[0] = '\0'; /* version 3 kept no name */
+    }
+    return true;
+}
+
 void app_on_load(void)
 {
     uint32_t hashes[SOURCES_MAX];
@@ -522,18 +581,18 @@ void app_on_load(void)
     if (length != sizeof cache) {
         cache.status[0] = cache.status[1] = cache.status[2] = cache.status[3] = state.status;
     }
-    bool legacy = length == sizeof(stored_events_t) && sources[0].data.version == 3;
-    if (legacy) {
-        sources[0].data.version = EVENTS_VERSION;
-        sources[0].name[0] = '\0';
+    /* The first record says what file this is. An installed calendar's is
+     * longer than the cache, so its records are adopted one at a time. */
+    int32_t adopting = 0;
+    if (length > 0 && (sources[0].data.version == 3 || sources[0].data.version == 4)) {
+        adopting = length == (int32_t)offsetof(legacy_source_t, name) ? 1 : SOURCES_MAX;
     }
-    int32_t loaded = legacy ? 1 : (length == sizeof sources || length == sizeof cache) ? SOURCES_MAX : 0;
     for (int32_t i = 0; i < SOURCES_MAX; i++) {
         stored_events_t *data = &sources[i].data;
-        if (i >= loaded || data->version != EVENTS_VERSION ||
-            data->count < 0 || data->count > ICS_EVENTS_MAX) {
-            sources[i] = (source_t){ .data.version = EVENTS_VERSION };
-        }
+        bool kept = i < adopting ? adopt_legacy_source(i)
+                                 : data->version == EVENTS_VERSION &&
+                                   data->count >= 0 && data->count <= ICS_EVENTS_MAX;
+        if (!kept) { sources[i] = (source_t){ .data.version = EVENTS_VERSION }; }
     }
     sync_sources(hashes);
 }
