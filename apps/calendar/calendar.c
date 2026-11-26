@@ -55,10 +55,9 @@ __attribute__((noinline)) static const char *word(int32_t id)
 /* ---- what is kept ---- */
 
 #define EVENTS_FILE    "events"
-#define EVENTS_VERSION 6
-/* The titles of one source, packed one after another. 24 titles of 55 bytes
- * fit whatever they are; longer ones fit while the sum does. */
-#define TITLES_BYTES (ICS_EVENTS_MAX * 56)
+#define EVENTS_VERSION 7
+/* The titles of one source, packed one after another, each whole. */
+#define TITLES_BYTES (ICS_EVENTS_MAX * (ICS_TITLE_MAX + 1))
 _Static_assert(SOURCES_MAX * TITLES_BYTES <= 65536, "a title's place is 16 bits");
 /* An event as kept: the parser's, its title in the titles of a source. */
 typedef struct {
@@ -346,22 +345,13 @@ static void save_events(void)
     events_dirty = file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &cache, sizeof cache) != HOST_OK;
 }
 
-/* The reader's events become the source's snapshot. Titles are kept whole
- * while they all fit; otherwise the longest are cut to the longest length at
- * which all fit, never under 55 bytes. A snapshot equal to the one kept, by
- * its hash, is not written again. */
+/* The reader's events become the source's snapshot. A snapshot equal to
+ * the one kept, by its hash, is not written again. */
 static void store_events(int32_t source, int32_t count)
 {
     source_t *saved = &sources[source];
     const ics_event_t *read = reader.candidates;
     uint32_t before = ics_hash(0, (const char *)saved, sizeof *saved);
-    uint8_t sizes[ICS_EVENTS_MAX]; /* each title with its end */
-    for (int32_t i = 0; i < count; i++) { sizes[i] = (uint8_t)(app_text_length(read[i].title) + 1); }
-    int32_t size = ICS_TITLE_MAX + 1;
-    for (int32_t bytes = TITLES_BYTES + 1; bytes > TITLES_BYTES; size -= bytes > TITLES_BYTES) {
-        bytes = 0;
-        for (int32_t i = 0; i < count; i++) { bytes += sizes[i] < size ? sizes[i] : size; }
-    }
     *saved = (source_t){ .data = { .version = EVENTS_VERSION, .count = count } };
     int32_t at = 0;
     for (int32_t i = 0; i < count; i++) {
@@ -370,7 +360,7 @@ static void store_events(int32_t source, int32_t count)
             .uid = read[i].uid, .is_all_day = read[i].is_all_day, .source = (uint8_t)source,
             .title = (uint16_t)(source * TITLES_BYTES + at),
         };
-        app_text_copy(saved->titles + at, size < TITLES_BYTES - at ? size : TITLES_BYTES - at, read[i].title);
+        app_text_copy(saved->titles + at, ICS_TITLE_MAX + 1, read[i].title);
         at += app_text_length(saved->titles + at) + 1;
     }
     app_text_copy(saved->name, sizeof saved->name, reader.name);

@@ -160,7 +160,7 @@ int main(void)
     assert(standin()->notices == 2); /* one event from each of sources 3 and 4 */
 
     /* A title is kept to 127 bytes, cut between characters. */
-    static char feed[ICS_EVENTS_MAX * 200 + 64];
+    static char feed[ICS_EVENTS_MAX * 256 + 64];
     char *at = feed;
 #define PUT(...) (at += snprintf(at, (size_t)(feed + sizeof feed - at), __VA_ARGS__))
     PUT("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:long\r\nDTSTART:20260115T140000Z\r\n"
@@ -171,8 +171,7 @@ int main(void)
     assert(stored.count == 1 && strlen(event_title(&stored.events[0])) == 126);
     assert(!strncmp(event_title(&stored.events[0]), strstr(feed, "SUMMARY:") + 8, 126));
 
-    /* 24 titles longer together than a source keeps are each cut to 55 bytes;
-     * the snapshot reopens from its file as it was. */
+    /* 24 long titles are each kept whole; the snapshot reopens from its file as it was. */
     at = feed;
     PUT("BEGIN:VCALENDAR\r\n");
     for (int i = 0; i < ICS_EVENTS_MAX; i++) {
@@ -185,13 +184,13 @@ int main(void)
     assert(stored.count == ICS_EVENTS_MAX);
     for (int i = 0; i < ICS_EVENTS_MAX; i++) {
         const char *title = event_title(&stored.events[i]);
-        assert(strlen(title) == 55 && (title[0] - '0') * 10 + title[1] - '0' == i);
+        assert(strlen(title) == 100 && (title[0] - '0') * 10 + title[1] - '0' == i);
     }
     reload();
-    assert(stored.count == ICS_EVENTS_MAX && strlen(event_title(&stored.events[23])) == 55 &&
+    assert(stored.count == ICS_EVENTS_MAX && strlen(event_title(&stored.events[23])) == 100 &&
            event_title(&stored.events[23])[1] == '3');
 
-    /* Cyrillic titles are cut between characters: 80 bytes to 54, not 55. */
+    /* 24 Cyrillic titles of 80 bytes are kept whole. */
     at = feed;
 #define PUT(...) (at += snprintf(at, (size_t)(feed + sizeof feed - at), __VA_ARGS__))
     PUT("BEGIN:VCALENDAR\r\n");
@@ -202,10 +201,9 @@ int main(void)
     }
     PUT("END:VCALENDAR\r\n");
     setup(); answer(0, feed, 64);
-    for (int i = 0; i < ICS_EVENTS_MAX; i++) { assert(strlen(event_title(&stored.events[i])) == 54); }
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) { assert(strlen(event_title(&stored.events[i])) == 80); }
 
-    /* Twelve long titles among twelve short ones keep more than the least:
-     * 12 * 11 + 12 * 101 = 1344 bytes with their ends. */
+    /* 12 titles of 127 bytes among 12 of 10 are kept whole. */
     at = feed;
     PUT("BEGIN:VCALENDAR\r\n");
     for (int i = 0; i < ICS_EVENTS_MAX; i++) {
@@ -216,8 +214,27 @@ int main(void)
 #undef PUT
     setup(); answer(0, feed, 64);
     for (int i = 0; i < ICS_EVENTS_MAX; i++) {
-        assert(strlen(event_title(&stored.events[i])) == (i % 2 ? 100u : 10u));
+        assert(strlen(event_title(&stored.events[i])) == (i % 2 ? 127u : 10u));
     }
+    /* 24 titles of 127 bytes fill a source's titles exactly, and reopen whole. */
+    at = feed;
+#define PUT(...) (at += snprintf(at, (size_t)(feed + sizeof feed - at), __VA_ARGS__))
+    PUT("BEGIN:VCALENDAR\r\n");
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) {
+        PUT("BEGIN:VEVENT\r\nUID:full%d\r\nDTSTART:20260115T14%02d00Z\r\nDTEND:20260115T150000Z\r\n"
+            "SUMMARY:%0127d\r\nEND:VEVENT\r\n", i, i, i);
+    }
+    PUT("END:VCALENDAR\r\n");
+#undef PUT
+    assert(at < feed + sizeof feed - 1);
+    setup(); answer(0, feed, 64);
+    for (int pass = 0; pass < 2; pass++) {
+        assert(stored.count == ICS_EVENTS_MAX);
+        for (int i = 0; i < ICS_EVENTS_MAX; i++) { assert(strlen(event_title(&stored.events[i])) == 127); }
+        reload();
+    }
+    answer(0, feed, 64);
+
     /* The same answer again is the same snapshot: nothing is written. */
     int files = standin()->file_writes;
     answer(0, feed, 64);
@@ -262,7 +279,7 @@ int main(void)
     standin_set("every", "30 min"); standin_set("remind", "At start");
     save_state();
     assert(standin_store_bytes() == 2016);
-    assert(sizeof sources == 8992 && sizeof cache == 9008);
+    assert(sizeof sources == 15904 && sizeof cache == 15920);
     assert(standin()->refused_what[0] == '\0');
     printf("calendar: sources, dedup, names, optional polls, reminders, long titles and full snapshots passed; KV %d/2048 bytes; cache %zu bytes\n", standin_store_bytes(), sizeof cache);
 }
