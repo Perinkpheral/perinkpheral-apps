@@ -389,8 +389,10 @@ static bool extract(event_t *events, int32_t *count)
     char text[64];
     if (!element(V_TYPE, 0, text, sizeof text) || !app_text_equal(text, "FeatureCollection")) { return false; }
     int32_t n = answer_count(V_ID);
+    /* metadata.count is absent from answers to a query with a limit; when
+     * it is there it is the number of features. */
     int32_t declared;
-    if ((uint32_t)n > BATCH || !app_value_number(V_LENGTH, 0, &declared) || declared != n) { return false; }
+    if ((uint32_t)n > BATCH || (app_value_number(V_LENGTH, 0, &declared) && declared != n)) { return false; }
     for (int32_t k = V_ID; k < V_COUNT; k++) { if (answer_count(k) != n) { return false; } }
     static const uint8_t paths[] = { V_LAT, V_LON, V_MAG, V_DEPTH, V_TIME, V_UPDATED };
     static const uint8_t decimals[] = { 6, 6, 1, 0, 0, 0 };
@@ -868,11 +870,9 @@ static int32_t notable(void)
 void app_on_button(int32_t event)
 {
     if (scene.nav.depth) { return; }
-    if (event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED) {
-        scene.nav.screen ^= 1; goto redraw;
-    }
+    if (app_nav_button(&scene.nav, event) == APP_NAV_SCREEN) { goto redraw; }
     if (scene.nav.screen == 0) {
-        if (event == BTN_UP_PRESSED || event == BTN_DOWN_PRESSED) { scene.nav.screen = 1; }
+        if (event == BTN_UP_PRESSED || event == BTN_DOWN_PRESSED) { app_nav_step(&scene.nav, 1); }
         else if (event == BTN_OK_PRESSED && notable() >= 0) { copy_bytes(&scene.detail, &cache.events[0][notable()], sizeof(event_t)); scene.nav.depth = 1; }
         else { return; }
     } else {

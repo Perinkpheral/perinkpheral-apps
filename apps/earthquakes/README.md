@@ -173,9 +173,9 @@ Only Earthquakes references changed. `./build.sh` rebuilt all 19 catalog
 applications; the measured module hash matches the delivered module.
 
 The failure-path fixes in 0.1.4 diagnose refused session and alarm allocation and
-show storage failures until the cache or affected query key is saved. Picked rows
-must agree with `metadata.count` in the [USGS GeoJSON format](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php),
-so omitted records cannot silently replace a complete cached page. Synthetic
-fixtures include that count. Exact null magnitude, depth and place variants in
+show storage failures until the cache or affected query key is saved. Picked columns
+must agree with each other, and with `metadata.count` of the [USGS GeoJSON format](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php)
+when the answer has it: the service omits it from a query with a limit. Fixtures
+cover both. Exact null magnitude, depth and place variants in
 `test/check.json` retain their documented unavailable-field fallbacks; required
 identity, time, coordinates and row counts remain validated.

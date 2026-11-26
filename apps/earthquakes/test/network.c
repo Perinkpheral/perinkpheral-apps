@@ -133,7 +133,7 @@ static void hourly_world_checkpoint(void)
 }
 static void model_reply(const event_t *events, int count)
 {
-    char body[8192];int used=snprintf(body,sizeof body,"{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":%d},\"features\":[",count);
+    char body[8192];int used=snprintf(body,sizeof body,"{\"type\":\"FeatureCollection\",\"metadata\":{\"status\":200,\"limit\":%d,\"offset\":1},\"features\":[",count); /* as the service answers: no metadata.count */
     for(int i=0;i<count;i++) {
         const event_t *e=&events[i];
         used+=snprintf(body+used,sizeof body-(size_t)used,
@@ -325,11 +325,15 @@ static void refused_state(void)
     schedule_alarm(1, 60);
     assert(standin_alarm_left(1) == 60);
 
+    /* The service omits metadata.count from a query with a limit: no events, not no answer. */
+    static const char quiet[] = "{\"type\":\"FeatureCollection\",\"metadata\":{\"status\":200,\"limit\":8,\"offset\":1},\"features\":[]}";
+    setup(); standin_picked(0, -1, 200, quiet, (int32_t)sizeof quiet - 1);
+    assert(state.status[0] == 200 && cache.count[0] == 0 && scope_status(0) == STR_NO_EVENTS);
+
     setup(); feed(0, "near", 200);
     uint32_t good = hash_bytes(cache.events[0], sizeof cache.events[0]);
     const char *bad[] = {
         "{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":8},\"features\":[]}",
-        "{\"type\":\"FeatureCollection\",\"features\":[]}",
         "{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":1},\"features\":[{}]}"
     };
     for (size_t index = 0; index < sizeof bad / sizeof bad[0]; index++) {
