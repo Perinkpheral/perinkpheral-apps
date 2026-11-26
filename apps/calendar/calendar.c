@@ -55,32 +55,24 @@ __attribute__((noinline)) static const char *word(int32_t id)
 /* ---- what is kept ---- */
 
 #define EVENTS_FILE    "events"
-#define EVENTS_VERSION 5
-typedef struct {
-    int32_t     version;
-    int32_t     count;
-    ics_event_t events[ICS_EVENTS_MAX];
-} stored_events_t;
-
-/* What an installed calendar kept: the same records with a 127-byte title,
- * 160 bytes apiece, a name only from version 4. Its whole file is longer
- * than the cache has become, so a record is read one at a time. */
-#define LEGACY_TITLE_MAX 127
+#define EVENTS_VERSION 6
+/* The titles of one source, packed one after another. 24 titles of 55 bytes
+ * fit whatever they are; longer ones fit while the sum does. */
+#define TITLES_BYTES (ICS_EVENTS_MAX * 56)
+/* An event as kept: the parser's, its title in the titles of a source. */
 typedef struct {
     int64_t  start, end, original;
     uint32_t uid;
     uint8_t  is_all_day;
-    char     title[LEGACY_TITLE_MAX + 1];
-    uint8_t  source;
-} legacy_event_t;
+    uint8_t  source; /* the calendar it reminds as */
+    uint16_t title;  /* source * TITLES_BYTES + offset in that source's titles */
+} event_t;
+_Static_assert(sizeof(event_t) == 32, "an event without its title");
 typedef struct {
-    int32_t        version;
-    int32_t        count;
-    legacy_event_t events[ICS_EVENTS_MAX];
-    char           name[ICS_NAME_MAX + 1];
-} legacy_source_t;
-_Static_assert(sizeof(legacy_event_t) == 160 && sizeof(legacy_source_t) == 3976,
-               "the records an installed calendar wrote");
+    int32_t version;
+    int32_t count;
+    event_t events[ICS_EVENTS_MAX];
+} stored_events_t;
 
 #define STATE_KEY     "state"
 #define STATE_VERSION 6
@@ -104,9 +96,10 @@ static bool state_ready;
 static bool state_unsaved; /* both KV and the recovery journal refused the write */
 
 /* All four bounded source snapshots share one file, outside the 2 KB KV
- * store. An older file is adopted record by record where the reader rests. */
+ * store. A file of another version is discarded and fetched again. */
 typedef struct {
     stored_events_t data;
+    char titles[TITLES_BYTES];
     char name[ICS_NAME_MAX + 1];
 } source_t;
 static struct {
@@ -123,9 +116,21 @@ static uint32_t configured;
 static const char *const FEEDS[] = { "feed", "feed_2", "feed_3", "feed_4" };
 
 /* The same identity is used by merge, navigation and reminder retries. */
-static bool event_is(const ics_event_t *event, uint32_t uid, int64_t start)
+static bool event_is(const event_t *event, uint32_t uid, int64_t start)
 {
     return event->uid == uid && event->start == start;
+}
+
+/* In start order, the earliest ICS_EVENTS_MAX kept: ics_insert for kept events. */
+static void keep_event(const event_t *event, uint8_t source)
+{
+    int32_t at = 0;
+    while (at < stored.count && stored.events[at].start <= event->start) { at++; }
+    if (at >= ICS_EVENTS_MAX) { return; }
+    if (stored.count < ICS_EVENTS_MAX) { stored.count++; }
+    for (int32_t i = stored.count - 1; i > at; i--) { stored.events[i] = stored.events[i - 1]; }
+    stored.events[at] = *event;
+    stored.events[at].source = source;
 }
 
 /* Rebuild the nearest events, with stable source precedence for duplicates. */
@@ -137,7 +142,7 @@ static void merge_events(void)
         if (!(configured & (1 << source))) { continue; }
         const stored_events_t *data = &sources[source].data;
         for (int32_t i = 0; i < data->count; i++) {
-            const ics_event_t *event = &data->events[i];
+            const event_t *event = &data->events[i];
             /* Ended events still belong to the alarm during its late/retry window. */
             if (event->end <= now && event->start + LATE_SECONDS < now) { continue; }
             int32_t j = 0;
@@ -150,7 +155,7 @@ static void merge_events(void)
                 }
                 continue;
             }
-            stored.count = ics_insert(stored.events, stored.count, ICS_EVENTS_MAX, event, (uint8_t)source);
+            keep_event(event, (uint8_t)source);
         }
     }
 }
@@ -222,7 +227,7 @@ static int32_t lead_seconds(void)
 /* ---- the reminder ---- */
 
 /* The scheduler and delivery retry use the same eligibility window. */
-__attribute__((noinline)) static bool needs_reminder(const ics_event_t *event, int64_t now, int32_t lead)
+__attribute__((noinline)) static bool needs_reminder(const event_t *event, int64_t now, int32_t lead)
 {
     return !event->is_all_day && event->start - lead > state.reminded[event->source] &&
            event->start + LATE_SECONDS >= now;
@@ -241,7 +246,7 @@ static void schedule_reminder(void)
         return;
     }
     for (int32_t i = 0; i < stored.count; i++) {
-        const ics_event_t *event = &stored.events[i];
+        const event_t *event = &stored.events[i];
         int64_t due = event->start - lead;
         if (!needs_reminder(event, now, lead)) {
             continue;
@@ -254,13 +259,14 @@ static void schedule_reminder(void)
     header_set_status(HOST_HEADER_RIGHT, HOST_ICON_NONE, "", 0);
 }
 
-__attribute__((noinline)) static const char *event_title(const ics_event_t *event)
+__attribute__((noinline)) static const char *event_title(const event_t *event)
 {
-    return event->title[0] != '\0' ? event->title : word(STR_EVENT);
+    const char *title = &sources[event->title / TITLES_BYTES].titles[event->title % TITLES_BYTES];
+    return title[0] != '\0' ? title : word(STR_EVENT);
 }
 
 /* The reminder is Perinkpheral OS's to show: when it begins, and what it is. */
-static bool remind_of(const ics_event_t *event)
+static bool remind_of(const event_t *event)
 {
     host_notice_t notice = { .icon = HOST_ICON_BELL };
     app_time_text(event->start, HOST_TIME_CLOCK, notice.first, sizeof notice.first);
@@ -279,7 +285,7 @@ void app_on_alarm(int32_t id)
     bool changed = false;
     bool accepted = true;
     for (int32_t i = 0; i < stored.count && lead >= 0 && now != 0; i++) {
-        const ics_event_t *event = &stored.events[i];
+        const event_t *event = &stored.events[i];
         int64_t due = event->start - lead;
         if (needs_reminder(event, now, lead) && due <= now) {
             bool delivered = false;
@@ -329,15 +335,8 @@ void app_on_alarm(int32_t id)
 
 /* ---- the feed ---- */
 
-/* The reader is the only room the module has for one record of an older
- * file, longer than a source of the cache; during a load nothing reads yet. */
-static union {
-    ics_t           reading;
-    legacy_source_t an_old_record;
-} read_room;
-#define reader read_room.reading
-static source_t    incoming;
-static bool        is_reading;
+static ics_t reader;
+static bool  is_reading;
 
 static bool events_dirty;
 
@@ -346,15 +345,30 @@ static void save_events(void)
     events_dirty = file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &cache, sizeof cache) != HOST_OK;
 }
 
+/* The reader's events become the source's snapshot. Titles are kept whole
+ * while they all fit; otherwise each is cut to an equal share. A snapshot
+ * equal to the one kept, by its hash, is not written again. */
 static void store_events(int32_t source, int32_t count)
 {
     source_t *saved = &sources[source];
-    incoming.data.count = count;
-    app_text_copy(incoming.name, sizeof incoming.name, reader.name);
-    if (!is_same(saved, &incoming, sizeof incoming)) {
-        *saved = incoming;
-        events_dirty = true;
+    const ics_event_t *read = reader.candidates;
+    uint32_t before = ics_hash(0, (const char *)saved, sizeof *saved);
+    int32_t bytes = 0;
+    for (int32_t i = 0; i < count; i++) { bytes += app_text_length(read[i].title) + 1; }
+    int32_t size = bytes <= TITLES_BYTES ? ICS_TITLE_MAX + 1 : TITLES_BYTES / ICS_EVENTS_MAX;
+    *saved = (source_t){ .data = { .version = EVENTS_VERSION, .count = count } };
+    int32_t at = 0;
+    for (int32_t i = 0; i < count; i++) {
+        saved->data.events[i] = (event_t){
+            .start = read[i].start, .end = read[i].end, .original = read[i].original,
+            .uid = read[i].uid, .is_all_day = read[i].is_all_day, .source = (uint8_t)source,
+            .title = (uint16_t)(source * TITLES_BYTES + at),
+        };
+        app_text_copy(saved->titles + at, size, read[i].title);
+        at += app_text_length(saved->titles + at) + 1;
     }
+    app_text_copy(saved->name, sizeof saved->name, reader.name);
+    events_dirty |= ics_hash(0, (const char *)saved, sizeof *saved) != before;
     merge_events();
 }
 
@@ -450,8 +464,8 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
         } else if (now == 0) {
             finish_fetch(request, STATUS_NO_TIME); /* "the next two weeks" needs a today */
         } else {
-            incoming = (source_t){ .data.version = EVENTS_VERSION };
-            ics_begin(&reader, incoming.data.events, now - LATE_SECONDS - 1, now + (int64_t)DAYS_AHEAD * SECONDS_PER_DAY,
+            /* The events are left where the reader gathers them. */
+            ics_begin(&reader, reader.candidates, now - LATE_SECONDS - 1, now + (int64_t)DAYS_AHEAD * SECONDS_PER_DAY,
                       from_local);
             is_reading = true;
         }
@@ -480,7 +494,7 @@ static void schedule_next_change(void)
     combine_status();
     int64_t now = time_now(), next = 0;
     for (int32_t i = 0; i < stored.count && now != 0; i++) {
-        const ics_event_t *event = &stored.events[i];
+        const event_t *event = &stored.events[i];
         int64_t turn = event->start > now ? event->start : event->end;
         if (turn > now && (next == 0 || turn < next)) {
             next = turn;
@@ -509,39 +523,6 @@ static void sync_sources(const uint32_t hashes[SOURCES_MAX])
     if (changed || events_dirty) { save_events(); }
     merge_events();
     combine_status();
-}
-
-/* One record of a file an installed calendar wrote, come through the reader:
- * 160-byte events, a name only from version 4, titles cut between characters
- * for the shorter ones the page allows now. */
-static bool adopt_legacy_source(int32_t source)
-{
-    legacy_source_t *old = &read_room.an_old_record;
-    int32_t length = file_read(EVENTS_FILE, sizeof EVENTS_FILE - 1,
-                               (int32_t)(source * sizeof *old), old, (int32_t)sizeof *old);
-    if (length < (int32_t)offsetof(legacy_source_t, name) ||
-        (old->version != 3 && old->version != 4) ||
-        old->count < 0 || old->count > ICS_EVENTS_MAX) {
-        return false;
-    }
-    source_t *fresh = &sources[source];
-    fresh->data = (stored_events_t){ .version = EVENTS_VERSION, .count = old->count };
-    for (int32_t i = 0; i < old->count; i++) {
-        ics_event_t *event = &fresh->data.events[i];
-        event->start    = old->events[i].start;
-        event->end      = old->events[i].end;
-        event->original = old->events[i].original;
-        event->uid      = old->events[i].uid;
-        event->is_all_day = old->events[i].is_all_day;
-        app_text_copy(event->title, sizeof event->title, old->events[i].title);
-        event->source = (uint8_t)source;
-    }
-    if (length == (int32_t)sizeof *old) {
-        app_text_copy(fresh->name, sizeof fresh->name, old->name);
-    } else {
-        fresh->name[0] = '\0'; /* version 3 kept no name */
-    }
-    return true;
 }
 
 void app_on_load(void)
@@ -581,18 +562,15 @@ void app_on_load(void)
     if (length != sizeof cache) {
         cache.status[0] = cache.status[1] = cache.status[2] = cache.status[3] = state.status;
     }
-    /* The first record says what file this is. An installed calendar's is
-     * longer than the cache, so its records are adopted one at a time. */
-    int32_t adopting = 0;
-    if (length > 0 && (sources[0].data.version == 3 || sources[0].data.version == 4)) {
-        adopting = length == (int32_t)offsetof(legacy_source_t, name) ? 1 : SOURCES_MAX;
-    }
     for (int32_t i = 0; i < SOURCES_MAX; i++) {
-        stored_events_t *data = &sources[i].data;
-        bool kept = i < adopting ? adopt_legacy_source(i)
-                                 : data->version == EVENTS_VERSION &&
-                                   data->count >= 0 && data->count <= ICS_EVENTS_MAX;
-        if (!kept) { sources[i] = (source_t){ .data.version = EVENTS_VERSION }; }
+        source_t *source = &sources[i];
+        bool kept = length >= (int32_t)sizeof sources && source->data.version == EVENTS_VERSION &&
+                    source->data.count >= 0 && source->data.count <= ICS_EVENTS_MAX;
+        for (int32_t j = 0; kept && j < source->data.count; j++) {
+            kept = source->data.events[j].title / TITLES_BYTES == i; /* its own titles */
+        }
+        if (!kept) { *source = (source_t){ .data.version = EVENTS_VERSION }; }
+        source->titles[TITLES_BYTES - 1] = '\0';
     }
     sync_sources(hashes);
 }
@@ -675,7 +653,7 @@ void app_on_blur(void)
                       .is_reading_one = is_reading_one,
                       .read_uid = read_uid, .read_start = read_start };
     if (list.selected >= 0 && list.selected < list.count) {
-        const ics_event_t *event = &stored.events[shown[list.selected]];
+        const event_t *event = &stored.events[shown[list.selected]];
         place.selected_uid = event->uid;
         place.selected_start = event->start;
     }
@@ -685,7 +663,7 @@ void app_on_blur(void)
 __attribute__((noinline)) static int32_t find_visible_event(uint32_t uid, int64_t start)
 {
     for (int32_t row = 0; row < list.count; row++) {
-        const ics_event_t *event = &stored.events[shown[row]];
+        const event_t *event = &stored.events[shown[row]];
         if (event_is(event, uid, start)) { return row; }
     }
     return -1;
@@ -772,7 +750,7 @@ void app_on_back(void)
 /* When an event is, as short as Perinkpheral OS says it: "15:00" today, "Sat
  * 15:00" this week, "21 Nov" beyond it; a whole day is its day alone, and
  * one that has begun is "Now". Returns the length. */
-static int32_t say_when(const ics_event_t *event, int64_t now, char *line, int32_t size)
+static int32_t say_when(const event_t *event, int64_t now, char *line, int32_t size)
 {
     if (event->start <= now) {
         app_text_copy(line, size, word(event->is_all_day ? STR_TODAY : STR_NOW));
@@ -835,7 +813,7 @@ __attribute__((noinline)) static void detail_text(int32_t top, int32_t style, co
 }
 
 /* The event leads; the dates below include overnight and multi-day ranges. */
-static void draw_event(const ics_event_t *event)
+static void draw_event(const event_t *event)
 {
     char       when[2 * MOMENT_MAX + 8];
     int32_t    width = gfx_width() - 2 * HOST_UI_MARGIN;
@@ -903,7 +881,7 @@ void app_on_draw(void)
     if (first >= 0) { list.first = first; }
     page_rows = visible;
     for (int32_t row = first; row < first + visible && row < count; row++) {
-        const ics_event_t *event = &stored.events[shown[row]];
+        const event_t *event = &stored.events[shown[row]];
         char when[MOMENT_MAX + 1];
         int32_t when_length = say_when(event, now, when, sizeof when);
         /* Perinkpheral OS's row keeps the moment whole and cuts the name. */

@@ -34,17 +34,6 @@ static const char empty[] = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n";
 static const char unnamed[] =
     "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:fourth\r\nDTSTART:20260115T150000Z\r\nDTEND:20260115T153000Z\r\nSUMMARY:Walk\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 
-/* An event as an installed calendar wrote it: 160 bytes, a 127-byte title. */
-static legacy_event_t as_legacy(const ics_event_t *event)
-{
-    legacy_event_t old = {
-        .start = event->start, .end = event->end, .original = event->original,
-        .uid = event->uid, .is_all_day = event->is_all_day,
-    };
-    strcpy(old.title, event->title);
-    return old;
-}
-
 static void answer(int source, const char *data, int chunk)
 {
     standin_data(source, -1, 200, data, (int32_t)strlen(data), chunk, STANDIN_WHOLE, 0);
@@ -85,10 +74,10 @@ int main(void)
     reload();
     answer(0, first, 7);
     assert(stored.count == 4);
-    assert(!strcmp(stored.events[0].title, "Lunch"));
-    assert(!strcmp(stored.events[1].title, "Meeting"));
-    assert(!strcmp(stored.events[2].title, "Another occurrence"));
-    assert(!strcmp(stored.events[3].title, "Review"));
+    assert(!strcmp(event_title(&stored.events[0]), "Lunch"));
+    assert(!strcmp(event_title(&stored.events[1]), "Meeting"));
+    assert(!strcmp(event_title(&stored.events[2]), "Another occurrence"));
+    assert(!strcmp(event_title(&stored.events[3]), "Review"));
     assert(stored.events[0].source == 1 && stored.events[1].source == 0);
     assert(!strcmp(sources[0].name, "Work, team"));
     assert(!strcmp(sources[1].name, "Семейныйкалендарь Дом"));
@@ -170,35 +159,41 @@ int main(void)
     app_on_alarm(0);
     assert(standin()->notices == 2); /* one event from each of sources 3 and 4 */
 
-    /* The existing single-calendar file and reminder state migrate without refetching. */
-    setup(); answer(0, first, 1);
-    legacy_source_t one = { .version = 3, .count = stored.count };
-    for (int32_t i = 0; i < stored.count; i++) { one.events[i] = as_legacy(&stored.events[i]); }
-    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, NULL, 0) == HOST_OK);
-    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &one,
-                      (int32_t)offsetof(legacy_source_t, name)) == HOST_OK);
-    reload(); assert(stored.count == 2 && sources[0].name[0] == '\0');
+    /* A title is kept to 127 bytes, cut between characters. */
+    static char feed[ICS_EVENTS_MAX * 200 + 64];
+    char *at = feed;
+#define PUT(...) (at += snprintf(at, (size_t)(feed + sizeof feed - at), __VA_ARGS__))
+    PUT("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:long\r\nDTSTART:20260115T140000Z\r\n"
+        "DTEND:20260115T150000Z\r\nSUMMARY:");
+    for (int i = 0; i < 70; i++) { PUT("\xD0\x96"); }
+    PUT("\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+    setup(); answer(0, feed, 7);
+    assert(stored.count == 1 && strlen(event_title(&stored.events[0])) == 126);
+    assert(!strncmp(event_title(&stored.events[0]), strstr(feed, "SUMMARY:") + 8, 126));
 
-    /* A released four-calendar file, its names and all, migrates the same way. */
-    setup(); standin_set("feed_2", "https://calendar.invalid/two"); app_on_settings();
-    answer(0, first, 1); answer(1, second, 1);
-    char work[ICS_NAME_MAX + 1], family[ICS_NAME_MAX + 1];
-    app_text_copy(work, sizeof work, sources[0].name);
-    app_text_copy(family, sizeof family, sources[1].name);
-    legacy_source_t all[SOURCES_MAX] = { { .version = 4 }, { .version = 4 },
-                                         { .version = 4 }, { .version = 4 } };
-    for (int32_t source = 0; source < SOURCES_MAX; source++) {
-        all[source].count = sources[source].data.count;
-        for (int32_t i = 0; i < sources[source].data.count; i++) {
-            all[source].events[i] = as_legacy(&sources[source].data.events[i]);
-        }
-        app_text_copy(all[source].name, sizeof all[source].name, sources[source].name);
+    /* 24 titles longer together than a source keeps are each cut to 55 bytes;
+     * the snapshot reopens from its file as it was. */
+    at = feed;
+    PUT("BEGIN:VCALENDAR\r\n");
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) {
+        PUT("BEGIN:VEVENT\r\nUID:many%d\r\nDTSTART:20260115T14%02d00Z\r\nDTEND:20260115T150000Z\r\n"
+            "SUMMARY:%02d %097d\r\nEND:VEVENT\r\n", i, i, i, 0);
     }
-    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, NULL, 0) == HOST_OK);
-    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, all, sizeof all) == HOST_OK);
+    PUT("END:VCALENDAR\r\n");
+#undef PUT
+    setup(); answer(0, feed, 64);
+    assert(stored.count == ICS_EVENTS_MAX);
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) {
+        const char *title = event_title(&stored.events[i]);
+        assert(strlen(title) == 55 && (title[0] - '0') * 10 + title[1] - '0' == i);
+    }
     reload();
-    assert(stored.count == 4 && app_text_equal(sources[0].name, work) &&
-           app_text_equal(sources[1].name, family) && sources[2].name[0] == '\0');
+    assert(stored.count == ICS_EVENTS_MAX && strlen(event_title(&stored.events[23])) == 55 &&
+           event_title(&stored.events[23])[1] == '3');
+
+    /* A file of another version, or a title outside its source's own, is discarded. */
+    sources[0].data.events[0].title = TITLES_BYTES;
+    save_events(); reload(); assert(stored.count == 0 && sources[0].data.version == EVENTS_VERSION);
 
     /* Full source snapshots retain candidates displaced by another calendar's nearest 24. */
     for (int source = 0; source < SOURCES_MAX; source++) {
@@ -208,7 +203,8 @@ int main(void)
     for (int source = 0; source < SOURCES_MAX; source++) {
         sources[source].data.count = ICS_EVENTS_MAX;
         for (int i = 0; i < ICS_EVENTS_MAX; i++) {
-            sources[source].data.events[i] = (ics_event_t){
+            sources[source].data.events[i] = (event_t){
+                .title = (uint16_t)(source * TITLES_BYTES),
                 .uid = (uint32_t)(source * 100 + i + 1),
                 .start = time_now() + 100 + source * 1000 + i,
                 .end = time_now() + 200 + source * 1000 + i
@@ -226,7 +222,7 @@ int main(void)
     standin_set("every", "30 min"); standin_set("remind", "At start");
     save_state();
     assert(standin_store_bytes() == 2016);
-    assert(sizeof sources == 9760 && sizeof cache == 9776);
+    assert(sizeof sources == 8992 && sizeof cache == 9008);
     assert(standin()->refused_what[0] == '\0');
-    printf("calendar: sources, dedup, names, optional polls, reminders, migration and full snapshots passed; KV %d/2048 bytes; cache %zu bytes\n", standin_store_bytes(), sizeof cache);
+    printf("calendar: sources, dedup, names, optional polls, reminders, long titles and full snapshots passed; KV %d/2048 bytes; cache %zu bytes\n", standin_store_bytes(), sizeof cache);
 }

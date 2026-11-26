@@ -43,8 +43,8 @@ int main(void)
     standin_handlers.on_draw = app_on_draw;
     standin_clock(1768478400);
     stored.count = 1;
-    stored.events[0] = (ics_event_t){ .uid = 1, .start = time_now() + 3600, .end = time_now() + 7200 };
-    strcpy(stored.events[0].title, "A title with up to four rows");
+    stored.events[0] = (event_t){ .uid = 1, .start = time_now() + 3600, .end = time_now() + 7200 };
+    strcpy(sources[0].titles, "A title with up to four rows");
     strcpy(sources[0].name, "Design team");
     is_reading_one = true; read_uid = 1; read_start = stored.events[0].start;
     for (family = 0; family < 2; family++) {

@@ -71,7 +71,7 @@ static void setup(void)
     standin_set("remind", "At start");
     app_on_load();
     stored.count = 1;
-    stored.events[0] = (ics_event_t){ .uid = 7, .start = time_now(), .end = time_now() + 600 };
+    stored.events[0] = (event_t){ .uid = 7, .start = time_now(), .end = time_now() + 600 };
     sources[0].data = stored; sources[0].data.version = EVENTS_VERSION;
     save_events(); save_state();
 }
@@ -200,7 +200,7 @@ int main(void)
     /* Preserve the accepted subset when both KV and the notice queue refuse. */
     setup(); stored.count = 5;
     for (int i = 0; i < 5; i++) {
-        stored.events[i] = (ics_event_t){ .uid = (uint32_t)i + 1,
+        stored.events[i] = (event_t){ .uid = (uint32_t)i + 1,
             .start = time_now(), .end = time_now() + 600 };
     }
     sources[0].data = stored; sources[0].data.version = EVENTS_VERSION;

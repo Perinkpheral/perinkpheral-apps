@@ -20,9 +20,7 @@
 #include <stdint.h>
 
 #define ICS_NAME_MAX   127
-/* A title as long as the screen shows: 63 UTF-8 bytes are 31 Cyrillic
- * characters, and the events are kept in four copies of a cache. */
-#define ICS_TITLE_MAX  63
+#define ICS_TITLE_MAX  127
 #define ICS_EVENTS_MAX 24
 
 typedef struct {

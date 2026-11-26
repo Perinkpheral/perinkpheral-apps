@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:long-ru
+DTSTART:20261118T120000Z
+DTEND:20261118T133000Z
+SUMMARY:Встреча с командой по поводу выпуска прошивки и приёмки корпуса
+END:VEVENT
+BEGIN:VEVENT
+UID:long-en
+DTSTART:20261118T150000Z
+DTEND:20261118T160000Z
+SUMMARY:Quarterly review of the enclosure, the printed parts, the firmware release plan and the acceptance checklist with the whole team
+END:VEVENT
+END:VCALENDAR

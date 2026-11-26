@@ -28,7 +28,7 @@ static void prompt_reminders(void)
     standin_set("remind", "At start");
     app_on_load();
     stored.count = 1;
-    stored.events[0] = (ics_event_t){ .uid = 1, .start = time_now(), .end = time_now() + 600 };
+    stored.events[0] = (event_t){ .uid = 1, .start = time_now(), .end = time_now() + 600 };
     sources[0].data = stored; sources[0].data.version = EVENTS_VERSION; save_events(); save_state();
 
     /* A restart must not impose the queue's backoff on an untried reminder. */
@@ -76,9 +76,10 @@ int main(void)
     assert(state.version == STATE_VERSION && state.reminded[0] == time_now() - 60 && state.delivered_count == 0);
     stored.count = 5;
     for (int i = 0; i < stored.count; i++) {
-        stored.events[i] = (ics_event_t){ .uid = (uint32_t)i + 1, .start = time_now(), .end = time_now() + 600 };
-        int length = snprintf(stored.events[i].title, sizeof stored.events[i].title, "Event %d", i + 1);
-        assert(length > 0 && length < (int)sizeof stored.events[i].title);
+        stored.events[i] = (event_t){ .uid = (uint32_t)i + 1, .start = time_now(), .end = time_now() + 600 };
+        stored.events[i].title = (uint16_t)(i * 16);
+        int length = snprintf(sources[0].titles + i * 16, 16, "Event %d", i + 1);
+        assert(length > 0 && length < 16);
     }
     sources[0].data = stored; sources[0].data.version = EVENTS_VERSION; save_events(); combine_status();
     queued = 4;
