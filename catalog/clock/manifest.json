@@ -3,7 +3,7 @@
   "title": "Clock",
   "author": "Perinkpheral",
   "description": "Large clock with the date",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "abi": 3,
   "format": "raw",
   "fullscreen": true,

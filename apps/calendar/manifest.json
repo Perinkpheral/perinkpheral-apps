@@ -4,6 +4,7 @@
   "title": "Calendar",
   "author": "Perinkpheral",
   "description": "Calendar events",
+  "firmware": "0.1.95",
   "abi": 3,
   "format": "raw",
   "writes_files": true,

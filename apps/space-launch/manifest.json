@@ -3,7 +3,7 @@
   "title": "Space Launch",
   "author": "Perinkpheral",
   "description": "Space launches, upcoming and past",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "abi": 3,
   "format": "json",
   "writes_files": true,

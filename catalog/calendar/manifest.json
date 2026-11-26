@@ -1,9 +1,10 @@
 {
   "name": "calendar",
-  "version": "0.5.7",
+  "version": "0.6.0",
   "title": "Calendar",
   "author": "Perinkpheral",
   "description": "Calendar events",
+  "firmware": "0.1.95",
   "abi": 3,
   "format": "raw",
   "writes_files": true,
@@ -99,6 +100,5 @@
     ".#.#.#...#.",
     ".#.......#.",
     ".#########."
-  ],
-  "firmware": "0.1.30"
+  ]
 }
