@@ -191,6 +191,46 @@ int main(void)
     assert(stored.count == ICS_EVENTS_MAX && strlen(event_title(&stored.events[23])) == 55 &&
            event_title(&stored.events[23])[1] == '3');
 
+    /* Cyrillic titles are cut between characters: 80 bytes to 54, not 55. */
+    at = feed;
+#define PUT(...) (at += snprintf(at, (size_t)(feed + sizeof feed - at), __VA_ARGS__))
+    PUT("BEGIN:VCALENDAR\r\n");
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) {
+        PUT("BEGIN:VEVENT\r\nUID:ru%d\r\nDTSTART:20260115T14%02d00Z\r\nDTEND:20260115T150000Z\r\nSUMMARY:", i, i);
+        for (int j = 0; j < 40; j++) { PUT("\xD0\x96"); }
+        PUT("\r\nEND:VEVENT\r\n");
+    }
+    PUT("END:VCALENDAR\r\n");
+    setup(); answer(0, feed, 64);
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) { assert(strlen(event_title(&stored.events[i])) == 54); }
+
+    /* Twelve long titles among twelve short ones keep more than the least:
+     * 12 * 11 + 12 * 101 = 1344 bytes with their ends. */
+    at = feed;
+    PUT("BEGIN:VCALENDAR\r\n");
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) {
+        PUT("BEGIN:VEVENT\r\nUID:mixed%d\r\nDTSTART:20260115T14%02d00Z\r\nDTEND:20260115T150000Z\r\n"
+            "SUMMARY:%0*d\r\nEND:VEVENT\r\n", i, i, i % 2 ? 127 : 10, i);
+    }
+    PUT("END:VCALENDAR\r\n");
+#undef PUT
+    setup(); answer(0, feed, 64);
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) {
+        assert(strlen(event_title(&stored.events[i])) == (i % 2 ? 100u : 10u));
+    }
+    /* The same answer again is the same snapshot: nothing is written. */
+    int files = standin()->file_writes;
+    answer(0, feed, 64);
+    assert(standin()->file_writes == files);
+
+    /* A longer file of another layout is discarded, its statuses with it. */
+    static uint8_t other[sizeof cache + 64];
+    memset(other, 0x5A, sizeof other);
+    assert(file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, other, (int32_t)sizeof other) == HOST_OK);
+    reload();
+    assert(stored.count == 0 && sources[3].data.version == EVENTS_VERSION);
+    for (int i = 0; i < SOURCES_MAX; i++) { assert(cache.status[i] == state.status); }
+
     /* A file of another version, or a title outside its source's own, is discarded. */
     sources[0].data.events[0].title = TITLES_BYTES;
     save_events(); reload(); assert(stored.count == 0 && sources[0].data.version == EVENTS_VERSION);

@@ -44,10 +44,9 @@ Responses are parsed incrementally.
 Parser limits are six embedded time zones, 24 relevant exclusions per event,
 32 occurrence overrides, 200 bytes per unfolded line and 127 bytes per event
 title. Longer lines and titles are truncated. A source keeps 1344 bytes of titles
-for its 24 events: when they do not all fit, each is truncated to 55 bytes.
-Recurrence expansion is limited
-to 40,000
-daily or weekly periods (4,000 for monthly or yearly rules). Larger `COUNT`
+for its 24 events: when they do not all fit, the longest are truncated to the
+longest length at which all fit, never under 55 bytes. Recurrence expansion is
+limited to 40,000 daily or weekly periods (4,000 for monthly or yearly rules). Larger `COUNT`
 values clamp to 280,000, the maximum occurrences those loops can expand.
 `INTERVAL` clamps to 3,660,000; expansion stops at year 9999. Invalid dates, times and
 selectors are ignored. Duration totals beyond signed 32-bit seconds are ignored.

@@ -108,7 +108,8 @@ typedef struct {
     ics_event_t candidates[ICS_CANDIDATES_MAX];
 } ics_t;
 
-/* Begins a file. `events` is the caller's, ICS_EVENTS_MAX long. */
+/* Begins a file. `events` is the caller's, ICS_EVENTS_MAX long; it may be
+ * the reader's own `candidates`, where the events are then left. */
 void ics_begin(ics_t *ics, ics_event_t *events, int64_t from, int64_t until,
                int64_t (*from_local)(int32_t days, int32_t seconds));
 void ics_feed(ics_t *ics, const char *data, int32_t length);
