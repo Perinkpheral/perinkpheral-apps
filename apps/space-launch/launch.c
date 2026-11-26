@@ -947,8 +947,9 @@ static int32_t year_shown(int32_t chart)
 
 void app_on_button(int32_t event)
 {
-    if (!place.nav.depth && (event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
-        place.nav.screen = (place.nav.screen + (event == BTN_UP_LONG_PRESSED ? SCREENS - 1 : 1)) % SCREENS;
+    app_nav_t nav = { .screens = SCREENS, .screen = place.nav.screen, .depth = place.nav.depth };
+    if (app_nav_button(&nav, event) == APP_NAV_SCREEN) {
+        place.nav.screen = nav.screen;
         update_header();
         screen_redraw(HOST_REDRAW_SOON);
         return;

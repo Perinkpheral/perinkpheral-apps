@@ -20,6 +20,7 @@
 #include "app_days.h"
 #include "app_draw.h"
 #include "app_fixed.h"
+#include "app_nav.h"
 #include "app_state.h"
 #include "app_text.h"
 #include "host_api.h"
@@ -321,12 +322,8 @@ static int32_t configured_metal(void)
 
 static void update_header(void)
 {
-    char buffer[HOST_HEADER_TEXT_MAX + 1];
-    app_text_t text;
-    app_text_start(&text, buffer, sizeof buffer);
-    app_text_add_number(&text, session.metal + 1);
-    app_text_add(&text, "/4");
-    header_set_text(HOST_HEADER_LEFT, buffer, app_text_length(buffer));
+    app_nav_t nav = { .screens = METALS, .screen = session.metal };
+    app_nav_set_header(&nav, "", true);
 }
 
 static void schedule(void)
@@ -468,12 +465,19 @@ void app_on_settings(void)
     screen_redraw(HOST_REDRAW_NORMAL);
 }
 
+static void step_metal(int32_t by)
+{
+    app_nav_t nav = { .screens = METALS, .screen = session.metal };
+    app_nav_step(&nav, by);
+    session.metal = nav.screen;
+}
+
 void app_on_button(int32_t event)
 {
     switch (event) {
     /* Short and held alike: a metal is a screen, and held UP/DOWN switch screens everywhere. */
-    case BTN_UP_PRESSED: case BTN_UP_LONG_PRESSED: session.metal = (session.metal + METALS - 1) % METALS; break;
-    case BTN_DOWN_PRESSED: case BTN_DOWN_LONG_PRESSED: session.metal = (session.metal + 1) % METALS; break;
+    case BTN_UP_PRESSED: case BTN_UP_LONG_PRESSED: step_metal(-1); break;
+    case BTN_DOWN_PRESSED: case BTN_DOWN_LONG_PRESSED: step_metal(1); break;
     case BTN_OK_PRESSED: ask(); break;
     default: return;
     }

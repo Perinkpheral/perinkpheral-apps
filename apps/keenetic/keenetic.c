@@ -764,7 +764,9 @@ void app_on_button(int32_t event)
             if (device_first > last) device_first = last;
         } else {
             if (scene.page == 3) keenetic_clear(facts, sizeof facts);
-            scene.page = (scene.page + step + 4) % 4;
+            app_nav_t nav = { .screens = 4, .screen = scene.page };
+            app_nav_step(&nav, step);
+            scene.page = nav.screen;
             if (scene.page == 3) device_first = 0;
             header();
             start(false);

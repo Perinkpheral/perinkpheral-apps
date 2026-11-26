@@ -24,6 +24,7 @@
 #include <stddef.h>
 
 #include "app_draw.h"
+#include "app_nav.h"
 #include "app_state.h"
 #include "app_text.h"
 #include "app_ui.h"
@@ -463,8 +464,9 @@ void app_on_button(int32_t event)
     } else if (page_count > 1 &&
                (event == BTN_UP_PRESSED || event == BTN_DOWN_PRESSED ||
                 event == BTN_UP_LONG_PRESSED || event == BTN_DOWN_LONG_PRESSED)) {
-        int32_t step = event == BTN_UP_PRESSED || event == BTN_UP_LONG_PRESSED ? -1 : 1;
-        current_page = (current_page - 1 + step + page_count) % page_count + 1;
+        app_nav_t nav = { .screens = page_count, .screen = current_page - 1 };
+        app_nav_step(&nav, event == BTN_UP_PRESSED || event == BTN_UP_LONG_PRESSED ? -1 : 1);
+        current_page = nav.screen + 1;
         receiving = false;
         asked_by_press = true;
         ask();

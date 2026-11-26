@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "app_days.h"
 #include "history.h"
+#include "app_nav.h"
 #include "app_state.h"
 #include "app_text.h"
 #include "app_ui.h"
@@ -284,14 +285,8 @@ static void request_histories(void)
 
 static void update_header(void)
 {
-    char buffer[32];
-    app_text_t text;
-    start_text(&text, buffer, sizeof buffer);
-    app_text_add_number(&text, navigation.index + 1);
-    app_text_add(&text, "/");
-    app_text_add_number(&text, currency_count());
-    if (rotating) { add_pair(&text, " ", app_string(STR_AUTO)); }
-    header_set_text(HOST_HEADER_LEFT, buffer, app_text_length(buffer));
+    app_nav_t nav = { .screens = currency_count(), .screen = navigation.index };
+    app_nav_set_header(&nav, rotating ? app_string(STR_AUTO) : "", true);
 }
 
 static void update_rotation(bool restart)
@@ -318,9 +313,11 @@ static void update_rotation(bool restart)
 
 static void select_currency(int32_t step)
 {
-    int32_t total = currency_count();
-    if (!total) return;
-    navigation.index = (navigation.index + step + total) % total;
+    /* A currency is a screen: the SDK's screens count and step them. */
+    app_nav_t nav = { .screens = currency_count(), .screen = navigation.index };
+    if (!nav.screens) return;
+    app_nav_step(&nav, step);
+    navigation.index = nav.screen;
     load_chart();
     update_header();
 }

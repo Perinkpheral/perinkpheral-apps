@@ -26,6 +26,7 @@
  */
 #include "app_days.h"
 #include "app_fixed.h"
+#include "app_nav.h"
 #include "app_state.h"
 #include "app_text.h"
 #include "app_values.h"
@@ -185,23 +186,9 @@ static void update_rotation(void)
 
 static void update_header(void)
 {
-    char       buffer[32];
-    app_text_t text;
-    int32_t    count = ticker_count();
-    app_text_start(&text, buffer, sizeof buffer);
-    if (count > 1) {
-        app_text_add_number(&text, state.index + 1);
-        app_text_add(&text, "/");
-        app_text_add_number(&text, count);
-    }
-    if (state.rotating) {
-        app_text_add(&text, count > 1 ? " " : "");
-        app_text_add(&text, app_string(STR_AUTO));
-    }
-    if (app_text_length(buffer) == 0) {
-        app_text_add(&text, " ");
-    }
-    header_set_text(HOST_HEADER_LEFT, buffer, app_text_length(buffer));
+    /* One ticker has no count; with nothing to say the side is kept empty. */
+    app_nav_t nav = { .screens = ticker_count(), .screen = state.index };
+    app_nav_set_header(&nav, state.rotating ? app_string(STR_AUTO) : nav.screens > 1 ? "" : " ", true);
 }
 
 static void select_ticker(int32_t step)
@@ -210,7 +197,9 @@ static void select_ticker(int32_t step)
     if (count == 0) {
         return;
     }
-    state.index = (state.index + step + count) % count;
+    app_nav_t nav = { .screens = count, .screen = state.index };
+    app_nav_step(&nav, step);
+    state.index = nav.screen;
     load_current();
     update_header();
 }
