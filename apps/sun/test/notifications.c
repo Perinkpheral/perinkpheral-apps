@@ -2,9 +2,13 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "app_days.h"
 
 /* The SDK records notices; this wrapper also exercises a full device queue. */
 #define notification_post post_to_queue
+#define time_local fixed_local
+#define time_from_local fixed_from_local
+#define time_zone_offset fixed_offset
 #include "../sun.c"
 #undef notification_post
 #include "standin.h"
@@ -14,6 +18,28 @@ static bool queue_full;
 int32_t post_to_queue(const host_notice_t *notice)
 {
     return queue_full ? HOST_ERR_NO_SPACE : notification_post(notice);
+}
+
+/* These astronomical fixtures deliberately use fixed offsets. Historical zone
+ * transitions in the generated subject must not override that test input. */
+int32_t fixed_offset(void) { return time_now() ? standin()->zone_offset : 0; }
+int32_t fixed_from_local(const host_local_time_t *parts, int64_t *at)
+{
+    int64_t value = (int64_t)app_days_from_date(parts->year, parts->month, parts->day) * SECONDS_PER_DAY +
+        parts->hour * 3600 + parts->minute * 60 + parts->second - standin()->zone_offset;
+    if (value < HOST_TIME_MIN || value > HOST_TIME_MAX) { return HOST_ERR_ARGUMENT; }
+    *at = value;
+    return HOST_OK;
+}
+int32_t fixed_local(host_local_time_t *parts)
+{
+    if (!time_now()) { return HOST_ERR_NOT_FOUND; }
+    int64_t local = time_now() + fixed_offset();
+    int32_t day = (int32_t)(local / SECONDS_PER_DAY), seconds = (int32_t)(local % SECONDS_PER_DAY);
+    app_date_from_days(day, &parts->year, &parts->month, &parts->day);
+    parts->hour = seconds / 3600; parts->minute = seconds / 60 % 60; parts->second = seconds % 60;
+    parts->weekday = (day + 4) % 7;
+    return HOST_OK;
 }
 
 static int64_t moment(int32_t year, int32_t month, int32_t day, int32_t hour)
@@ -217,6 +243,13 @@ static void polar_and_rollover(void)
 
 int main(void)
 {
+    setup();
+    standin_set("rise_notice", "1 h"); standin_set("set_notice", "1 h");
+    const int64_t unknown[] = { HOST_CLOCK_MIN - 1, HOST_CLOCK_MAX + 1, 0, -1 };
+    for (unsigned i = 0; i < sizeof unknown / sizeof unknown[0]; i++) {
+        standin_clock(unknown[i]); app_on_intent(HOST_INTENT_TIME_CHANGED);
+        assert(time_now() == 0 && standin_alarms() == 0 && standin()->notices == 0);
+    }
     choices_and_notices();
     lifecycle_and_queue();
     polar_and_rollover();

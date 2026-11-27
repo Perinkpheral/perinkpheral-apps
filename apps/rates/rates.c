@@ -10,6 +10,8 @@
 #include "json_pick.h"
 #include "strings.h"
 
+#include "chart.h"
+
 #define CURRENCIES_MAX 8
 #define PICKERS 3
 #define PER_PICKER 3
@@ -28,6 +30,7 @@ typedef struct {
 } state_t;
 _Static_assert(sizeof(state_t) <= HOST_KV_VALUE_MAX, "snapshot fits one store value");
 static state_t state, incoming;
+static bool    state_ready, status_ready, rotating_ready, requests_ready;
 static bool    state_unsaved; /* the store refused the last write of it */
 typedef struct {
     int32_t index;
@@ -132,7 +135,7 @@ static bool same_bytes(const void *first, const void *second, size_t length)
 static bool save_history_requests(void)
 {
     if (same_bytes(&history_requests, &saved_history_requests, sizeof history_requests)) return true;
-    if (!app_state_save("requests", &history_requests, sizeof history_requests)) return false;
+    if (!requests_ready || !app_state_save("requests", &history_requests, sizeof history_requests)) return false;
     saved_history_requests = history_requests;
     return true;
 }
@@ -173,7 +176,7 @@ static bool take_response(void)
     bool changed = !same_bytes(&state, &incoming, sizeof state);
     state = incoming;
     /* A write the store refused is made again with the next answer, the same or not. */
-    if (changed || state_unsaved) { state_unsaved = !app_state_save("state", &state, sizeof state); }
+    if (changed || state_unsaved) { state_unsaved = !state_ready || !app_state_save("state", &state, sizeof state); }
     return true;
 }
 
@@ -187,22 +190,29 @@ static const rate_t *rate_for(int32_t index)
     return 0;
 }
 
-static void read_history(int32_t index, cached_history_t *record)
+static bool read_history(int32_t index, cached_history_t *record)
 {
-    if (file_read(HISTORY_FILE, HISTORY_FILE_LENGTH, index * (int32_t)sizeof *record,
-                  record, sizeof *record) != sizeof *record || record->version != HISTORY_VERSION ||
+    int32_t length = file_read(HISTORY_FILE, HISTORY_FILE_LENGTH, index * (int32_t)sizeof *record,
+                               record, sizeof *record);
+    if (length < 0 && length != HOST_ERR_NOT_FOUND) {
+        *record = (cached_history_t){0};
+        return false;
+    }
+    if (length != sizeof *record || record->version != HISTORY_VERSION ||
         record->history.count < 1 || record->history.count > HISTORY_POINTS) {
         *record = (cached_history_t){0};
     }
     record->code[sizeof record->code - 1] = 0;
     record->history.id[sizeof record->history.id - 1] = 0;
+    return true;
 }
 
 static bool write_history(int32_t index, const cached_history_t *record)
 {
     int32_t offset = index * (int32_t)sizeof *record;
     int32_t size = file_size(HISTORY_FILE, HISTORY_FILE_LENGTH);
-    if (size < 0) size = 0;
+    if (size == HOST_ERR_NOT_FOUND) size = 0;
+    else if (size < 0) return false;
     static const uint8_t zeros[sizeof(cached_history_t)] = {0};
     while (size < offset) {
         int32_t length = offset - size;
@@ -247,7 +257,7 @@ static void request_histories(void)
         const rate_t *rate = rate_for(index);
         if (!rate || !rate->nominal || !history_valid_id(rate->id)) continue;
         cached_history_t previous;
-        read_history(index, &previous);
+        if (!read_history(index, &previous)) continue;
         if (history_matches(&previous, rate) &&
             previous.history.count && previous.history.as_of >= day) continue;
         int64_t *retry_at = &history_requests.retry_at[index];
@@ -324,14 +334,22 @@ static void select_currency(int32_t step)
 
 void app_on_load(void)
 {
-    if (!app_state_load("state", &state, sizeof state, SNAPSHOT_VERSION)) state = (state_t){ .version = SNAPSHOT_VERSION };
-    if (kv_get("status", 6, &status, sizeof status) != sizeof status) status = 0;
+    int32_t restored = app_state_load("state", &state, sizeof state, SNAPSHOT_VERSION);
+    state_ready = restored == HOST_OK || restored == HOST_ERR_NOT_FOUND;
+    if (restored != HOST_OK) state = (state_t){ .version = SNAPSHOT_VERSION };
+    restored = kv_get("status", 6, &status, sizeof status);
+    status_ready = restored >= 0 || restored == HOST_ERR_NOT_FOUND || restored == HOST_ERR_NO_SPACE;
+    if (restored != sizeof status) status = 0;
     saved_status = status;
     state_unsaved = false;
     navigation = (navigation_t){0};
-    if (kv_get("rotating", 8, &rotating, sizeof rotating) != sizeof rotating) rotating = 0;
+    restored = kv_get("rotating", 8, &rotating, sizeof rotating);
+    rotating_ready = restored >= 0 || restored == HOST_ERR_NOT_FOUND || restored == HOST_ERR_NO_SPACE;
+    if (restored != sizeof rotating) rotating = 0;
     saved_rotating = rotating;
-    if (kv_get("requests", 8, &history_requests, sizeof history_requests) != sizeof history_requests ||
+    restored = kv_get("requests", 8, &history_requests, sizeof history_requests);
+    requests_ready = restored >= 0 || restored == HOST_ERR_NOT_FOUND || restored == HOST_ERR_NO_SPACE;
+    if (restored != sizeof history_requests ||
         history_requests.boot != time_boot_id()) {
         history_requests = (history_requests_t){ .boot = time_boot_id() };
     }
@@ -342,10 +360,10 @@ void app_on_load(void)
 void app_on_terminate(void)
 {
     save_history_requests();
-    if (rotating != saved_rotating && app_state_save("rotating", &rotating, sizeof rotating)) {
+    if (rotating_ready && rotating != saved_rotating && app_state_save("rotating", &rotating, sizeof rotating)) {
         saved_rotating = rotating;
     }
-    if (state_unsaved) { state_unsaved = !app_state_save("state", &state, sizeof state); }
+    if (state_unsaved) { state_unsaved = !state_ready || !app_state_save("state", &state, sizeof state); }
 }
 
 void app_on_updated(void)
@@ -406,7 +424,7 @@ void app_on_button(int32_t event)
     else if (event == BTN_DOWN_PRESSED || event == BTN_DOWN_LONG_PRESSED) select_currency(1);
     else if (event == BTN_OK_PRESSED) {
         rotating = !rotating;
-        if (app_state_save("rotating", &rotating, sizeof rotating)) { saved_rotating = rotating; }
+        if (rotating_ready && app_state_save("rotating", &rotating, sizeof rotating)) { saved_rotating = rotating; }
         update_header();
     } else return;
     update_rotation(true);
@@ -441,7 +459,7 @@ static void history_answer(const uint8_t *data, int32_t length, int32_t flags, i
             const rate_t *rate = rate_for(index);
             if (!rate || !app_text_equal(rate->id, fresh->id) || fresh->as_of > current_day) continue;
             cached_history_t previous;
-            read_history(index, &previous);
+            if (!read_history(index, &previous)) continue;
             bool same_currency = history_matches(&previous, rate);
             if (same_currency && previous.history.count &&
                 previous.history.as_of > fresh->as_of) continue;
@@ -489,7 +507,7 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
     }
     if (flags & (HOST_DATA_LAST | HOST_DATA_FAILED)) {
         reading = false;
-        if (status != saved_status && kv_set("status", 6, &status, sizeof status) == HOST_OK) saved_status = status;
+        if (status_ready && status != saved_status && kv_set("status", 6, &status, sizeof status) == HOST_OK) saved_status = status;
         screen_redraw(HOST_REDRAW_NORMAL);
     }
 }
@@ -544,7 +562,7 @@ void app_on_draw(void)
             .kind = HOST_CHART_AREA, .flags = HOST_CHART_RANGE_RIGHT | HOST_CHART_MARK_LAST,
             .decimals = 4, .count = chart.history.count
         };
-        ui_draw_chart(&plot, chart.history.values);
+        draw_market_chart(&plot, chart.history.values);
     } else draw_centered(width / 2, chart_top + 30, HOST_FONT_SMALL, app_string(STR_NO_HISTORY));
     char caption[64];
     start_text(&text, caption, sizeof caption);

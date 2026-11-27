@@ -33,6 +33,8 @@
 #include "host_api.h"
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
+#include "chart.h"
+
 #define MARGIN HOST_UI_MARGIN
 
 /* The manifest's polls. */
@@ -114,6 +116,7 @@ typedef struct {
 
 static state_t state;
 static state_t saved;
+static bool preferences_ready;
 static quote_t quote;   /* the record of state.index */
 static int32_t loaded = -1;
 static uint32_t unsaved_quotes; /* one bit per ticker whose latest file write failed */
@@ -121,7 +124,7 @@ static char unsaved_items[TICKERS_MAX][sizeof quote.item];
 
 static void save_preferences(void)
 {
-    if (state.rotating == saved.rotating) { return; }
+    if (!preferences_ready || state.rotating == saved.rotating) { return; }
     state_t preferences = { .version = STATE_VERSION, .rotating = state.rotating };
     if (app_state_save(STATE_KEY, &preferences, sizeof preferences)) { saved = preferences; }
 }
@@ -137,10 +140,14 @@ static bool is_success(int32_t http_status)
     return http_status >= 200 && http_status < 300;
 }
 
-static void read_quote(int32_t index, quote_t *out)
+static bool read_quote(int32_t index, quote_t *out)
 {
     int32_t length = file_read(QUOTES_FILE, QUOTES_FILE_LENGTH, index * (int32_t)sizeof *out, out,
                                sizeof *out);
+    if (length < 0 && length != HOST_ERR_NOT_FOUND) {
+        *out = (quote_t){ .version = QUOTE_VERSION };
+        return false;
+    }
     if (length != (int32_t)sizeof *out || out->version != QUOTE_VERSION) {
         *out = (quote_t){ .version = QUOTE_VERSION };
     }
@@ -148,6 +155,7 @@ static void read_quote(int32_t index, quote_t *out)
     if (app_text_equal(out->name, "null")) { out->name[0] = '\0'; }
     if (app_text_equal(out->symbol, "null")) { app_text_copy(out->symbol, sizeof out->symbol, out->item); }
     if (app_text_equal(out->currency, "null")) { out->currency[0] = '\0'; }
+    return true;
 }
 
 /* Records are written in place, so the file is first extended with empty
@@ -156,9 +164,8 @@ static bool write_quote(int32_t index, const quote_t *record)
 {
     int32_t size   = file_size(QUOTES_FILE, QUOTES_FILE_LENGTH);
     int32_t offset = index * (int32_t)sizeof *record;
-    if (size < 0) {
-        size = 0;
-    }
+    if (size == HOST_ERR_NOT_FOUND) { size = 0; }
+    else if (size < 0) { return false; }
     size -= size % (int32_t)sizeof *record;
     while (size < offset) {
         static const quote_t empty;
@@ -208,7 +215,9 @@ static void select_ticker(int32_t step)
 
 void app_on_load(void)
 {
-    if (!app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION)) {
+    int32_t restored = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
+    preferences_ready = restored == HOST_OK || restored == HOST_ERR_NOT_FOUND;
+    if (restored != HOST_OK) {
         state = (state_t){ .version = STATE_VERSION };
     }
     state.index = 0; /* Selection belongs to the scene, including for legacy records. */
@@ -308,7 +317,7 @@ static bool record_for(int32_t item, quote_t *record, int32_t *had_data)
     if (app_setting_item(TICKERS, item, asked, sizeof asked) == 0) {
         return false;
     }
-    read_quote(item, record);
+    if (!read_quote(item, record)) { return false; }
     *had_data = record->has_data;
     if (!app_text_equal(asked, record->item)) {
         *record = (quote_t){ .version = QUOTE_VERSION };
@@ -481,7 +490,7 @@ static void moex_day(int32_t item, int32_t http_status)
     if (!is_success(http_status) || app_setting_item(TICKERS, item, asked, sizeof asked) == 0) {
         return;
     }
-    read_quote(item, &record);
+    if (!read_quote(item, &record)) { return; }
     /* The closes are numbers of the quote's decimals: without a quote they wait for the next. */
     if (!record.has_data || !app_text_equal(asked, record.item)) {
         return;
@@ -549,6 +558,7 @@ static int32_t when_text(int64_t moment, char *text, int32_t capacity)
 {
     if (capacity <= 0) { return 0; }
     text[0] = '\0';
+    if (moment == 0) { return 0; } /* Zero is the missing market timestamp. */
     host_local_time_t then, now;
     int32_t           length = 0;
     if (time_local_at(moment, &then) != HOST_OK || time_local(&now) != HOST_OK
@@ -620,7 +630,7 @@ void app_on_draw(void)
             .decimals = quote.decimals,
             .count    = quote.count,
         };
-        ui_draw_chart(&chart, quote.series);
+        draw_market_chart(&chart, quote.series);
     }
     /* When the last price was set, in the middle under the chart. */
     if (quote.time > 0) {

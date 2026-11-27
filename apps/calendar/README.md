@@ -39,7 +39,12 @@ The parser supports timed and all-day events, UTC, floating times and time zones
 defined in the feed, including daylight-saving rules. Recurrence supports daily,
 weekly, monthly and yearly intervals, counts, end dates, weekdays, ordinal weekdays
 such as the second Tuesday, exclusions, and moved or cancelled occurrences.
-Responses are parsed incrementally.
+Responses are parsed incrementally. Floating dates from 1900 through 2100
+use Perinkpheral OS's zone rules for that date, including historical daylight saving.
+
+If the saved event cache cannot be read, Calendar shows Storage error and preserves
+all sources on disk. It waits for a successful restore before replacing snapshots
+or delivering reminders.
 
 Parser limits are six embedded time zones, 24 relevant exclusions per event,
 32 occurrence overrides, 200 bytes per unfolded line and 127 bytes per event

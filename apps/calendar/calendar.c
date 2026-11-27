@@ -93,6 +93,7 @@ static stored_events_t stored;
 static state_t         state;
 static bool state_dirty;
 static bool state_ready;
+static bool events_ready; /* a failed cache restore must never be replaced piecemeal */
 static bool state_unsaved; /* both KV and the recovery journal refused the write */
 
 /* All four bounded source snapshots share one file, outside the 2 KB KV
@@ -238,7 +239,7 @@ static void schedule_reminder(void)
 {
     int64_t now = time_now();
     int32_t lead = lead_seconds();
-    if (state_dirty || !state_ready) { retry_alarm(); return; }
+    if (state_dirty || !state_ready || !events_ready) { retry_alarm(); return; }
     if (now == 0 || lead < 0) {
         alarm_set(REMIND_ALARM, 0);
         alarm_set(FALLBACK_ALARM, 0);
@@ -277,8 +278,8 @@ static bool remind_of(const event_t *event)
 void app_on_alarm(int32_t id)
 {
     (void)id;
-    if (!state_ready) { app_on_load(); screen_redraw(HOST_REDRAW_NORMAL); }
-    if (!state_ready) { retry_alarm(); return; }
+    if (!state_ready || !events_ready) { app_on_load(); screen_redraw(HOST_REDRAW_NORMAL); }
+    if (!state_ready || !events_ready) { retry_alarm(); return; }
     if (state_dirty) { save_state(); }
     int64_t now = time_now();
     int32_t lead = lead_seconds();
@@ -342,6 +343,7 @@ static bool events_dirty;
 
 static void save_events(void)
 {
+    if (!events_ready) { return; }
     events_dirty = file_write(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &cache, sizeof cache) != HOST_OK;
 }
 
@@ -394,6 +396,7 @@ static int32_t count_visible_events(int64_t now);
  * then access, then feed/time/other errors; ties follow setting order. */
 static void combine_status(void)
 {
+    if (!events_ready) { return; }
     int32_t status = configured ? HTTP_OK : HOST_FAILED_NOT_READY;
     int32_t priority = 0;
     int64_t now = time_now();
@@ -434,15 +437,15 @@ static int64_t from_local(int32_t days, int32_t seconds)
     app_date_from_days(days, &parts.year, &parts.month, &parts.day);
     int64_t at = 0;
     if (time_from_local(&parts, &at) == HOST_OK) { return at; }
-    /* Old DTSTARTs still supply recurrence durations, and distant UNTILs
-     * bound rules, outside the OS conversion range. Visible dates use it. */
+    /* Dates in 1900..2100 use Perinkpheral OS zone rules, including historical
+     * DTSTARTs. Only more distant recurrence bounds need this fallback. */
     return (int64_t)days * SECONDS_PER_DAY + seconds - time_zone_offset();
 }
 
 void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t flags,
                  int32_t http_status)
 {
-    if (request < 0 || request >= SOURCES_MAX) {
+    if (!events_ready || request < 0 || request >= SOURCES_MAX) {
         return;
     }
     if (!(configured & (1 << request))) {
@@ -505,7 +508,7 @@ static void schedule_next_change(void)
 /* Keep untouched snapshots and reminder progress when a link changes. */
 static void sync_sources(const uint32_t hashes[SOURCES_MAX])
 {
-    if (!state_ready) { merge_events(); return; }
+    if (!state_ready || !events_ready) { merge_events(); return; }
     bool changed = false;
     for (int32_t i = 0; i < SOURCES_MAX; i++) {
         if (state.source_hash[i] == hashes[i]) { continue; }
@@ -554,7 +557,12 @@ void app_on_load(void)
         state_ready = false;
     }
     if ((uint32_t)state.delivered_count > ICS_EVENTS_MAX) { state.delivered_count = 0; }
+    events_dirty = false;
     length = file_read(EVENTS_FILE, sizeof EVENTS_FILE - 1, 0, &cache, sizeof cache);
+    events_ready = length >= 0 || length == HOST_ERR_NOT_FOUND;
+    if (!events_ready) {
+        for (int32_t i = 0; i < SOURCES_MAX; i++) { sources[i] = (source_t){0}; }
+    }
     if (length != sizeof cache) {
         cache.status[0] = cache.status[1] = cache.status[2] = cache.status[3] = state.status;
     }
@@ -602,7 +610,7 @@ void app_on_intent(int32_t intent)
 {
     /* A restart forgot the alarm, and a clock set anew moves "in ten
      * minutes" to another moment. */
-    (void)intent;
+    if (intent != HOST_INTENT_STARTED && intent != HOST_INTENT_TIME_CHANGED) { return; }
     combine_status();
     schedule_reminder();
 }
@@ -721,7 +729,8 @@ void app_on_button(int32_t event)
         return;
     }
     int32_t button = BTN_OF(event), action = BTN_ACTION_OF(event);
-    if ((button != BTN_UP && button != BTN_DOWN) || action < BTN_PRESSED) { return; }
+    if ((button != BTN_UP && button != BTN_DOWN) ||
+        (action != BTN_PRESSED && action != BTN_LONG_PRESSED)) { return; }
     int32_t before = list.selected;
     int32_t by = button == BTN_UP ? -1 : 1;
     if (action == BTN_PRESSED) {
@@ -851,7 +860,7 @@ static void draw_event(const event_t *event)
 
 void app_on_draw(void)
 {
-    if (events_dirty || state_unsaved) {
+    if (!events_ready || events_dirty || state_unsaved) {
         host_notice_t notice = { .icon = HOST_ICON_WARNING };
         app_text_copy(notice.first, sizeof notice.first, app_string(STR_STORAGE_ERROR));
         app_text_copy(notice.second, sizeof notice.second, app_string(STR_STORAGE_ERROR_SECOND));

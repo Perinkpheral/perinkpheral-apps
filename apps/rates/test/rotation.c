@@ -19,7 +19,8 @@ static void reload(void)
 int main(void)
 {
     standin_reset();
-    standin()->is_session_writable = true;
+    standin_handlers = (standin_handlers_t){ .on_load = app_on_load, .on_focus = app_on_focus };
+    standin_load(); standin_focus();
     standin_set("codes", "USD\nEUR\nJPY");
     navigation_t orphan = { .index = 2 };
     assert(kv_set("navigation", 10, &orphan, sizeof orphan) == HOST_OK);
@@ -30,8 +31,8 @@ int main(void)
     for (int p = 0; p < 3; ++p) {
         standin_forget_session();
         standin_set("rotate", paces[p]);
-        app_on_load();
-        app_on_focus();
+        standin_load();
+        standin_focus();
         int writes_before = standin()->store_writes;
         app_on_button(BTN_DOWN_PRESSED);
         app_on_button(BTN_OK_PRESSED);
@@ -55,16 +56,16 @@ int main(void)
         reload();
         assert(standin()->store_writes == writes_before + 21);
         standin_forget_session();
-        app_on_load();
-        app_on_focus();
+        standin_load();
+        standin_focus();
         assert(navigation.index == 0 && rotating && standin_timers());
         standin_restart();
-        app_on_load(); app_on_focus();
+        standin_load(); standin_focus();
         assert(navigation.index == 0 && rotating && standin_timers());
         app_on_button(BTN_OK_PRESSED);
         assert(!rotating && !standin_timers());
         standin_forget_session();
-        app_on_load(); app_on_focus();
+        standin_load(); standin_focus();
         assert(!rotating && !standin_timers());
     }
     puts("Rates: rotation keeps its deadline through minute-by-minute unloads; only rotation toggles write flash and survive reopening/restart");

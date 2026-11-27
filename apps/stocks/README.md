@@ -1,16 +1,14 @@
 # Stocks
 
-MOEX requests use `iss.moex.com`. Stocks 0.2.21 packages Russian Trusted Root CA,
-the same root used by Rates and Metals, for the chain observed on 2026-11-24,
-and requires Perinkpheral OS 0.1.97 or later.
-Its SHA-256 fingerprint is
+MOEX requests use `iss.moex.com`. Stocks packages Russian Trusted Root CA,
+the same root used by Rates and Metals. Perinkpheral OS 0.2.0 includes the
+NumericString certificate parser correction required by the observed MOEX chain.
+The root's SHA-256 fingerprint is
 `D26D2D0231B7C39F92CC738512BA54103519E4405D68B5BD703E9788CA8ECF31`.
 
-Firmware 0.1.97 includes the NumericString parser correction. Firmware 0.1.96
-could not complete the observed MOEX handshake even with the CA installed:
-ESP-IDF 5.5.5's mbedTLS rejected NumericString subject attributes in the served
-leaf certificate with -0x23E2 (invalid X.509 name, unexpected ASN.1 tag), before
-checking its trust chain. RSA/SHA-256 support is enabled.
+A failed preference restore leaves saved preferences untouched until a later load
+can read them. Failed quote or chart reads skip that update; they never replace an
+unreadable record with an empty one. A later successful read permits updates again.
 
 The firmware repository's study `docs/decisions/0008-moex-tls.md` records the
 certificate, native reproduction and earlier-run evidence. Simulator and

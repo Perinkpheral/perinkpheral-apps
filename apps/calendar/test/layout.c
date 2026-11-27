@@ -42,6 +42,7 @@ int main(void)
     standin_reset();
     standin_handlers.on_draw = app_on_draw;
     standin_clock(1768478400);
+    app_on_load();
     stored.count = 1;
     stored.events[0] = (event_t){ .uid = 1, .start = time_now() + 3600, .end = time_now() + 7200 };
     strcpy(sources[0].titles, "A title with up to four rows");
@@ -71,6 +72,17 @@ int main(void)
     app_on_button(BTN_DOWN_LONG_PRESSED); assert(list.selected == 11 && list.first == 11);
     app_on_button(BTN_DOWN_LONG_PRESSED); assert(list.selected == 11 && list.first == 11);
     app_on_button(BTN_UP_LONG_PRESSED); assert(list.selected == 6 && list.first == 6);
-    app_on_button(BTN_UP_KEYDOWN); assert(list.selected == 6);
+    for (int action = 0; action < 16; action++) {
+        if (action == BTN_PRESSED || action == BTN_LONG_PRESSED) { continue; }
+        int redraws = standin()->redraws;
+        app_on_button(BTN_EVENT(BTN_UP, action));
+        app_on_button(BTN_EVENT(BTN_DOWN, action));
+        assert(list.selected == 6 && standin()->redraws == redraws);
+    }
+    int writes = standin()->store_writes;
+    state.status = -123;
+    app_on_intent(HOST_INTENT_NETWORK_UP);
+    app_on_intent(99);
+    assert(state.status == -123 && standin()->store_writes == writes);
     puts("calendar: 1-4 title rows, both font metrics, calendar caption bounds and paging passed");
 }
