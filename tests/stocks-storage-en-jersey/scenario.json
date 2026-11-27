@@ -1,0 +1,16 @@
+{
+  "at": 1794955920,
+  "app": "tests/fixtures/storage/stocks",
+  "store": {
+    "tickers": "AAPL",
+    "refresh": "15 min"
+  },
+  "mocks": "../stocks/mocks.json",
+  "steps": [
+    "wait 3",
+    "shot storage-error"
+  ],
+  "language": "en",
+  "font": "jersey",
+  "glyphs": "glyphs"
+}

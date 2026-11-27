@@ -1,10 +1,11 @@
 {
   "name": "ha",
-  "version": "0.4.11",
+  "version": "0.4.13",
   "title": "HA Companion",
   "author": "Perinkpheral",
   "description": "Home Assistant dashboard",
   "abi": 3,
+  "firmware": "0.1.84",
   "format": "raw",
   "settings": [
     { "key": "server", "type": "url", "title": "Server", "hidden": true },

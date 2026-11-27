@@ -13,7 +13,7 @@ static void refused_quote(int32_t item, int32_t failure)
     standin()->refuse_writes = failure;
     standin_picked(POLL_YAHOO, item, 200, body, sizeof body - 1);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     standin()->refuse_writes = HOST_OK;
 }
 
@@ -30,24 +30,24 @@ int main(void)
         /* No cached record exists when the ticker's very first save fails. */
         standin_set("rotate", "2 min"); app_on_settings();
         standin_draw();
-        assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") != NULL);
         app_on_button(BTN_DOWN_PRESSED);
         refused_quote(1, failures[i]);
         /* Preserve an unchanged slot; clear the replaced slot even off screen. */
         standin_set("tickers", "MSFT\nIBM"); app_on_settings();
         assert(unsaved_quotes == (1u << 1));
         standin_draw();
-        assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") != NULL);
         app_on_button(BTN_UP_PRESSED); standin_draw();
-        assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") == NULL);
         standin_set("tickers", "IBM"); app_on_settings();
         assert(unsaved_quotes == 0);
         standin_draw();
-        assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") == NULL);
         refused_quote(0, failures[i]);
         standin_set("tickers", ""); app_on_settings(); standin_draw();
         assert(unsaved_quotes == 0);
-        assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") == NULL);
         assert(standin()->visible_failure);
         uint64_t unconfigured = standin()->picture;
         app_on_terminate(); app_on_load(); app_on_focus();

@@ -853,6 +853,7 @@ void app_on_draw(void)
     if (events_dirty || state_unsaved) {
         host_notice_t notice = { .icon = HOST_ICON_WARNING };
         app_text_copy(notice.first, sizeof notice.first, app_string(STR_STORAGE_ERROR));
+        app_text_copy(notice.second, sizeof notice.second, app_string(STR_STORAGE_ERROR_SECOND));
         ui_draw_notice(&notice);
         return;
     }

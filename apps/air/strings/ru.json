@@ -58,5 +58,6 @@
   "ragweed": "Амброзия",
   "olive": "Олива",
   "decimal_point": ",",
-  "storage_error": "Ошибка записи."
+  "storage_error": "Ошибка",
+  "storage_error_second": "хранилища."
 }

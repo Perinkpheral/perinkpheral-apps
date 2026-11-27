@@ -24,5 +24,6 @@
       }
     }
   },
-  "storage_error": "Ошибка памяти."
+  "storage_error": "Ошибка",
+  "storage_error_second": "хранилища."
 }

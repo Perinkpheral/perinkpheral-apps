@@ -25,7 +25,7 @@ int main(void)
         standin()->refuse_writes = errors[i];
         daily(82 + i);
         standin_draw();
-        assert(strstr(standin()->draw_text, "Could not save."));
+        assert(strstr(standin()->draw_text, "Storage error."));
         state_t pending = state;
         app_on_terminate();
         app_on_load();
@@ -33,7 +33,7 @@ int main(void)
         standin()->refuse_writes = HOST_OK;
         daily(82 + i);
         standin_draw();
-        assert(!strstr(standin()->draw_text, "Could not save."));
+        assert(!strstr(standin()->draw_text, "Storage error."));
         state_t expected = state;
         state = (state_t){0};
         app_on_load();
