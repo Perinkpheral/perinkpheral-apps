@@ -29,7 +29,7 @@ int main(void)
     assert(state_unsaved && state.aqi[0] == 21);
     standin_handlers.on_draw = app_on_draw;
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     standin_pass(900000);
     standin()->refuse_writes = HOST_OK; answer(21);
     assert(!state_unsaved && standin()->store_writes == written + 1);
@@ -37,10 +37,10 @@ int main(void)
     assert(state.aqi[0] == 21);
     standin()->refuse_writes = HOST_ERR_FAILED; answer(22);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     standin()->refuse_writes = HOST_OK; answer(22);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") == NULL);
     state = (state_t){0}; app_on_load();
     assert(state.aqi[0] == 22);
     puts("air: 96 identical readings over a day write nothing; refused changed readings retry passed");

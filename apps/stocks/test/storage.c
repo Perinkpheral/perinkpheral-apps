@@ -89,7 +89,7 @@ int main(void)
     assert(writes() == 2 && quote.price == 12500);
     standin_handlers.on_draw = app_on_draw;
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     int before_redraws = redraws();
     yahoo_answer(200);
     assert(writes() == 2 && quote.price == 12500 && redraws() == before_redraws);
@@ -105,7 +105,7 @@ int main(void)
     yahoo_answer(200);
     assert(writes() == 3 && quote.price == 12500 && redraws() == before_redraws + 3);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") == NULL);
     yahoo_answer(503);
     assert(writes() == 4 && quote.has_data && quote.price == 12500 && quote.status == 503);
     yahoo_answer(503);
@@ -142,10 +142,10 @@ int main(void)
     values[PICK_PRICE] = "126.00";
     standin()->refuse_writes = HOST_ERR_FAILED; yahoo_answer(200);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     fail_writes(false); yahoo_answer(200);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") == NULL);
     load_current(); assert(quote.price == 12600);
     puts("Stocks storage: 100 unchanged polls write nothing; changed quotes, full storage and retries passed");
 }

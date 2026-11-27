@@ -47,7 +47,7 @@ typedef struct {
         struct { keenetic_host_t rows[shown_rows]; int count, total, first; } viewport;
     } details;
     int32_t detail_status;
-    int64_t down, up, retry_at;
+    int64_t down, up, retry_at, refresh_at;
     int32_t page, status, pending, epoch;
     uint32_t history_source;
     keenetic_history_t history;
@@ -65,7 +65,7 @@ static int device_first;
 #define detail_status scene.detail_status
 #define facts scene.details.facts
 static int detail_page;
-#define SCENE_MAGIC 0x4b454e3cu
+#define SCENE_MAGIC 0x4b454e3du
 static const char *const setting_keys[] = { "router", "username", "wan", "password", "links", "every" };
 
 /* Share the language-table lookup instead of expanding it at every label. */
@@ -185,7 +185,7 @@ static void restore(void)
         (previous.history.revision > scene.history.revision ||
          (previous.history.revision == scene.history.revision && previous.history.count > scene.history.count)))
         scene.history = previous.history;
-    if (visible && !control.blocked && stacked) {
+    if (visible && stacked) {
         /* A completed background read supersedes the sleeping scene's checkpoint. */
         if (scene.snapshot.has_data && (!previous.snapshot.has_data ||
             scene.snapshot.saved_at > previous.snapshot.saved_at ||
@@ -207,9 +207,10 @@ static void restore(void)
             __builtin_memcpy(hosts.rows + device_first, scene.details.viewport.rows,
                              sizeof scene.details.viewport.rows);
         }
-        /* The old read may have finished off screen; start another without writing flash. */
+        /* The old read may have finished off screen. Keep its refresh deadline. */
         scene.pending = 0;
     }
+    if (control.blocked) scene.status = 401;
     if (control.auth) scene.pending = control.auth;
     app_setting("session", cookie, sizeof cookie);
 }
@@ -247,10 +248,12 @@ __attribute__((noinline)) static void schedule(int32_t seconds)
     if (result != HOST_OK) {
         log_write(HOST_LOG_WARN, "Keenetic refresh alarm refused", app_text_length("Keenetic refresh alarm refused"));
         /* A one-shot uses no repeating-alarm slot. */
-        if (seconds && alarm_set(REFRESH, seconds) != HOST_OK) {
+        if (seconds) result = alarm_set(REFRESH, seconds);
+        if (seconds && result != HOST_OK) {
             log_write(HOST_LOG_WARN, "Keenetic retry alarm refused", app_text_length("Keenetic retry alarm refused"));
         }
     }
+    if (result == HOST_OK) scene.refresh_at = seconds ? time_uptime_ms() + (int64_t)seconds * 1000 : 0;
 }
 static int32_t foreground_pace(void)
 {
@@ -664,7 +667,13 @@ void app_on_focus(void)
     restore();
     break_stale_history(time_uptime_ms(), foreground_pace());
     header();
-    start(false);
+    int64_t refresh_at = scene.refresh_at;
+    int64_t remaining = refresh_at - time_uptime_ms();
+    if (!control.blocked && remaining > 0) {
+        schedule((int32_t)((remaining + 999) / 1000));
+        scene.refresh_at = refresh_at;
+    } else
+        start(false);
 }
 void app_on_blur(void)
 {

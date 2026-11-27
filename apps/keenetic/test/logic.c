@@ -1211,6 +1211,87 @@ static int cooldown_requests(void)
     return total;
 }
 
+static void resumed_refresh(void)
+{
+    static const char *const intervals[] = { "1 min", "5 min", "15 min" };
+    static const int seconds[] = { 60, 300, 900 };
+    for (int interval = 0; interval < 3; interval++) for (int pending = 0; pending < 2; pending++) {
+        logged_in(true);
+        poll_fixture(BATCH, "v9-batch-sample-a.json");
+        setting("every", intervals[interval]);
+        app_on_button(BTN_OK_PRESSED);
+        if (!pending) poll_fixture(BATCH, "v9-batch-sample-b.json");
+        int requests = cooldown_requests();
+        int64_t due = uptime_ms + seconds[interval] * 1000;
+        for (int swap = 0; swap < 3; swap++) {
+            standin_pass(10001);
+            app_on_blur(); in_scene = false;
+            app_on_load(); in_scene = true; app_on_focus();
+            assert(cooldown_requests() == requests);
+            assert(scene.refresh_at == due);
+            assert(standin_alarm_left(REFRESH) == (due - uptime_ms + 999) / 1000);
+        }
+        if (pending) {
+            poll_fixture(BATCH, "v9-batch-sample-a.json");
+            due = uptime_ms + seconds[interval] * 1000;
+        }
+        standin_pass(due - uptime_ms - 1000);
+        app_on_blur(); app_on_load(); app_on_focus();
+        assert(cooldown_requests() == requests && standin_alarm_left(REFRESH) == 1);
+        standin_pass(1000); app_on_alarm(REFRESH);
+        assert(cooldown_requests() == requests + 1);
+        app_on_button(BTN_OK_PRESSED);
+        assert(cooldown_requests() == requests + 1); /* Coalesce the pending read. */
+    }
+    logged_in(true); setting("every", "15 min");
+    poll_fixture(BATCH, "v9-batch-sample-a.json");
+    app_on_blur(); app_on_load(); app_on_focus();
+    int requests = cooldown_requests();
+    app_on_button(BTN_OK_PRESSED);
+    assert(cooldown_requests() == requests + 1);
+    poll_fixture(BATCH, "v9-batch-sample-b.json");
+    app_on_blur(); in_scene = false;
+    standin_pass(900000);
+    app_on_load(); in_scene = true; app_on_focus();
+    assert(cooldown_requests() == requests + 2);
+    poll_fixture(BATCH, "v9-batch-sample-b.json");
+    standin_forget_session(); app_on_load(); app_on_focus();
+    assert(cooldown_requests() == requests + 3); /* A fresh opening refreshes. */
+    puts("keenetic: restored refresh deadlines preserve request counts; due alarms and OK still refresh");
+}
+
+static void blocked_navigation(void)
+{
+    for (int page = 2; page <= 3; page++) for (int background = 0; background < 2; background++) {
+        logged_in(true); scene.page = page;
+        poll_fixture(BATCH, "v9-batch-1.json");
+        if (page == 3) {
+            poll_fixture(HOSTS, "router/hotspot.json");
+            device_first = 5;
+        } else interface_fixture();
+        if (background) {
+            app_on_blur(); in_scene = false; app_on_load();
+        }
+        control.renewing = 1;
+        picked(page == 3 ? HOSTS : INTERFACES, 401, "{}");
+        assert(control.blocked);
+        if (!background) app_on_blur();
+        scene_t saved;
+        assert(app_session_load(&saved, sizeof saved));
+        int requests = cooldown_requests();
+        in_scene = false; app_on_load(); in_scene = true; app_on_focus();
+        assert(scene.page == page && scene.status == 401 && control.blocked);
+        assert(!memcmp(&scene.details, &saved.details, sizeof scene.details));
+        if (page == 3) {
+            assert(device_first == 5 && hosts.count == saved.details.viewport.count);
+            assert(!memcmp(hosts.rows + device_first, saved.details.viewport.rows,
+                           sizeof saved.details.viewport.rows));
+        }
+        assert(cooldown_requests() == requests && !standin_alarm_left(REFRESH));
+    }
+    puts("keenetic: authentication refusal preserves Network details and Devices viewport across resume");
+}
+
 static void cooldown_and_sessions(void)
 {
     reset(true);
@@ -1254,6 +1335,7 @@ static void cooldown_and_sessions(void)
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
+    resumed_refresh(); blocked_navigation();
     cooldown_and_sessions(); timeout_scene();
     chart_neighbours(); refresh_phase(); optional_rates();
     restart_login(); detail_failures(); long_host_cut(); network_variants();

@@ -13,7 +13,7 @@ static void refused_reading(int32_t failure)
     standin()->refuse_writes = failure;
     standin_picked(0, -1, 200, body, sizeof body - 1);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     standin()->refuse_writes = HOST_OK;
 }
 
@@ -30,11 +30,11 @@ int main(void)
         /* An unrelated setting must keep the current reading's warning. */
         standin_set("scale", "US"); app_on_settings();
         standin_draw();
-        assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") != NULL);
         standin_set("lat", NULL); standin_set("lon", NULL);
         app_on_settings(); standin_draw();
         assert(!state.has_data && !state_unsaved);
-        assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") == NULL);
         assert(standin()->visible_failure);
         uint64_t unconfigured = standin()->picture;
         app_on_terminate(); app_on_load(); app_on_focus();
@@ -45,6 +45,6 @@ int main(void)
         standin_set("lat", "59.94"); standin_set("lon", "30.31");
         app_on_settings(); standin_draw();
         assert(!state.has_data && !state_unsaved);
-        assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+        assert(strstr(standin()->draw_text, "Storage error.") == NULL);
     }
 }

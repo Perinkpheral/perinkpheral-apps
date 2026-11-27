@@ -13,9 +13,9 @@ underscores, hyphens or dots. Choose the WAN and carrier used by the router's
 selected route. Both PPPoE and IPoE are supported; IPoE uses the batch gateway
 when the interface has no PPP peer.
 
-Short UP/DOWN changes screen, or scrolls one device while within the list.
-A short press past either end of Devices leaves that screen. Long UP/DOWN
-scrolls three devices and stops at the ends. OK refreshes; BACK uses OS navigation.
+Short UP/DOWN changes screen outside Devices. On Devices, short presses scroll
+one device and stop at the ends. Held UP/DOWN switches screens from any screen,
+wrapping at the ends. OK refreshes; BACK uses OS navigation.
 
 Traffic displays the router's `rxspeed`/`txspeed` in Mbit/s and occupied conntrack
 slots. A rate appears on the first successful answer; reopening displays the

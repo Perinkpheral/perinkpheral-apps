@@ -35,12 +35,12 @@ int main(void)
     standin()->refuse_writes = HOST_ERR_FAILED; picked(503);
     standin_handlers.on_draw = app_on_draw;
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     int before_retry = standin()->redraws;
     standin()->refuse_writes = HOST_OK; picked(503);
     assert(standin()->redraws > before_retry);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") == NULL);
     app_on_load(); assert(last_status == 503);
     picked(200);
     int first_writes = writes();
@@ -60,11 +60,11 @@ int main(void)
     assert(forecast_dirty);
     standin_handlers.on_draw = app_on_draw;
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") != NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") != NULL);
     standin()->refuse_writes = HOST_OK; picked(200);
     assert(!forecast_dirty);
     standin_draw();
-    assert(strstr(standin()->draw_text, "Could not save.") == NULL);
+    assert(strstr(standin()->draw_text, "Storage error.") == NULL);
     forecast = (forecast_t){0}; has_forecast = false; app_on_load();
     assert(has_forecast && forecast.temperature == 13);
     /* A real v5 record is the v6 prefix without the city offset. */

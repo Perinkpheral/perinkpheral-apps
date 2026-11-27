@@ -20,8 +20,9 @@ application. These fields are hidden on the device's page; no long-lived Home
 Assistant access token or template sensor is required. The application's visible
 setting is the refresh interval. Perinkpheral OS schedules refreshes, with a five-minute
 minimum while power saving is active; pressing OK refreshes immediately.
-UP and DOWN switch screens and wrap at the ends. The corner shows `2 of 3` (or
-`2 из 3`) when there is more than one screen. In a list, hold UP or DOWN to scroll.
+Hold UP or DOWN to switch screens, wrapping at the ends. Short UP and DOWN also
+switch screens outside lists. In a list, short presses scroll and stop at the
+ends; held presses scroll when there is only one screen.
 Returning from another scene keeps the selected screen; opening from the menu or
 restarting uses the screen of the cached picture. The previous picture stays until the reply arrives.
 
@@ -62,7 +63,7 @@ The default layout uses the places above. Other layouts begin with
 |---|---|
 | `tiles` | up to four items; one fills the screen, two use halves, three or four use quarters |
 | `single` | the first item, as large as it fits |
-| `list` | up to twelve rows; hold UP and DOWN to scroll (short presses also scroll with one screen) |
+| `list` | up to twelve rows; short UP and DOWN scroll; held presses switch screens, or scroll with one screen |
 
 ```text
 layout|tiles
