@@ -6,14 +6,12 @@
 #include "standin.h"
 
 int32_t notification_post(const host_notice_t *notice);
-/* The stand-in has no queue capacity. Count the host's four slots, initially
- * occupied by other apps, and inject storage refusal at the posting boundary. */
-static int queue_used;
+/* Inject a full queue through the stand-in, and storage refusal at the
+ * posting boundary, including after an accepted notice. */
 static bool refuse_after_post;
 int32_t queued_notice(const host_notice_t *notice)
 {
-    int32_t result = queue_used == 4 ? HOST_ERR_NO_SPACE : notification_post(notice);
-    if (result == HOST_OK) { queue_used++; }
+    int32_t result = notification_post(notice);
     if (refuse_after_post) { standin()->refuse_writes = HOST_ERR_NO_SPACE; }
     return result;
 }
@@ -38,14 +36,14 @@ static void background_alarm(int32_t id)
 }
 static void update(void)
 {
-    load();
-    standin_updated(); /* discard the old package's alarms, then restore them */
+    standin_prepare_update();
+    load(); /* replacement loading delivers app_on_updated() after app_on_load() */
     unload();
 }
 static void start(void)
 {
     standin_reset();
-    queue_used = 4;
+    standin()->refuse_notices = HOST_ERR_NO_SPACE;
     refuse_after_post = false;
     load();
     standin_focus();
@@ -80,7 +78,7 @@ static void recover(bool replace_package)
     assert(standin_alarm_left(NOTICE_ALARM) == 1);
     refuse_after_post = false;
     standin()->refuse_writes = 0;
-    queue_used = 0;
+    standin()->refuse_notices = HOST_OK;
     standin_pass(1000);
     background_alarm(NOTICE_ALARM);
     assert(standin()->notices == 1 && standin_alarm_left(NOTICE_ALARM) == 0);
@@ -100,7 +98,7 @@ int main(void)
     standin_pass(61000);
     refuse_after_post = false;
     standin()->refuse_writes = 0;
-    queue_used = 0;
+    standin()->refuse_notices = HOST_OK;
     background_alarm(NOTICE_ALARM);
     update();
     assert(standin()->notices == 0 && standin_alarm_left(NOTICE_ALARM) == 0);
@@ -109,7 +107,7 @@ int main(void)
      * acceptance stays refused through unload and update: recovery may replay
      * that ambiguous delivery, but must never lose a refused delivery. */
     start();
-    queue_used = 0;
+    standin()->refuse_notices = HOST_OK;
     refuse_after_post = true;
     background_alarm(COUNTDOWN_ALARM);
     assert(standin()->notices == 1 && standin_alarm_left(NOTICE_ALARM) == 0);

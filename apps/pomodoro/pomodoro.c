@@ -33,7 +33,7 @@ typedef struct {
 static state_t state, saved;
 static bool has_saved;
 static state_t pending;
-static bool save_pending, receipt_pending;
+static bool save_pending, receipt_pending, restore_failed;
 static void retry_save(void);
 
 static int64_t uptime_seconds(void) { return time_uptime_ms() / 1000; }
@@ -51,11 +51,22 @@ static int32_t phase_length(int32_t phase)
 }
 static bool save(void)
 {
+    if (restore_failed) { return false; }
     bool changed = !has_saved;
     const uint8_t *a = (const uint8_t *)&state, *b = (const uint8_t *)&saved;
     for (int32_t i = 0; i < (int32_t)sizeof state; i++) { changed |= a[i] != b[i]; }
     if (!changed) { receipt_pending = false; return true; }
-    if (!app_state_save("state", &state, sizeof state)) { return false; }
+    if (!app_state_save("state", &state, sizeof state)) {
+        /* A failed write may have committed: acknowledge only a confirmed value. */
+        state_t stored;
+        int32_t result = app_state_load("state", &stored, sizeof stored, STATE_VERSION);
+        restore_failed = result != HOST_OK && result != HOST_ERR_NOT_FOUND;
+        if (result != HOST_OK) { return false; }
+        const uint8_t *kept = (const uint8_t *)&stored;
+        for (int32_t i = 0; i < (int32_t)sizeof state; i++) {
+            if (a[i] != kept[i]) { return false; }
+        }
+    }
     saved = state; has_saved = true; receipt_pending = false;
     return true;
 }
@@ -74,17 +85,11 @@ static const char *phase_name(void)
 {
     return app_string(state.phase == WORK ? STR_WORK : state.phase == BREAK ? STR_BREAK : STR_LONG_BREAK);
 }
-static int32_t fill(const char *pattern, const host_text_argument_t *args, int32_t count, char *out, int32_t capacity)
-{
-    int32_t n = text_fill(pattern, app_text_length(pattern), args, count, out, capacity - 1);
-    out[n > 0 ? n : 0] = 0;
-    return n;
-}
 static void minutes_text(int32_t seconds, char *line, int32_t capacity)
 {
     if (seconds > 0 && seconds < 60) { app_text_copy(line, capacity, app_string(STR_LAST_MINUTE)); return; }
     host_text_argument_t arg = { .number = (seconds + 59) / 60 };
-    fill(app_string(STR_MINUTES), &arg, 1, line, capacity);
+    app_text_fill(app_string(STR_MINUTES), &arg, 1, line, capacity);
 }
 static void show_header(void)
 {
@@ -135,7 +140,7 @@ static void phase_notice(void)
     app_text_copy(notice.first, sizeof notice.first, phase_name());
     if (state.phase == WORK) {
         host_text_argument_t args[] = { { .number = state.round }, { .number = state.rounds } };
-        fill(app_string(STR_ROUND), args, 2, notice.second, sizeof notice.second);
+        app_text_fill(app_string(STR_ROUND), args, 2, notice.second, sizeof notice.second);
     } else { minutes_text(state.phase_length, notice.second, sizeof notice.second); }
     if (notification_post(&notice) == HOST_OK) {
         state.notice_until = 0;
@@ -153,6 +158,8 @@ static void phase_notice(void)
 }
 static bool commit_change(state_t before)
 {
+    /* Unreadable saved state must survive both user edits and background work. */
+    if (restore_failed) { state = before; return false; }
     if (state.ends_at && state.ends_at != before.ends_at) {
         int32_t left = seconds_left();
         int32_t result = alarm_set(END_ALARM, left > 0 ? left : 1);
@@ -221,10 +228,14 @@ static void advance(bool running, bool paused, bool announce)
 }
 void app_on_load(void)
 {
-    bool stored = app_state_load("state", &state, sizeof state, STATE_VERSION);
-    if (!stored) {
+    int32_t result = app_state_load("state", &state, sizeof state, STATE_VERSION);
+    bool stored = result == HOST_OK;
+    restore_failed = result != HOST_OK && result != HOST_ERR_NOT_FOUND;
+    if (result == HOST_ERR_NOT_FOUND) {
         /* Version 1 ends after phase_length; preserve running and paused sessions. */
-        stored = kv_get("state", 5, &state, sizeof state) == 40 && state.version == 1;
+        int32_t length = kv_get("state", 5, &state, sizeof state);
+        restore_failed = length < 0 && length != HOST_ERR_NOT_FOUND && length != HOST_ERR_NO_SPACE;
+        stored = length == 40 && state.version == 1;
         state.version = STATE_VERSION;
         state.notice_until = 0;
     }
@@ -321,7 +332,7 @@ void app_on_draw(void)
     int32_t title_font = app_text_width(HOST_FONT_MEDIUM, name) <= 264 ? HOST_FONT_MEDIUM : HOST_FONT_TEXT;
     app_draw_text(HOST_UI_MARGIN, 4, title_font, name);
     host_text_argument_t args[] = { { .number = state.round }, { .number = state.rounds } };
-    char round[32]; fill(app_string(STR_OF), args, 2, round, sizeof round);
+    char round[32]; app_text_fill(app_string(STR_OF), args, 2, round, sizeof round);
     app_draw_right(gfx_width() - HOST_UI_MARGIN, 12, HOST_FONT_SMALL, round);
     int32_t left = state.ends_at || state.paused_left ? seconds_left() : state.phase_length;
     char number[12]; app_text_t text;

@@ -38,7 +38,7 @@ static void press(int32_t event)
 int main(void)
 {
     standin_reset();
-    standin_handlers.on_updated = app_on_updated;
+    standin_handlers = (standin_handlers_t){ .on_load = app_on_load, .on_updated = app_on_updated };
     app_on_load();
     assert(state.minutes == MINUTES_DEFAULT);
     press(BTN_UP_PRESSED);
@@ -52,7 +52,8 @@ int main(void)
     press(BTN_DOWN_LONG_PRESSED);
     assert(writes() == before_writes && redraws() == before_redraws);
     standin_pass(17000);
-    standin_updated(); /* the old version's alarms are gone: these two are set anew */
+    standin_prepare_update(); /* the old version's alarms are gone before replacement loading */
+    standin_load();
     check_host();
     assert(countdown_delay() == 1543 && standin_alarm_left(MINUTE_ALARM) == 43);
     assert(writes() == before_writes);

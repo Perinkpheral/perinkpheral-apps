@@ -44,7 +44,7 @@ typedef struct {
 } timer_state_t;
 
 static timer_state_t state, pending;
-static bool save_pending, receipt_pending;
+static bool save_pending, receipt_pending, restore_failed;
 static void retry_save(void);
 static void restore_running(void);
 static void say_if_unset(int32_t result, const char *what);
@@ -56,17 +56,32 @@ static int32_t uptime_seconds(void)
 
 static bool save(void)
 {
-    if (!app_state_save(STATE_KEY, &state, sizeof state)) { return false; }
+    if (restore_failed) { return false; }
+    if (!app_state_save(STATE_KEY, &state, sizeof state)) {
+        /* A failed write may have committed: acknowledge only a confirmed value. */
+        timer_state_t stored;
+        int32_t result = app_state_load(STATE_KEY, &stored, sizeof stored, STATE_VERSION);
+        restore_failed = result != HOST_OK && result != HOST_ERR_NOT_FOUND;
+        if (result != HOST_OK) { return false; }
+        const uint8_t *a = (const uint8_t *)&state, *b = (const uint8_t *)&stored;
+        for (int32_t i = 0; i < (int32_t)sizeof state; i++) {
+            if (a[i] != b[i]) { return false; }
+        }
+    }
     receipt_pending = false;
     return true;
 }
 
 void app_on_load(void)
 {
-    bool is_stored = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
-    if (!is_stored) {
+    int32_t result = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
+    bool is_stored = result == HOST_OK;
+    restore_failed = result != HOST_OK && result != HOST_ERR_NOT_FOUND;
+    if (result == HOST_ERR_NOT_FOUND) {
         /* Version 3 has the same prefix, without the notice deadline. */
-        is_stored = kv_get(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state) == 16 && state.version == 3;
+        int32_t length = kv_get(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state);
+        restore_failed = length < 0 && length != HOST_ERR_NOT_FOUND && length != HOST_ERR_NO_SPACE;
+        is_stored = length == 16 && state.version == 3;
         state.version = STATE_VERSION;
         state.notice_until = 0;
     }
@@ -129,8 +144,7 @@ static void show_in_header(void)
     char line[HOST_STATUS_TEXT_MAX + 1];
     const char *pattern = app_string(STR_IN_HEADER);
     const host_text_argument_t minutes = { .number = minutes_left() };
-    int32_t length = text_fill(pattern, app_text_length(pattern), &minutes, 1, line, sizeof line - 1);
-    line[length > 0 ? length : 0] = '\0';
+    app_text_fill(pattern, &minutes, 1, line, sizeof line);
     header_set_status(HOST_HEADER_RIGHT, HOST_ICON_HOURGLASS, line, app_text_length(line));
 }
 
@@ -233,6 +247,8 @@ static void apply_state(void)
 
 static bool commit_change(timer_state_t before)
 {
+    /* Display defaults after a failed read, but never persist them or arm a new run. */
+    if (restore_failed) { state = before; return false; }
     /* Reserve the indispensable alarm before acknowledging a new countdown. */
     if (state.ends_at && !before.ends_at) {
         int32_t left = seconds_left();
