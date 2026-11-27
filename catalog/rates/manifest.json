@@ -3,7 +3,7 @@
   "title": "Exchange rates",
   "author": "Perinkpheral",
   "description": "Exchange rates of the Bank of Russia",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "firmware": "0.1.95",
   "abi": 3,
   "format": "xml",
