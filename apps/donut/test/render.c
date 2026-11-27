@@ -251,9 +251,10 @@ static void load_instance(void)
     draw_ms_total = interval_ms_total = previous_draw_at = -7;
     frame_is_rendered = true;
     counted_ms = 0;
-    timer_set(FRAME_TIMER, 0); /* an instance's timers end with it */
-    app_on_load();
-    app_on_focus();
+    standin_handlers.on_load = app_on_load;
+    standin_handlers.on_focus = app_on_focus;
+    standin_load(); /* a fresh instance has no timers */
+    standin_focus(); /* reopen a writable scene after a discarded session */
 }
 
 static void expect_summary(const char *frames, const char *average, const char *worst, const char *interval)
@@ -300,7 +301,8 @@ static void check_handlers(void)
     app_on_timer(FRAME_TIMER + 1);
     assert(frame == 0);
     uptime_is(20000);
-    standin()->redraw_flags = -1;
+    /* Redraw requests accumulate until drawing consumes them. */
+    standin()->redraw_flags = HOST_REDRAW_NORMAL;
     app_on_timer(FRAME_TIMER);
     assert(frame == 1 && !frame_is_rendered && standin()->redraw_flags == HOST_REDRAW_NO_BLINK);
     app_on_timer(FRAME_TIMER);
@@ -416,7 +418,6 @@ static void check_handlers(void)
 int main(void)
 {
     standin_reset();
-    standin()->is_session_writable = true; /* app_on_blur() is called as for the instance on the screen */
     app_on_load();
     check_renderer();
     check_handlers();

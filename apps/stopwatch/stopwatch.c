@@ -48,14 +48,27 @@ typedef struct {
 } stopwatch_t;
 
 static stopwatch_t state;
-static bool save_pending;
+static bool save_pending, restore_failed;
 static stopwatch_t pending;
 static bool change_pending, is_sequence;
 static void retry_change(void);
 
 static bool save(void)
 {
+    if (restore_failed) { return false; }
     save_pending = !app_state_save(STATE_KEY, &state, sizeof state);
+    if (save_pending) {
+        /* A failed write may have committed: acknowledge only a confirmed value. */
+        stopwatch_t stored;
+        int32_t result = app_state_load(STATE_KEY, &stored, sizeof stored, STATE_VERSION);
+        restore_failed = result != HOST_OK && result != HOST_ERR_NOT_FOUND;
+        if (result != HOST_OK) { return false; }
+        const uint8_t *a = (const uint8_t *)&state, *b = (const uint8_t *)&stored;
+        for (int32_t i = 0; i < (int32_t)sizeof state; i++) {
+            if (a[i] != b[i]) { return false; }
+        }
+        save_pending = false;
+    }
     return !save_pending;
 }
 
@@ -223,8 +236,9 @@ void app_on_terminate(void) { retry_change(); }
 void app_on_load(void)
 {
     save_pending = change_pending = is_sequence = false;
-    bool is_stored = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
-    if (!is_stored) {
+    int32_t result = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
+    restore_failed = result != HOST_OK && result != HOST_ERR_NOT_FOUND;
+    if (result != HOST_OK) {
         state = (stopwatch_t){ .version = STATE_VERSION };
     }
     /* A saved wall-clock anchor remains usable after cold boot once time is known. */
@@ -293,6 +307,8 @@ void app_on_alarm(int32_t id)
 
 void app_on_button(int32_t event)
 {
+    /* Reopen to retry restoration before changing unreadable durable state. */
+    if (restore_failed) { return; }
     stopwatch_t before = state;
     if (event == BTN_OK_PRESSED) {
         if (state.is_running) {

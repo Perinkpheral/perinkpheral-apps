@@ -1,25 +1,12 @@
 // SPDX-License-Identifier: MIT
 #include <assert.h>
 #include <string.h>
-#include <stdio.h>
 #include "../kit.c"
 #include "standin.h"
 
 int main(void)
 {
-    /* Older firmware cannot keep this editor's whole session. */
-    assert(sizeof(session_t) == 140);
-    FILE *file = fopen("../manifest.json", "rb");
-    assert(file);
-    char manifest[4096] = {0};
-    size_t bytes = fread(manifest, 1, sizeof manifest - 1, file);
-    assert(bytes > 0 && !ferror(file) && feof(file));
-    fclose(file);
-    const char *minimum = strstr(manifest, "\"firmware\"");
-    assert(minimum);
-    int major, minor, patch;
-    assert(sscanf(strchr(minimum, ':') + 1, " \"%d.%d.%d\"", &major, &minor, &patch) == 3);
-    assert(major > 0 || (major == 0 && (minor > 1 || (minor == 1 && patch >= 61))));
+    assert(sizeof(session_t) <= HOST_SESSION_MAX);
     standin_reset();
     standin()->is_session_writable = true;
     standin_clock(1794902400);

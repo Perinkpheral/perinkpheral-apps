@@ -50,7 +50,7 @@ int main(void)
     standin_set("work", "50 min");
     standin_set("break", "10 min");
     standin_set("long", "20 min");
-    standin_handlers.on_updated = app_on_updated;
+    standin_handlers = (standin_handlers_t){ .on_load = app_on_load, .on_updated = app_on_updated };
     standin_pass(1000);
     app_on_load();
     app_on_button(BTN_OK_PRESSED);
@@ -76,16 +76,16 @@ int main(void)
 
     state = (state_t){0};
     has_saved = false;
-    app_on_load();
+    standin_prepare_update();
+    standin_load();
     app_on_focus();
-    standin_updated();
     assert_stopped();
     standin_restart(); /* another boot id, the uptime from nothing */
     standin_pass(1000);
     state = (state_t){0};
-    app_on_load();
+    standin_prepare_update();
+    standin_load();
     app_on_focus();
-    standin_updated();
     assert_stopped();
     app_on_button(BTN_OK_PRESSED);
     check_host();

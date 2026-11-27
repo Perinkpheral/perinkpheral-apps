@@ -57,7 +57,7 @@ static void reset_host(void)
     stored = (stopwatch_t){ .version = STATE_VERSION, .is_running = 1,
         .banked_ms = 2000, .started_uptime_ms = 500, .boot = 1, .started_at = 1800000000 };
     standin_reset();
-    standin_handlers.on_updated = app_on_updated;
+    standin_handlers = (standin_handlers_t){ .on_load = app_on_load, .on_updated = app_on_updated };
     standin()->boot_id = 2;
     standin_clock(0);
     standin_pass(1000);
@@ -125,13 +125,14 @@ static void test_reopen_and_update_restore_background_work(void)
     assert(alarm_waits() && strcmp(header_text(), "00:01") == 0 && next_timer_ms() > 0);
     /* A minute on, and the old version's alarm gone: the update sets both again. */
     standin_pass(60000);
-    standin_updated();
+    standin_prepare_update();
+    standin_load();
     assert(alarm_waits() && strcmp(header_text(), "00:02") == 0);
 
     reset_host();
     keep_stored();
-    app_on_load();
-    standin_updated();
+    standin_prepare_update();
+    standin_load();
     assert(state.is_running && !alarm_waits() && !header_is_set());
 }
 
@@ -172,7 +173,8 @@ static void test_missing_anchor_and_stopped_state(void)
     standin_clock(1800000100);
     app_on_intent(HOST_INTENT_TIME_CHANGED);
     app_on_focus();
-    standin_updated();
+    standin_prepare_update();
+    standin_load();
     assert(!state.is_running && elapsed_ms() == stored.banked_ms && !alarm_waits());
 
     reset_host();
