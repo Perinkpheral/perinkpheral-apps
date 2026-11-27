@@ -9,17 +9,12 @@
 #include "standin.h"
 int32_t time_from_local(const host_local_time_t *, int64_t *);
 static int conversions;
-/* Independent Berlin 2026 transition fixture; the SDK normalizes date parts. */
+/* Count the SDK's real Berlin conversions, including historical DST. */
 int32_t device_local(const host_local_time_t *parts, int64_t *at)
 {
-    int64_t local;
-    int32_t result = time_from_local(parts, &local);
-    if (result != HOST_OK) { return result; }
-    int64_t spring = (int64_t)app_days_from_date(2026, 3, 29) * 86400 + 3 * 3600;
-    int64_t autumn = (int64_t)app_days_from_date(2026, 10, 25) * 86400 + 3 * 3600;
-    *at = local - (local >= spring && local < autumn ? 7200 : 3600);
-    conversions++;
-    return HOST_OK;
+    int32_t result = time_from_local(parts, at);
+    if (result == HOST_OK) { conversions++; }
+    return result;
 }
 static int64_t utc(int month, int day, int hour, int minute)
 {
@@ -27,7 +22,7 @@ static int64_t utc(int month, int day, int hour, int minute)
 }
 static void feed(int month, int day, const char *body)
 {
-    standin_reset(); standin()->zone_offset = 0;
+    standin_reset(); standin()->active_zone = 1; /* Berlin in the generated profiles. */
     standin_clock(utc(month, day, 0, 0));
     standin_set("feed", "https://calendar.invalid/feed");
     app_on_load(); conversions = 0;
@@ -70,8 +65,13 @@ int main(void)
         "DTSTART:20261024T233000\r\nRRULE:FREQ=DAILY;UNTIL=20261025\r\n"
         "END:VEVENT\r\nEND:VCALENDAR\r\n");
     assert(stored.count == 2 && stored.events[1].start == utc(10, 25, 22, 30));
-    /* The OS cannot convert an old DTSTART, but its future occurrences and
-     * their duration must survive; a distant DATE cutoff must not erase them. */
+    /* Historical DTSTARTs now use the OS conversion path, including their
+     * seasonal offset. Distant UNTILs still use the arithmetic fallback. */
+    int32_t old = app_days_from_date(2025, 7, 1);
+    conversions = 0;
+    /* A historical summer date uses its own offset, independently of now. */
+    int64_t historical = from_local(old, 9 * 3600);
+    assert(conversions == 1 && historical == (int64_t)old * 86400 + 7 * 3600);
     feed(3, 28, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:old\r\n"
         "DTSTART:20250101T090000\r\nDTEND:20250101T100000\r\n"
         "RRULE:FREQ=DAILY;UNTIL=99991231\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");

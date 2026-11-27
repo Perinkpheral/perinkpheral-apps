@@ -41,8 +41,7 @@ int32_t refused_get(const char *key, int32_t n, void *value, int32_t size)
 }
 int32_t refused_every(int32_t id, int32_t seconds, int32_t first_in)
 {
-    /* The SDK stand-in has no shared pool. Model other apps holding all
-     * 24 slots, while leaving ordinary alarm capacity available. */
+    /* Exercise refusal at the import boundary while ordinary alarms remain available. */
     if (no_alarm || (other_repeating == HOST_ALARM_REPEATING_MAX &&
                      standin()->alarms[id].kind != STANDIN_ALARM_EVERY)) {
         return HOST_ERR_NO_SPACE;
@@ -88,7 +87,7 @@ static void full_repeating_pool(bool update, bool release)
         assert(standin()->alarms[0].kind == STANDIN_ALARM_EVERY);
     }
     other_repeating = HOST_ALARM_REPEATING_MAX;
-    if (update) { standin_updated(); }
+    if (update) { standin_prepare_update(); standin_load(); }
     else { app_on_settings(); }
     assert(standin()->error_logs > 0);
     reload();
@@ -132,7 +131,7 @@ static void acceptance_outage(bool journal_only)
     assert(standin()->notices == 1);
     reload();
     standin()->refuse_writes = HOST_OK; no_kv = outage_on_accept = false;
-    standin_updated(); standin_pass(60000);
+    standin_prepare_update(); standin_load(); standin_pass(60000);
     for (int id = 0; id < HOST_ALARM_COUNT; id++) {
         if (standin_alarm_due(id)) { standin_alarm(id); }
     }
@@ -152,7 +151,7 @@ static void refusal_outage(bool journal_only, bool update, bool rollback_outage)
     assert(standin()->refuse_writes == (rollback_outage ? HOST_ERR_FAILED : HOST_OK));
     reload();
     assert(standin()->timer_due_ms[RETRY_TIMER] == 0);
-    if (update) { standin_updated(); reload(); }
+    if (update) { standin_prepare_update(); standin_load(); reload(); }
     standin_pass(60000);
     for (int id = 0; id < HOST_ALARM_COUNT; id++) {
         if (standin_alarm_due(id)) { standin_alarm(id); }
@@ -206,7 +205,7 @@ int main(void)
     sources[0].data = stored; sources[0].data.version = EVENTS_VERSION;
     save_events(); no_kv = true; capacity = 4;
     app_on_alarm(0); assert(standin()->notices == 4);
-    reload(); capacity = 1; app_on_alarm(0); assert(standin()->notices == 5);
+    reload(); standin_notices_clear(); capacity = 1; app_on_alarm(0); assert(standin()->notices == 5);
     no_kv = false; reload(); app_on_alarm(0); assert(standin()->notices == 5);
 
     /* Keep both stores refused through termination and fresh background loads.

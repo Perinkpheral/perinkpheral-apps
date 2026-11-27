@@ -436,7 +436,7 @@ static void update_notifications(bool deliver)
         for (int32_t i = 0; i < 2; i++) {
             int64_t at = moments[i];
             if (lead[i] < 0 || at == receipts.at[i] || at + 5 * SECONDS_PER_MINUTE < now ||
-                at - lead[i] < HOST_TIME_MIN || at > HOST_TIME_MAX) {
+                at - lead[i] < HOST_CLOCK_MIN || at > HOST_CLOCK_MAX) {
                 continue;
             }
             int64_t due = at - lead[i];
@@ -467,7 +467,7 @@ static void update_notifications(bool deliver)
     if (receipts_dirty && (next == 0 || next > now + SECONDS_PER_MINUTE)) {
         next = now + SECONDS_PER_MINUTE;
     }
-    if (next > now && next <= HOST_TIME_MAX) {
+    if (next > now && next <= HOST_CLOCK_MAX) {
         set_notification_alarm(next - now);
     }
 }
@@ -570,7 +570,7 @@ static void length_text(char *text, const sun_day_t *sun)
         { .number = (int32_t)(minutes / 60) },
         { .number = (int32_t)(minutes % 60) },
     };
-    text[text_fill(pattern, app_text_length(pattern), parts, 2, text, TEXT_MAX - 1)] = '\0';
+    app_text_fill(pattern, parts, 2, text, TEXT_MAX);
 }
 
 void app_on_draw(void)

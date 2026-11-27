@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-/* The stand-in accepts every notice; impose the device's queue capacity here. */
+/* Also exercise queue refusal before any notice has been retained. */
 #define notification_post queued_notice
 #include "../calendar.c"
 #include "../ics.c"
@@ -99,6 +99,7 @@ int main(void)
     assert(standin()->store_writes > writes && standin_alarm_left(0) == 60);
     assert(standin()->notices == 4 && state.delivered_count == 4);
     queued = 0;
+    standin_notices_clear();
     standin_pass(60000);
     app_on_alarm(0);
     assert(standin()->notices == 5 && !strcmp(standin()->last_notice.detail, "Event 5"));

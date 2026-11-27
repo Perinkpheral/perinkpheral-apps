@@ -65,6 +65,7 @@ APP_SESSION_FITS(session_t);
 _Static_assert(sizeof(month_t) <= HOST_KV_VALUE_MAX, "the month fits one store value");
 
 static month_t month;
+static bool    month_ready, request_ready;
 static bool    month_unsaved; /* the store refused the last write of it */
 static bool    recovery_restored;
 static month_t incoming;
@@ -78,7 +79,7 @@ static void save_request(void)
     const uint8_t *a = (const uint8_t *)&request, *b = (const uint8_t *)&saved_request;
     bool changed = false;
     for (int32_t i = 0; i < (int32_t)sizeof request; i++) { changed |= a[i] != b[i]; }
-    if (changed && app_state_save("request", &request, sizeof request)) { saved_request = request; }
+    if (request_ready && changed && app_state_save("request", &request, sizeof request)) { saved_request = request; }
 }
 static uint32_t month_hash(void)
 {
@@ -89,7 +90,7 @@ static uint32_t month_hash(void)
 }
 static void save_month(void)
 {
-    if (month_unsaved && app_state_save(STATE_KEY, &month, sizeof month)) {
+    if (month_ready && month_unsaved && app_state_save(STATE_KEY, &month, sizeof month)) {
         month_unsaved = false;
         saved_month_hash = month_hash();
     }
@@ -104,7 +105,7 @@ static void restore_month(void)
         request.retry_at = live.request.retry_at;
         save_request();
     }
-    if (live.unsaved && live.saved_hash == saved_month_hash) {
+    if (month_ready && live.unsaved && live.saved_hash == saved_month_hash) {
         month = live.unsaved_month;
         month_unsaved = true;
     }
@@ -365,7 +366,7 @@ static void ask(void)
         add_date(&text, today);
         request.boot = time_boot_id();
         request.pending_until = uptime + 330000;
-        if (!app_state_save("request", &request, sizeof request)) { return; }
+        if (!request_ready || !app_state_save("request", &request, sizeof request)) { return; }
         saved_request = request;
         int32_t result = http_send(REQUEST, HOST_HTTP_GET, url, app_text_length(url), 0, 0, 0, 0);
         pending = result == HOST_OK;
@@ -379,14 +380,18 @@ void app_on_load(void)
 {
     scan = (scanner_t){0};
     status = 0;
-    if (!app_state_load(STATE_KEY, &month, sizeof month, STATE_VERSION) ||
+    int32_t restored = app_state_load(STATE_KEY, &month, sizeof month, STATE_VERSION);
+    month_ready = restored == HOST_OK || restored == HOST_ERR_NOT_FOUND;
+    if (restored != HOST_OK ||
         month.count < 0 || month.count > DAYS_MAX) {
         month = (month_t){ .version = STATE_VERSION };
     }
     saved_month_hash = month_hash();
     month_unsaved = false;
     recovery_restored = false;
-    if (kv_get("request", 7, &request, sizeof request) != sizeof request || request.boot != time_boot_id()) {
+    restored = kv_get("request", 7, &request, sizeof request);
+    request_ready = restored >= 0 || restored == HOST_ERR_NOT_FOUND || restored == HOST_ERR_NO_SPACE;
+    if (restored != sizeof request || request.boot != time_boot_id()) {
         request = (request_t){ .boot = time_boot_id() };
     }
     saved_request = request;
@@ -517,7 +522,7 @@ void app_on_data(int32_t tag, const uint8_t *data, int32_t length, int32_t flags
             bool is_new = !same_month();
             /* A write the store refused is made again with the next answer, the same or not. */
             if (is_new || month_unsaved) {
-                month_unsaved = !app_state_save(STATE_KEY, &incoming, sizeof incoming);
+                month_unsaved = !month_ready || !app_state_save(STATE_KEY, &incoming, sizeof incoming);
             }
             if (is_new) {
                 month = incoming;
