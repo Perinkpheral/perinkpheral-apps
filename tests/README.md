@@ -1,69 +1,69 @@
 # Application tests
 
-Run from the repository root with Java 21 or later, wasi-sdk (`WASI_SDK_PATH`) and a C
-compiler. The tools are the firmware repository's; `../perinkpheral-os` below is a checkout
-of it.
+Run from the repository root with Java 21 or later, wasi-sdk (`WASI_SDK_PATH`), a C
+compiler and Make. The commands below use the firmware tools from a checkout at
+`../perinkpheral-os`.
 
 ```sh
 ../perinkpheral-os/tools/perinkpheral app-check apps
 ../perinkpheral-os/tools/perinkpheral sim-test tests
 ```
 
-There are no test scripts here and no list of applications anywhere: both commands take a
-folder and find what is in it.
+Both commands discover inputs from their folders; no test-runner application
+registry is maintained.
 
 ## app-check: every application against the contract
 
-`app-check apps` compiles each application's C for this computer, with the address and
-undefined-behaviour sanitizers, against the SDK's stand-in host, and runs the SDK's
-capability checks on it. The checks know no application. A new application is checked by
-doing nothing.
+`app-check apps` builds each WebAssembly package, then compiles applicable native
+checks against the SDK's stand-in host and runs them under AddressSanitizer and
+UndefinedBehaviorSanitizer. Applications with `"system": true` skip native checks.
 
-| Capability | Runs on an application that | What it holds the application to |
+| Capability | Runs on an application that | Checks |
 |---|---|---|
-| `sessions` | any | Unloaded and loaded again as a scene that waited in the stack, it shows the same picture and BACK leaves it in as many presses. Opened anew from the menu, it is on its first page. It survives a restart, and a start with an empty store. |
-| `store` | calls `kv_set` or `file_write` | Every write is within the limits (1 KB a value, 2 KB an application), with the settings at their longest too. An unchanged answer, a request that fails again and a visit that changed nothing write nothing new: every change is a write of the flash, and a value the store already holds is none, as on the device. A refused write does not stop it or loop, and what it did not save is saved when the same answer comes again. |
-| `timers` | calls `timer_set` or `alarm_set*` | A timer 5 s late or delivered twice leaves the same timers waiting as one on time. Timers that waited before an unload wait again after `app_on_focus()`. The clock set a day on or back loses no timer. Alarms come on the screen and off it, and `app_on_updated()` sets them again. |
-| `network` | has `polls` or calls `http_send` | An answer in pieces of 1, 7 and 1000 bytes shows what the whole answer shows. One that stops without `HOST_DATA_LAST`, with the background instance that took it, changes nothing. `HOST_DATA_FAILED` after pieces is a request that failed and no more. After every failure status and HTTP 503, 404 and 304 the next whole answer is shown as if nothing had happened. An answer that arrives off the screen is there when the application is back. |
-| `drawing` | exports `app_on_draw` | Every state the checks reach draws a frame, with no call the host refuses, and no handler draws outside `app_on_draw()`. |
+| `sessions` | any non-system application | Restoring a stacked scene preserves its frame and BACK navigation depth. Opening from the menu discards session state and restores the application's stored startup state. Navigation depth must match startup, and repeated opens must agree. Restart and empty-store startup are also checked. |
+| `store` | calls `kv_set` or `file_write` | KV values are limited to 1 KiB, with 2 KiB per application including settings and storage overhead. Applications that write files have a separate 32 KiB allowance, including packaged data files, counted in 4 KiB blocks. Checks use maximum-length settings. Unchanged replies, repeated failures and unchanged visits cause no new writes. Refused writes must remain retryable without crashes or loops. |
+| `timers` | calls `timer_set` or `alarm_set*` | A timer delivered 5 s late or twice leaves the same pending timers as an on-time delivery. Focus restores timers after unload. Clock changes of one day in either direction preserve timers. Alarms work on and off screen and are restored by `app_on_updated()`. |
+| `network` | has `polls` or calls `http_send` | Responses in pieces of 1, 7 and 1000 bytes produce the same frame as a complete response. Partial replies interrupted by unload or `HOST_DATA_FAILED` preserve cached data. A complete response after a failure status or HTTP 503, 404 or 304 produces the same frame as that response alone. Background replies remain available on return. |
+| `drawing` | exports `app_on_draw` | Every reached state draws a frame without refused drawing calls. Drawing occurs only in `app_on_draw()`. |
+| `notices` | calls `notification_post` | Checks queue refusal, delivery receipts and replay behavior. |
+| `clock` | calls `time_*` | Checks clock changes, date transitions and declared event-time probes. |
 
-"The same" is told without knowing the application: by the picture - every drawing call and
-its arguments of the frame last drawn, as the device draws one when the application takes the
-screen or asks for it, and the header around it - and by the presses of BACK that leave. The clock stands still unless a check
-moves it, so an application that shows the time shows the same time before and after.
+Native checks compare recorded drawing calls, their arguments, header state and
+BACK navigation depth. The clock advances only when a check requests it.
 
-A line of the report is an application and a capability: `ok`, `FAIL` with what was expected
-and seen, or `-` where the capability does not apply. `--app <name>` and
-`--only <capability>` narrow a run.
+Each report line identifies an application and capability: `ok`, `FAIL` with
+expected and observed results, or `-` for an inapplicable capability.
+`--app <name>` and `--only <capability>` narrow a run.
 
 ### Why a check fails
 
-- **sessions, another picture after the unload**: where the user is - a page, a row, a value
-  half set - is not in the session. Save it in `app_on_blur()` (`app_session_save`), read it
-  in `app_on_focus()`.
-- **store, written N times**: a handler saves something that changes every time - a count, a
-  time - although the answer did not. Compare with what was stored; `app_on_terminate()` is
-  no exception.
-- **store, not saved when the same answer comes again**: the write was refused, the value in
-  memory now equals the answer, and "unchanged" is taken for "saved". Remember that the save
-  failed.
-- **timers, set again in app_on_focus()**: a timer is set where the user starts something and
-  nowhere else. Timers stop when the application leaves the screen.
-- **network, an answer that stops**: something of the answer is saved before `HOST_DATA_LAST`.
-- **network, drawn anew another picture**: a handler changed what is shown and did not call
-  `screen_redraw()`; the panel keeps the old frame until something else asks for one.
+- **sessions, another picture after the unload**: session state omits a selected
+  page, row or partially edited value. Save scene state with `app_session_save`
+  in `app_on_blur()` and restore it in `app_on_focus()`.
+- **store, written N times**: a handler writes a changing count or timestamp for
+  unchanged data. Compare against stored state, including in `app_on_terminate()`.
+- **store, not saved when the same answer comes again**: a refused write remains
+  only in memory. Track failed saves separately from data changes and retry them.
+- **timers, set again in app_on_focus()**: focus does not restore a pending timer.
+  Timers stop when the application leaves the screen.
+- **network, an answer that stops**: partial data is committed before `HOST_DATA_LAST`.
+- **network, drawn anew another picture**: a handler changes visible state without
+  calling `screen_redraw()`.
 - **network, http_send() answered HOST_ERR_ARGUMENT**: the request goes to a host `hosts` does not
-  list, or its headers are not four of "Name: value"; the device refuses it when it is queued.
-- **network, off the screen another picture**: an answer is read with something kept in memory
-  from the instance that asked for it. Off the screen every delivery is an instance of its own.
+  list, or its headers are malformed LF-separated "Name: value" lines or exceed
+  four headers; Perinkpheral OS refuses it when it is queued.
+- **network, off the screen another picture**: response handling depends on memory
+  from the requesting instance. Each background delivery uses a separate instance.
 - **stopped in a handler** with a sanitizer's line: a read or write outside an array, an
   overflow, a shift too far. The line names the source.
-- **did not return in 3 s**: a loop without an end; a handler has three seconds on the device.
+- **did not return in 3 s**: the native handler exceeded the three-second watchdog;
+  it may be slow or unbounded. Device handlers have a cooperative 3000 ms budget,
+  checked at interpreter yields, after imports and on return.
 
-### What an application keeps beside itself
+### Check inputs
 
-`apps/<name>/test/check.json` says when and with what the application is checked. Its keys
-are a simulator scenario's:
+`apps/<name>/test/check.json` configures test time, settings and mock responses.
+It uses the corresponding simulator scenario keys:
 
 ```json
 {
@@ -74,22 +74,21 @@ are a simulator scenario's:
 }
 ```
 
-`mocks` is the answers to its requests: an object of address to answer, or the name of a
-file that holds one, the same file a scenario uses. Without an answer a request is told
-`HOST_FAILED_NO_ANSWER`, the report says so, and the network checks see only failures. An
-application whose first picture depends on chance or on how fast it draws says in `store`
-how it is made repeatable, as Life does with its seed.
+`mocks` is an address-to-response object or a path to a file containing that
+object. Native checks and simulator scenarios can share the file. Requests
+without a matching mock receive `HOST_FAILED_NO_ANSWER`, which is reported by the
+runner. Use `store` to make random or timing-dependent startup state repeatable,
+as Life does with its seed.
 
-### An application's own logic
+### Application logic
 
-What only one application knows - Conway's rule, an orbit, a calendar's grammar, the order
-of its rows - is tested by `apps/<name>/test/*.c`. Each file is a program: `app-check`
-compiles it with the same flags against the same stand-in host and runs it in that folder;
-it passes when it exits 0 and is reported as `logic <file>`. A test includes the
-application's source (`#include "../life.c"`) to reach its state, calls its handlers, and
-reads what the host saw from `standin()` (`sdk/check/standin.h` of the firmware repository)
-instead of writing a host of its own. Write one when the application has logic of its own;
-what the table above covers needs none.
+`apps/<name>/test/*.c` tests application-specific calculations, parsers and row
+ordering. `app-check` compiles each file with the same sanitizer flags and
+stand-in host as the capability checks, then runs it in its test folder. Exit 0
+passes and is reported as `logic <file>`. Tests can include application source
+(`#include "../life.c"`), call its handlers and inspect its state and
+`standin()` from the firmware repository's `sdk/check/standin.h`. Shared
+capability checks do not require duplicate application-specific tests.
 
 ## sim-test: the pictures
 
@@ -103,9 +102,8 @@ changed PNG. Then repeat without `--update`; never regenerate baselines merely t
 silence a mismatch. English/Russian and Departure/Jersey variants cover the recent
 applications. The normal simulator runner needs permission to listen on localhost.
 
-The two commands divide the work. `app-check` runs the application's C natively: it finds
-memory faults and holds the contract's promises, and its host draws nothing. `sim-test`
-runs the module in the firmware's own code: what the panel shows is its to say.
+`app-check` executes native C under sanitizers; `sim-test` executes WebAssembly in
+the firmware simulator and compares rendered frames pixel by pixel.
 
 CI runs both with offline fixtures. Passing checks do not establish panel timing, real
 button behavior, network endurance or battery life. Those belong to the

@@ -1,4 +1,4 @@
-# Earthquakes / Землетрясения
+# Earthquakes
 
 Recent U.S. Geological Survey reports, a regional coastline map, Worldwide history
 and optional post-event nearby notices. Requires Perinkpheral OS 0.1.95 or later.
@@ -16,10 +16,11 @@ magnitude is 3/4/5/6. Nearby refresh is 1/5/15 minutes, default 1 minute.
 Notifications default to Off and require an explicit choice of On.
 
 - Map: UP/DOWN opens the list; OK opens the latest qualifying nearby report.
-- Long UP/DOWN switches map/list, with the SDK navigation state's 1/2 and 2/2 counts.
+- On the map or list, hold UP/DOWN to switch views, with header counts 1/2 and 2/2.
 - List: UP/DOWN selects; OK opens the report; BACK closes it or exits the list.
-- Long OK switches Nearby/Worldwide. An in-flight Worldwide request resumes
+- In the list, hold OK to switch Nearby/Worldwide. An in-flight Worldwide request resumes
   when switching back to that scope.
+- Close report details with BACK before switching views or scope.
 - Worldwide: DOWN at the last row fetches eight older reports. UP at the first
   row of an older page returns to Latest 8. Nearby retains its latest eight.
 - A system notice uses the standard OK/BACK dismissal.
@@ -51,7 +52,7 @@ damage or danger: M4/100 km, M5/300 km, M6/1000 km, M7+/2000 km.
 
 ## Requests and persistence
 
-Two poll descriptors replace the original four. Nearby runs at the selected
+The manifest defines two polls. Nearby runs at the selected
 interval, subject to the SDK's power-saving floor. Worldwide is gated by its
 offset parameter and fetched on demand; while its list is visible, it refreshes
 no more often than every 15 minutes or the provider's longer max-age. Query
@@ -71,7 +72,7 @@ a crash or storage failure can lose a notice. Failed saves remain retryable.
 Unchanged snapshots are not written; both scopes checkpoint freshness hourly.
 Worldwide also saves its latest success at blur/termination, so reopening
 retains the full refresh deadline, including a reply delivered offscreen.
-A rearmed host alarm tracks Nearby liveness across background unloads without
+A rearmed Perinkpheral OS alarm tracks Nearby liveness across background unloads without
 minute-by-minute file writes. After an unload, displayed freshness can still
 be conservative. Nearby keeps its Cache-Control duration in the snapshot and the platform
 retains its poll interval/deadline. Worldwide replies preserve that full interval,
@@ -105,8 +106,10 @@ Reports within 100 km of a notified report share a six-hour suppression window.
 One new event at least one magnitude stronger may escalate it. Both notified
 positions are retained; overlapping windows are closed together. A full ledger
 seeds silently. There is one pending report; a stronger new report can replace
-it. Queue rejection is retried on a later successful Nearby response while fresh;
-rejected deliveries consume neither a cluster window nor an escalation.
+it. Queue rejection is retried on a later successful Nearby response while fresh.
+Queue rejection preserves cluster and escalation eligibility when its rollback
+is saved. If rollback writes continue to fail through unload, reloading in the
+same boot can consume that eligibility and lose the notice.
 Suppressed reports remain visible. Worldwide never interrupts. No tsunami
 interpretation or prediction is implemented.
 
@@ -128,7 +131,7 @@ Real USGS captures and clearly marked fault derivatives live in
 report with a test clock; it does not simulate publication latency and is not
 part of the catalog module. Production has no test switches or injection paths.
 
-Final review regressions cover all eight findings:
+Regression tests cover the following cases:
 
 1. Expired pending intent is discarded before observing the next candidate
    (`expired_candidate` in `test/notices.c`).
@@ -137,8 +140,7 @@ Final review regressions cover all eight findings:
 3. Equal-time history advances past prior boundary identities, including after
    refresh/unload (`equal_time_history` in `test/network.c`). Deleting an already
    shown report or inserting a report during a 24-report tie preserves every
-   unseen report (`changing_equal_time_history`); the deletion assertion fails
-   against the previous offset cursor.
+   unseen report (`changing_equal_time_history`).
 4. Worldwide's latest deadline survives foreground and background unloads
    (`world_deadline` in `test/pacing.c`).
 5. Identical 60/600-second Cache-Control replies across reloads write no cache
@@ -154,11 +156,8 @@ Final review regressions cover all eight findings:
    (`source_clearance` in `test/presentation.c`, plus all four event pictures
    per language/font).
 
-Each finding was reproduced as an assertion failure against the original
-production source. The original module has no termination export, so its
-baseline harness leaves that optional callback unset. All final native checks
-pass. The cache format is now version 4; an old snapshot is discarded and the
-next Nearby reply seeds silently.
+Cache format version 4 is required. Incompatible snapshots are discarded, and
+the next Nearby reply seeds notifications silently.
 
 The following measurements describe the earlier module pinned by source and module hashes in
 [test/arena.json](test/arena.json); they are not measurements of later builds.
@@ -181,8 +180,8 @@ the final Earthquakes rerun passes 20 scenarios and 80 pictures without updates.
 Only Earthquakes references changed. `./build.sh` rebuilt all 19 catalog
 applications; the measured module hash matches the delivered module.
 
-The failure-path fixes in 0.1.4 diagnose refused session and alarm allocation and
-show storage failures until the cache or affected query key is saved. Picked columns
+Refused session saves and alarm allocations are logged. Storage failures remain
+visible until the cache or affected query key is saved. Picked columns
 must agree with each other, and with `metadata.count` of the [USGS GeoJSON format](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php)
 when the answer has it: the service omits it from a query with a limit. Fixtures
 cover both. Exact null magnitude, depth and place variants in

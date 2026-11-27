@@ -56,6 +56,8 @@ Event rules do not implement `BYMONTH`, `BYWEEKNO`, `BYYEARDAY`, `BYHOUR`, `BYMI
 Supported parts may still affect the result. Each source retains its 24 nearest
 events; the merged list shows the nearest 24 across all sources. Events with the
 same UID and start appear once, using the first configured source in setting order.
+The title and calendar caption use that source. Reminder suppression uses the
+furthest reminder watermark among the duplicate sources.
 Calendar names are limited to 127 UTF-8 bytes and truncated between characters.
 
 Text uses the font selected in Perinkpheral OS and installed glyph packs. Missing

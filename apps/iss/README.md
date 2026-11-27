@@ -1,9 +1,13 @@
 # ISS
 
 The station's current position and up to 90 minutes of observed positions.
-A picked poll runs once a minute. OK also asks for an update. The visible position follows each good
-fix. The track samples at five-minute intervals, and the app checkpoints the readings and track at
-that pace and when the last request status changes. The newest visible fix
+The configured poll interval is one minute, subject to a five-minute floor while
+Perinkpheral OS power saving is active and to server cooldowns. OK requests an
+update outside cooldown. The visible position follows each good fix. The track
+samples at five-minute intervals. While loaded, readings and track are
+checkpointed every five minutes or when request status changes. Termination saves
+any remaining changes, including background replies; blur also saves persistently
+if session storage fails. The newest visible fix
 survives temporary unloads in scene memory. Old points expire by age, and the line breaks at the
 date line and over gaps longer than ten minutes.
 

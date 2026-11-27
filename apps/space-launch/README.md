@@ -5,13 +5,15 @@ The Space Devs, and orbital launch counts since 1957. No account or key is neede
 
 ## Screens
 
-Hold UP or DOWN to switch among the four screens. The system header shows a
-screen count such as `1/4` next to the connection icon, before the `Updated`
-caption when it appears.
+On a main screen, hold UP/DOWN to switch among four screens. Close launch details
+with BACK first. The header shows a screen count such as `1/4` next to the
+connection icon, before the `Updated` caption when it appears. The screen count
+is hidden in details.
 
-1. **Launches.** The next ten launches with the local date, or the time for a launch today,
-   the rocket and the status. UP moves into the past: the last ten launches with their
-   results. The list opens at the first launch without a result. OK opens the launch's page:
+1. **Launches.** Up to ten upcoming or recent launches, plus up to ten earlier launches,
+   with duplicates removed. Each row shows the local date, or the time for a launch today,
+   the rocket and the status. UP moves into the earlier launches and their results.
+   The list opens at the first launch without a result. OK opens the launch's page:
    mission, rocket, date, local time, status, how soon, provider and launch site. UP and DOWN
    go to the previous and next launch there; BACK returns to the list.
 2. **Countries.** This year's completed orbital launches by the provider's country, the bars
@@ -22,20 +24,24 @@ caption when it appears.
    the chart gives the chosen year's count.
 
 Statuses are those of the library: Go, TBD, TBC, Hold, In flight, Success, Failure, Partial
-failure, Payload deployed. A launch whose time passed without a result reads Awaiting result,
-never Success. The time is shown to the precision the library gives: to the minute, to the
-hour (`11:--`, Time unconfirmed), a day (Time unknown), a month (`Dec 2026`) or a year (`2027`). A launch
-whose time moved by a minute or more says Schedule changed for a day. Unknown precision
+failure, Payload deployed. Go or TBC launches with hour-or-finer precision show
+Awaiting result after their scheduled time. The time uses the library's precision:
+to the minute, to the hour (`11:--`, Time unconfirmed), a day (Time unknown), a month
+(`Dec 2026`) or a year (`2027`). A launch
+with second/minute precision and no result shows Schedule changed for one day
+after a time change of at least one minute. Unknown precision
 never supplies a clock, countdown or reminder. Coarse dates retain the supplied calendar period.
 
 ## Settings
 
 **Reminder**: Off (default), 15 min or 1 h before a launch. A reminder is a notification with
 the local time and the mission. It comes for a launch that is Go and timed to the minute, from
-a list taken within three hours, and once per launch: a launch whose time moves is not
-reminded of again. A full notification queue is tried again after a minute while the launch is
-less than five minutes late. Reminders are set again after a restart, a clock change and an
-update.
+a list taken within three hours. The last 16 delivered launch IDs suppress repeat
+reminders, including after schedule changes. Delivery can repeat after an ID
+leaves that history or if no delivery receipt becomes durable. A full notification
+queue is retried once a minute, for up to five minutes after the reminder's
+scheduled time, while the launch remains in the future and the list remains
+fresh. Reminders are set again after a restart, a clock change and an update.
 
 ## Requests
 
@@ -48,7 +54,7 @@ clears it. The fetch alarm reschedules an outstanding poll under the same bindin
 background poll that cannot start may have no callback. Perinkpheral OS coalesces pending
 polls; any queued repeat reads the closed gate after success. Due endpoints take turns, and
 the scheduler waits an hour before requesting a failed endpoint again. Until another endpoint
-is chosen, the failed binding remains ready for a host retry: a complete answer is accepted
+is chosen, the failed binding remains ready for a Perinkpheral OS retry: a complete answer is accepted
 immediately, including across an unload. A complete answer for the last binding is also
 accepted during cooldown, without shortening the wait or enabling a new request.
 
@@ -111,9 +117,11 @@ A provider outside these lists counts under Others until the list is extended in
   cache files. A mismatched revision prevents freshness following a fallback to an older list.
 - `told`: a complemented delivery receipt, used when posting succeeded but saving the reminded
   ID failed. A rejected post or failed preflight never consumes an ID. Normal unloads run
-  handlers to completion; a power loss between posting and either durable receipt can repeat
-  a reminder because notification delivery and application storage are separate operations.
-- Version 0.1.1 uses new cache/state formats; earlier development snapshots are fetched again.
+  handlers to completion. A power loss before either receipt becomes durable, or
+  failed receipt writes through termination, can repeat a reminder because
+  notification delivery and application storage are separate operations.
+- Cache and state formats are version 3. Incompatible stored data is discarded;
+  launch data is fetched again.
 - `files/history.bin`: orbital launches per month and failures per year, 1957 to 2025: two
   `uint16` (first year, count of years), then per year twelve `uint16` monthly counts and a
   `uint16` count of failures, little-endian. The same numbers are in
@@ -149,12 +157,17 @@ that accepting the answer does not bypass the scheduler or clear a global cooldo
 Other regressions cover delayed responses, clock corrections, endpoint fairness,
 complete annual paging, global cooldown and unchanged payloads.
 `test/list_validation.c`, `test/rollover.c`, `test/offline.c` and `test/unknown_time.c`
-reproduce the four final-review findings; each fails against the preceding source.
+cover incomplete lists, year rollover, offline startup and unknown launch-time precision.
 The offline and rollover scenarios cover both languages and fonts, including unknown-time
 details with a single uncertainty caption.
+
+Historical measurements for Space Launch 0.1.2 on 2026-11-24 used the former
+64 KiB linear-memory/80 KiB interpreter layout. They do not measure current
+builds, whose linear memory is sized to stack and data, at most 64 KiB, within a
+shared 112 KiB application area.
 
 The 32-bit QEMU arena harness measured a 73,540-byte (71.82 KiB) interpreter peak across all
 15 simulator scenarios and six supplementary paths, with no failed allocations in the
 80 KiB arena. The compile-all probe also measured 73,540 bytes, 188 bytes below the 72 KiB
-limit. Firmware 0.1.95 is required.
+limit used for that measurement. That module required firmware 0.1.95.
 [Measurement details and hashes](test/arena.json) record the harness, scenarios and limitations.

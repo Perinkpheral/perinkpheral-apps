@@ -66,8 +66,28 @@ static void setup(void)
     reload();
 }
 
+static void duplicate_caption(void)
+{
+    setup();
+    answer(0, first, 7);
+    answer(1, second, 1);
+    state.reminded[1] = stored.events[1].start;
+    assert(save_state());
+    reload();
+    const event_t *shared = &stored.events[1];
+    assert(shared->source == 1);
+    assert(!strcmp(event_title(shared), "Meeting"));
+    assert(!needs_reminder(shared, shared->start, 0));
+    detail(1);
+    assert(caption_count == 2 && !strcmp(caption, "Work, team"));
+    standin_clock(shared->start);
+    app_on_alarm(0);
+    assert(standin()->notices == 0);
+}
+
 int main(void)
 {
+    duplicate_caption();
     setup();
     /* Reverse delivery order; folded/escaped UTF-8 names may follow events. */
     answer(1, second, 1);

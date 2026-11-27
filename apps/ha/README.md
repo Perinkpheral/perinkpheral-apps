@@ -19,7 +19,8 @@ The integration writes the server address and its own pairing secret to the
 application. These fields are hidden on the device's page; no long-lived Home
 Assistant access token or template sensor is required. The application's visible
 setting is the refresh interval. Perinkpheral OS schedules refreshes, with a five-minute
-minimum while power saving is active; pressing OK refreshes immediately.
+minimum while power saving is active. OK requests a refresh when no server
+cooldown is active; Retry-After also delays manual refreshes.
 Hold UP or DOWN to switch screens, wrapping at the ends. Short UP and DOWN also
 switch screens outside lists. In a list, short presses scroll and stop at the
 ends; held presses scroll when there is only one screen.
@@ -80,8 +81,12 @@ and `drop`, `co2`, `gauge`, `thermometer`, `battery`, `bulb`, `door`, `home`,
 `clock`, `check`, `warning`, `info`, `play`.
 
 Text is UTF-8. Character coverage depends on the selected font and installed glyph
-packs. Responses must fit in 512 UTF-8 bytes. HA Companion refuses oversized or malformed
-responses, including content the selected layout cannot draw, and keeps the last valid screen.
-Lists require a name or value; single layout uses only the first item.
-Without a valid screen, it shows the standard reason. The integration removes whole
+packs. Responses must fit in 512 UTF-8 bytes. HA Companion refuses oversized,
+malformed or undrawable responses and keeps the last valid screen. Responses must
+contain at least one drawable element in the selected layout. Well-formed content
+outside that layout or beyond its limits is ignored. Lists require at least one
+row within the twelve-row limit with a nonempty name or value; single layout uses
+only the first item. Without a cached screen, request failures show the standard
+reason; an unusable successful response shows "No screen". A pending failed save
+shows "Storage error." The integration removes whole
 trailing lines to fit, avoiding partial values.

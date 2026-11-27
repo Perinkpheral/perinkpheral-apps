@@ -31,7 +31,8 @@ CI builds and tests every push. Each successful push to `main` releases a catalo
   `ha`, `iss`, `keenetic`, `kit`, `life`, `metals`, `pomodoro`, `rates`, `space-launch`,
   `stocks`, `stopwatch`, `sun`, `timer`, `weather`.
 - `catalog/` - committed application packages and `catalog.json`.
-- [tests/](tests/README.md) - host checks, simulator scenarios, network fixtures and reference images.
+- [tests/](tests/README.md) - simulator scenarios, network fixtures and reference images.
+  Native application tests are in `apps/<name>/test/`.
 - `glyphs/` - glyph packs copied into the catalog by `build.sh`.
 
 ## Application authors

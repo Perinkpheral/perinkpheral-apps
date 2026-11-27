@@ -8,7 +8,7 @@ scenarios can exhaust the interpreter arena on earlier firmware.
 Set Router address, Username, Password, Refresh and WAN interface (default
 `PPPoE0`). WAN port and radios accepts one to three interface names: the WAN
 carrier first, followed by any radio interfaces. Defaults are `GigabitEthernet1`,
-`WifiMaster0` and `WifiMaster1`. Names must contain 1–31 ASCII letters, digits,
+`WifiMaster0` and `WifiMaster1`. Names must contain 1-31 ASCII letters, digits,
 underscores, hyphens or dots. Choose the WAN and carrier used by the router's
 selected route. Both PPPoE and IPoE are supported; IPoE uses the batch gateway
 when the interface has no PPP peer.
@@ -68,8 +68,10 @@ HTTPS uses SDK certificate validation.
 
 Hotspot columns share the SDK's 8192-byte list buffer. The application stops
 before a possible partial boundary row, preserving names and IP identity for
-complete-field responses. The count describes retained active rows and can be
-lower than the full router count. Arbitrarily sparse columns cannot be safely
+complete-field responses. The caption shows retained rows / active addressed rows
+parsed before the buffer cutoff. At most 32 rows are retained. The denominator
+may exceed 32 and may still be lower than the router's full count.
+Arbitrarily sparse columns cannot be safely
 joined by the SDK; captured complete columns are the supported shape. Names
 retain up to 63 UTF-8 bytes before kit width fitting.
 

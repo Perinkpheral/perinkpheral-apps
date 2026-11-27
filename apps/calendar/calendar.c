@@ -838,7 +838,8 @@ static void draw_event(const event_t *event)
     detail_text(top, lines <= 2 ? HOST_UI_TITLE : HOST_UI_TEXT, when);
     if (caption) {
         _Static_assert(STR_CALENDAR_4 == STR_CALENDAR_1 + SOURCES_MAX - 1, "calendar labels must be consecutive");
-        int32_t source = event->source;
+        /* The title retains content ownership when duplicate reminder watermarks differ. */
+        int32_t source = event->title / TITLES_BYTES;
         const char *calendar = sources[source].name;
         if (calendar[0] == '\0') { calendar = word(STR_CALENDAR_1 + source); }
         int32_t bottom = gfx_height() - HOST_UI_ACTIONS_HEIGHT - HOST_UI_MARGIN -
