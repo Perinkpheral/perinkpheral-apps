@@ -768,7 +768,7 @@ static void four_pages(void)
     assert(!scene.pending && standin()->polls_run[HOSTS] == count);
     app_on_button(BTN_DOWN_PRESSED); poll_fixture(BATCH, "v9-batch-1.json");
     app_on_button(BTN_DOWN_PRESSED); interface_fixture();
-    assert(scene.pending == INTERFACES + 1); interface_fixture();
+    assert(scene.pending == BATCH + 1); poll_fixture(BATCH, "v9-batch-1.json"); interface_fixture();
     assert(scene.page == 2 && !scene.pending && !strcmp(facts[2], "1000"));
     picked(INTERFACES, 200, "{\"address\":\"192.0.2.99\",\"uptime\":12,\"remote\":\"192.0.2.7\"}");
     interface_fixture();
@@ -1233,15 +1233,18 @@ static void resumed_details(void)
     standin_pass(10001); network_reload(true);
     assert(scene.page == 3 && device_first == 5 && hosts.count == 32);
     assert(hosts.rows[5].ip[0] && !hosts.rows[8].ip[0]);
-    assert(standin()->polls_run[HOSTS] == host_requests + 1);
+    assert(standin()->polls_run[HOSTS] == host_requests);
     assert(standin()->polls_run[BATCH] == batch_requests && scene.refresh_at == due);
-    app_on_button(BTN_DOWN_PRESSED); /* Leave the retained viewport while the refill waits. */
+    app_on_button(BTN_DOWN_PRESSED); /* Scrolling exposes an uncached row. */
+    assert(standin()->polls_run[HOSTS] == host_requests + 1 && scene.details_only);
     poll_fixture(HOSTS, "router/hotspot.json");
     assert(device_first == 6 && hosts.rows[8].ip[0] && hosts.rows[31].ip[0]);
     assert(!scene.pending && standin()->polls_run[BATCH] == batch_requests);
     assert(scene.refresh_at == due && standin_alarm_left(REFRESH) == (due - uptime_ms + 999) / 1000);
     draw_recorded(); assert(strcmp(drawn_text[4].value, word(STR_LOADING)));
     app_on_blur(); in_scene = false; network_reload(true);
+    app_on_button(BTN_DOWN_PRESSED);
+    assert(scene.pending == HOSTS + 1 && scene.details_only);
     standin_pass(due - uptime_ms);
     poll_fixture(HOSTS, "router/hotspot.json");
     assert(standin_alarm_left(REFRESH) == 1);
@@ -1251,6 +1254,7 @@ static void resumed_details(void)
     logged_in(true); setting("every", "15 min");
     poll_fixture(BATCH, "v9-batch-1.json");
     app_on_button(BTN_UP_PRESSED); app_on_button(BTN_UP_LONG_PRESSED);
+    due = scene.refresh_at;
     app_on_blur(); in_scene = false;
     network_reload(false); poll_fixture(BATCH, "v9-batch-1.json");
     batch_requests = standin()->polls_run[BATCH];
@@ -1258,6 +1262,7 @@ static void resumed_details(void)
     /* DNS is in the batch; this scene had not retained that answer yet. */
     assert(scene.page == 2 && !facts[4][0] && !facts[5][0]);
     assert(standin()->polls_run[BATCH] == batch_requests + 1);
+    assert(scene.details_only && scene.refresh_at == due);
     poll_fixture(BATCH, "v9-batch-1.json");
     poll_fixture(INTERFACES, "router/v9-get-01.json");
     const char *links[] = {"router/v9-get-05.json", "router/v9-get-06.json", "router/v9-get-07.json"};
@@ -1265,6 +1270,7 @@ static void resumed_details(void)
         char *body = load(links[item]); picked_item(LINKS, item, 200, body); free(body);
     }
     network_delivery_values(false);
+    assert(!scene.pending && scene.refresh_at == due);
 
     for (int completed_wan = 0; completed_wan < 2; completed_wan++) {
         logged_in(true); setting("every", "15 min"); scene.page = 2;
@@ -1296,6 +1302,110 @@ static void resumed_details(void)
         assert(scene.refresh_at == due);
     }
     puts("keenetic: resume requests missing device rows and unfinished Network picks without a traffic round or deadline reset");
+}
+
+static void refresh_during_details(void)
+{
+    for (int network = 0; network < 2; network++) {
+        logged_in(true); setting("every", "15 min"); scene.page = 3;
+        poll_fixture(BATCH, "v9-batch-1.json");
+        poll_fixture(HOSTS, "router/hotspot.json"); device_first = 5;
+        int64_t due = scene.refresh_at;
+        app_on_blur(); in_scene = false;
+        standin_pass(10001); network_reload(true);
+        app_on_button(BTN_DOWN_PRESSED);
+        assert(scene.pending == HOSTS + 1 && scene.details_only);
+        int batches = standin()->polls_run[BATCH];
+        app_on_button(network ? BTN_UP_LONG_PRESSED : BTN_OK_PRESSED);
+        assert(scene.page == (network ? 2 : 3) && scene.refresh_requested);
+        assert(scene.pending == HOSTS + 1 && standin()->polls_run[BATCH] == batches);
+        assert(scene.refresh_at == due);
+        poll_fixture(HOSTS, "router/hotspot.json");
+        assert(scene.pending == BATCH + 1 && standin()->polls_run[BATCH] == batches + 1);
+        assert(!scene.details_only && !scene.refresh_requested);
+        poll_fixture(BATCH, "v9-batch-1.json");
+        if (network) {
+            interface_fixture();
+            assert(!strcmp(facts[4], "192.0.2.3") && !strcmp(facts[5], "192.0.2.4"));
+        } else poll_fixture(HOSTS, "router/hotspot.json");
+        assert(!scene.pending && scene.refresh_at == uptime_ms + 900000 && scene.refresh_at > due);
+    }
+    /* OK after BATCH must also refresh when the round's own details are pending. */
+    for (int page = 1; page <= 3; page++) {
+        logged_in(true); scene.page = page;
+        poll_fixture(BATCH, "v9-batch-1.json");
+        assert(scene.pending > BATCH + 1 && scene.pending <= POLLS && !scene.details_only);
+        int batches = standin()->polls_run[BATCH];
+        app_on_button(BTN_OK_PRESSED);
+        if (page == 3) poll_fixture(HOSTS, "router/hotspot.json");
+        else interface_fixture();
+        assert(scene.pending == BATCH + 1 && standin()->polls_run[BATCH] == batches + 1);
+        poll_fixture(BATCH, "v9-batch-1.json");
+        if (page == 3) poll_fixture(HOSTS, "router/hotspot.json");
+        else interface_fixture();
+        assert(!scene.pending && !scene.refresh_requested);
+    }
+    puts("keenetic: OK during detail work and Network navigation during HOSTS refill run a full refresh afterward");
+}
+
+static void resumed_system_radios(void)
+{
+    logged_in(true); setting("every", "15 min"); scene.page = 3;
+    poll_fixture(BATCH, "v9-batch-1.json");
+    poll_fixture(HOSTS, "router/hotspot.json");
+    app_on_button(BTN_DOWN_LONG_PRESSED); /* Traffic starts BATCH. */
+    app_on_button(BTN_DOWN_PRESSED); /* System inherits Devices' successful detail status. */
+    assert(scene.page == 1 && detail_status == 200 && !facts[6][0] && !facts[7][0]);
+    int64_t due = scene.refresh_at;
+    app_on_blur(); in_scene = false;
+    network_reload(false); poll_fixture(BATCH, "v9-batch-1.json");
+    int batches = standin()->polls_run[BATCH], links = standin()->polls_run[LINKS];
+    standin_pass(10001); network_reload(true);
+    assert(scene.page == 1 && scene.pending == LINKS + 1 && scene.details_only);
+    assert(standin()->polls_run[BATCH] == batches && standin()->polls_run[LINKS] == links + 1);
+    interface_fixture();
+    assert(!scene.pending && radio_temperature() == 64 && scene.refresh_at == due);
+    assert(standin_alarm_left(REFRESH) == (due - uptime_ms + 999) / 1000);
+    puts("keenetic: System refills configured radios after off-screen BATCH completion without moving the traffic deadline");
+}
+
+static void stationary_resumes(void)
+{
+    for (int page = 0; page < 4; page++) for (int variant = 0; variant < 3; variant++) {
+        logged_in(true); setting("every", "15 min"); scene.page = page;
+        if (page == 1) {
+            setting("links", variant == 0 ? "GigabitEthernet1" : variant == 1 ?
+                    "GigabitEthernet1\nWifiMaster0" : "GigabitEthernet1\nWifiMaster0\nWifiMaster1");
+            scene.epoch = (int32_t)settings_identity(5);
+        }
+        poll_fixture(BATCH, "v9-batch-1.json");
+        if (page == 3) {
+            poll_fixture(HOSTS, "router/hotspot.json");
+            device_first = variant == 0 ? 0 : variant == 1 ? 5 : hosts.count - shown_rows;
+        } else if (page) {
+            const char *files[] = {"selected-carrier.json", "selected-radio0.json", "selected-radio1.json"};
+            if (page == 2) poll_fixture(INTERFACES, "router/v9-get-01.json");
+            for (int item = 0; item < app_setting_count("links"); item++) {
+                char *body = load(files[item]); picked_item(LINKS, item, 200, body); free(body);
+            }
+        }
+        assert(!scene.pending);
+        /* A status inherited from unfinished off-screen work is not missing data. */
+        if (page != 3 || variant == 1) detail_status = 0;
+        int requests = cooldown_requests(), first = device_first;
+        int64_t due = scene.refresh_at;
+        for (int swap = 0; swap < 4; swap++) {
+            standin_pass(10001);
+            app_on_blur(); in_scene = false; network_reload(true);
+            assert(scene.page == page && !scene.pending && cooldown_requests() == requests);
+            assert(scene.refresh_at == due && standin_alarm_left(REFRESH) == (due - uptime_ms + 999) / 1000);
+            if (page == 3) {
+                assert(device_first == first && hosts.count == 32);
+                for (int row = first; row < first + shown_rows; row++) assert(hosts.rows[row].ip[0]);
+            }
+        }
+    }
+    puts("keenetic: cached stationary resumes on every screen, radio count and Devices viewport issue no requests");
 }
 
 static void offscreen_settings_interval(void)
@@ -1454,7 +1564,8 @@ static void cooldown_and_sessions(void)
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
-    resumed_refresh(); resumed_details(); offscreen_settings_interval(); blocked_navigation();
+    resumed_refresh(); resumed_details(); refresh_during_details(); resumed_system_radios(); stationary_resumes();
+    offscreen_settings_interval(); blocked_navigation();
     cooldown_and_sessions(); timeout_scene();
     chart_neighbours(); refresh_phase(); optional_rates();
     restart_login(); detail_failures(); long_host_cut(); network_variants();

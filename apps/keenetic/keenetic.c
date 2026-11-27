@@ -48,7 +48,7 @@ typedef struct {
     } details;
     int32_t detail_status;
     int64_t down, up, retry_at, refresh_at;
-    int32_t page, status, pending, epoch, refresh_seconds, details_only;
+    int32_t page, status, pending, epoch, refresh_seconds, details_only, refresh_requested;
     uint32_t history_source;
     keenetic_history_t history;
 } scene_t;
@@ -283,6 +283,7 @@ static void break_stale_history(int64_t sample_ms, int32_t cadence)
     }
 }
 __attribute__((noinline)) static void read_fact(int pick, int field);
+static void start(bool explicit_retry);
 static void finish(int32_t status)
 {
     int poll = scene.pending - 1;
@@ -333,6 +334,9 @@ static void finish(int32_t status)
         schedule(delay);
     }
     scene.details_only = 0;
+    bool refresh_requested = scene.refresh_requested;
+    scene.refresh_requested = 0;
+    if (refresh_requested && !control.blocked && configured()) start(false);
     header();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
@@ -436,9 +440,15 @@ static void start(bool explicit_retry)
 {
     restore();
     if (!configured()) { finish(HOST_FAILED_NOT_READY); return; }
+    if (scene.pending) {
+        int poll = control.auth ? ((control.auth - HOST_REQUEST_FIRST) & 7) / 2 : scene.pending - 1;
+        if (scene.details_only || (poll > BATCH && poll < POLLS)) scene.refresh_requested = 1;
+        return;
+    }
     if (cooling_down()) { return; }
-    if (scene.pending || (control.blocked && !explicit_retry)) return;
+    if (control.blocked && !explicit_retry) return;
     scene.details_only = 0;
+    scene.refresh_requested = 0;
     if (explicit_retry && control.blocked) {
         control.blocked = control.renewing = 0;
         save_control();
@@ -446,6 +456,35 @@ static void start(bool explicit_retry)
     }
     if (cookie[0]) request_poll(BATCH);
     else send_login(AUTH, BATCH, false, "");
+}
+/* Resume fetches only data missing from the visible screen: the Devices
+ * viewport, Network fields or configured System radios. Completed missing
+ * values contain "-"; empty fields and rows have not arrived. Detail refills
+ * preserve the completed traffic round's deadline. A full refresh requested
+ * during detail work runs BATCH after that work; cached stationary resumes
+ * make no requests. Scrolling applies the same visible-data check. */
+static void refill_visible(void)
+{
+    if (scene.pending || control.blocked) return;
+    bool missing = scene.page == 3 && !hosts.count && !detail_status;
+    if (scene.page == 3) {
+        for (int i = device_first; i < hosts.count && i < device_first + shown_rows; i++)
+            if (!hosts.rows[i].ip[0]) missing = true;
+    } else if (scene.page == 2) {
+        for (int i = 0; i < 9; i++)
+            if ((WAN_FACTS & (1 << i)) && !facts[i][0]) missing = true;
+    } else if (scene.page == 1) {
+        for (int i = 1; i < app_setting_count("links"); i++)
+            if (!facts[5 + i][0]) missing = true;
+    }
+    bool missing_dns = scene.page == 2 && (!facts[4][0] || !facts[5][0]);
+    if (scene.refresh_requested) start(false);
+    else if ((missing || missing_dns) && !cooling_down()) {
+        scene.details_only = 1;
+        if (!missing_dns) request_details();
+        else if (cookie[0]) request_poll(BATCH);
+        else send_login(AUTH, BATCH, false, "");
+    }
 }
 static bool response_header(const char *name, char *out, int cap)
 {
@@ -516,7 +555,6 @@ __attribute__((noinline)) static void read_fact(int pick, int field)
 }
 static void accept_batch(void)
 {
-    scene.details_only = 0;
     keenetic_reading_t reading;
     if (!keenetic_read(&reading)) { finish(HOST_FAILED_NO_ANSWER); return; }
     if (scene.page != 3) {
@@ -609,6 +647,7 @@ void app_on_picked(int32_t poll, int32_t status)
         }
         if (item + 1 < app_setting_count("links")) return;
     }
+    if (scene.refresh_requested) { finish(200); return; }
     int wanted = scene.page == 3 ? HOSTS : LINKS;
     if (visible && scene.page && (poll != wanted || detail_page != scene.page)) {
         request_details();
@@ -689,22 +728,7 @@ void app_on_focus(void)
     if (!control.blocked && remaining > 0) {
         schedule((int32_t)((remaining + 999) / 1000));
         scene.refresh_at = refresh_at;
-        bool missing = scene.page && !detail_status;
-        if (scene.page == 3) {
-            for (int i = 0; i < hosts.count; i++)
-                if (!hosts.rows[i].ip[0]) missing = true;
-        } else if (scene.page == 2) {
-            for (int i = 0; i < 9; i++)
-                if ((WAN_FACTS & (1 << i)) && !facts[i][0]) missing = true;
-        }
-        bool missing_dns = scene.page == 2 && (!facts[4][0] || !facts[5][0]);
-        if ((missing || missing_dns) && !scene.pending && !cooling_down()) {
-            if (missing_dns) start(false);
-            else {
-                scene.details_only = 1;
-                request_details();
-            }
-        }
+        refill_visible();
     } else
         start(false);
 }
@@ -804,6 +828,7 @@ void app_on_button(int32_t event)
             device_first += step;
             if (device_first < 0) device_first = 0;
             if (device_first > last) device_first = last;
+            refill_visible();
         } else {
             if (scene.page == 3) keenetic_clear(facts, sizeof facts);
             app_nav_t nav = { .screens = 4, .screen = scene.page };
