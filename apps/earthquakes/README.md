@@ -83,9 +83,11 @@ remain below the 2 KB KV allowance. Valid long coordinates are normalized to
 six decimals before use in requests.
 
 Complete, equally sized picked arrays are validated before accepting a page.
-Incomplete data, ambiguous/truncated identity strings and duplicate identities
-within one collection leave good data intact. Exact IDs and complete aliases
-merge across cached scopes; the highest revision wins. Only bounded plain
+Unequal picked array lengths, ambiguous/truncated identity strings and duplicate
+identities within one collection leave good data intact. A present `metadata.count`
+must be readable and match the number of events. Without a declared count, a
+whole missing record cannot be distinguished from legitimately fewer events.
+Exact IDs and complete aliases merge across cached scopes; the highest revision wins. Only bounded plain
 decimal numbers are accepted; null magnitude/depth remains unknown.
 
 ## Notices
@@ -111,8 +113,13 @@ interpretation or prediction is implemented.
 Native checks cover geography, identities, UTC headers, bounded extraction,
 malformed/empty/null responses, refused/corrupt writes, paging and unloads,
 notification suppression/escalation, queue rejection and both screen families.
-The simulator scenarios cover every screen and empty, offline, missing-setup
-and notice states in English/Russian with both fonts.
+The simulator scenarios cover every screen and empty, failed-network, missing-setup
+and notice states in English/Russian with both fonts. Empty results retain the
+stale caption after expiry. Older-page requests show Loading until delivery.
+Loading-state scenarios use `tests/earthquakes/loading-mocks.json`, whose older
+page returns `HOST_FAILED_NOT_READY` to retain the pending query for a stable
+snapshot. `pending_history` in `test/presentation.c` checks the intermediate
+frame before any response is delivered.
 
 Real USGS captures and clearly marked fault derivatives live in
 `tests/fixtures/earthquakes/`. The isolated notice fixture uses a real captured
@@ -136,7 +143,7 @@ Final review regressions cover all eight findings:
    or settings before the hourly checkpoint; a longer Worldwide max-age
    preserves the Nearby interval (`unchanged_headers` and
    `unchanged_long_headers` in `test/pacing.c`).
-6. Each scope retains its status. Only a missing network says Offline; other
+6. Each scope retains its status. Only a missing network says No network; other
    failures say No answer. An idle, unrequested Worldwide view says No data
    (`status_scopes` in `test/presentation.c`).
 7. Both maps show a labeled home marker, the main map reclaims its upper band,

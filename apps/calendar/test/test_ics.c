@@ -49,7 +49,23 @@ static int32_t read_file(const char *text, int64_t from, int days, int32_t offse
     for (int32_t at = 0; at < length; at += piece) {
         ics_feed(&ics, text + at, length - at < piece ? length - at : piece);
     }
-    return ics_end(&ics);
+    int32_t count = ics_end(&ics);
+    char name[ICS_NAME_MAX + 1];
+    memcpy(name, ics.name, sizeof name);
+    ics_begin(&ics, ics.candidates, from, from + (int64_t)days * 86400, fixed_local);
+    for (int32_t at = 0; at < length; at += piece) {
+        ics_feed(&ics, text + at, length - at < piece ? length - at : piece);
+    }
+    CHECK(ics_end(&ics) == count);
+    CHECK(strcmp(ics.name, name) == 0);
+    for (int32_t i = 0; i < count; i++) {
+        const ics_event_t *aliased = &ics.candidates[i], *separate = &events[i];
+        CHECK(aliased->start == separate->start && aliased->end == separate->end);
+        CHECK(aliased->original == separate->original && aliased->uid == separate->uid);
+        CHECK(aliased->is_all_day == separate->is_all_day && aliased->source == separate->source);
+        CHECK(strcmp(aliased->title, separate->title) == 0);
+    }
+    return count;
 }
 
 #define ZONES                                                                              \
@@ -213,7 +229,7 @@ static void test_exception_spares(void)
 {
     char text[16000];
     int length = snprintf(text, sizeof text, "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:daily\n"
-        "DTSTART:20261101T090000Z\nRRULE:FREQ=DAILY\nEND:VEVENT\n");
+        "DTSTART:20261101T090000Z\nRRULE:FREQ=DAILY\nSUMMARY:Daily occurrence\nEND:VEVENT\n");
     /* The full override budget removes the first 32 of 70 candidates. */
     int64_t first = utc(2026, 11, 1, 9, 0);
     CHECK(length > 0 && length < (int)sizeof text);
@@ -232,6 +248,7 @@ static void test_exception_spares(void)
     CHECK(read_file(text, first - 1, 70, 0, 1) == ICS_EVENTS_MAX);
     CHECK(events[0].start == first + ICS_OVERRIDES_MAX * 86400LL);
     CHECK(events[23].start == first + 55 * 86400LL);
+    for (int i = 0; i < ICS_EVENTS_MAX; i++) { CHECK(!strcmp(events[i].title, "Daily occurrence")); }
     /* An override before its master must remove the same occurrence. */
     static const char before[] = "BEGIN:VEVENT\nUID:a\nDTSTART:20261102T090000Z\n"
         "RECURRENCE-ID:20261101T090000Z\nEND:VEVENT\n"

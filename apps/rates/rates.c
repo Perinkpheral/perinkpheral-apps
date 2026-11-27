@@ -286,7 +286,7 @@ static void request_histories(void)
 static void update_header(void)
 {
     app_nav_t nav = { .screens = currency_count(), .screen = navigation.index };
-    app_nav_set_header(&nav, rotating ? app_string(STR_AUTO) : "", true);
+    app_nav_set_header(&nav, rotating ? app_string(STR_AUTO) : " ", true);
 }
 
 static void update_rotation(bool restart)

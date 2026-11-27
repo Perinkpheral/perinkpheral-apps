@@ -392,7 +392,7 @@ static bool extract(event_t *events, int32_t *count)
     /* metadata.count is absent from answers to a query with a limit; when
      * it is there it is the number of features. */
     int32_t declared;
-    if ((uint32_t)n > BATCH || (app_value_number(V_LENGTH, 0, &declared) && declared != n)) { return false; }
+    if ((uint32_t)n > BATCH || (answer_count(V_LENGTH) && (!app_value_number(V_LENGTH, 0, &declared) || declared != n))) { return false; }
     for (int32_t k = V_ID; k < V_COUNT; k++) { if (answer_count(k) != n) { return false; } }
     static const uint8_t paths[] = { V_LAT, V_LON, V_MAG, V_DEPTH, V_TIME, V_UPDATED };
     static const uint8_t decimals[] = { 6, 6, 1, 0, 0, 0 };
@@ -971,6 +971,7 @@ static void time_string(char out[32], int64_t at, int32_t style)
 }
 static int32_t scope_status(int32_t scope)
 {
+    if (scope && requesting) { return STR_WAIT; }
     int32_t status = state.status[scope];
     if (status == HOST_FAILED_NO_NETWORK) { return STR_OFFLINE; }
     if (status && status != 200) { return STR_NO_ANSWER; }
@@ -994,7 +995,7 @@ static void draw_main(void)
         FILL(line, "{1}, {2}", 0, a, b);
     } else { copy_text(line, sizeof line, word(scope_status(0))); }
     draw_text(16, 231, HOST_UI_TEXT, line, 368);
-    if (e && (state.status[0] != 200 || stale(0))) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status[0] != 200 ? scope_status(0) : STR_STALE), 180); }
+    if ((e && state.status[0] != 200) || (success[0] && stale(0))) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status[0] != 200 ? scope_status(0) : STR_STALE), 180); }
 }
 /* USGS generated distance/direction prefixes are not part of a proper name. */
 static const char *place_name(const event_t *e, char localized[128])
@@ -1049,7 +1050,7 @@ static void draw_list(void)
         draw_text(16, 100, HOST_UI_TEXT, word(scope_status(scene.scope)), 368);
     }
     int32_t caption = scene.scope && requesting ? STR_WAIT : state.status[scene.scope] && state.status[scene.scope] != 200 ? scope_status(scene.scope) : stale(scene.scope) ? STR_STALE : -1;
-    if (caption >= 0 && count) { FILL(line, "{1}  USGS", 0, word(caption), NULL); }
+    if (caption >= 0 && (count || (caption == STR_STALE && success[scene.scope]))) { FILL(line, "{1}  USGS", 0, word(caption), NULL); }
     else { copy_text(line, sizeof line, "USGS"); }
     draw_text(16, 225, HOST_UI_CAPTION, line, 368);
 }

@@ -20,12 +20,14 @@ __attribute__((unused)) static int32_t spy_ring(const host_map_t *,int32_t,int32
 #undef gfx_draw_line
 #undef gfx_draw_map_radius
 #include "standin.h"
-static bool offline, loading, unavailable, no_data, you;
+static bool offline, loading, unavailable, no_data, no_events, expired, you;
 static int home_icons, dashes, solid_rings, map_top, source_bottom;
 static int32_t spy_text(int32_t x,int32_t y,int32_t style,const char *s,int32_t n,int32_t width)
 {
     if(n==(int)strlen(word(STR_OFFLINE)) && !strncmp(s,word(STR_OFFLINE),(size_t)n))offline=true;
     if(n==(int)strlen(word(STR_WAIT)) && !strncmp(s,word(STR_WAIT),(size_t)n))loading=true;
+    if(n==(int)strlen(word(STR_NO_EVENTS)) && !strncmp(s,word(STR_NO_EVENTS),(size_t)n))no_events=true;
+    if(n>=(int)strlen(word(STR_STALE)) && !strncmp(s,word(STR_STALE),strlen(word(STR_STALE))))expired=true;
     if(n==9 && !strncmp(s,"No answer",9))unavailable=true;
     if(n==7 && !strncmp(s,"No data",7))no_data=true;
     if(n==3 && !strncmp(s,"You",3))you=true;
@@ -53,7 +55,7 @@ static void status_scopes(void)
     const char *empty="{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":0},\"features\":[]}";
     standin_picked(0,-1,200,empty,(int)strlen(empty));
     offline=loading=false;standin_draw();assert(offline && !loading);
-    /* HTTP, extraction and transport failures with connectivity are not Offline. */
+    /* HTTP, extraction and transport failures with connectivity are not No network. */
     const int failures[]={503,429,200,HOST_FAILED_NO_ANSWER,HOST_FAILED_TIMEOUT};
     for(unsigned i=0;i<sizeof failures/sizeof failures[0];i++) {
         requesting=true;app_on_picked(1,failures[i]);
@@ -66,6 +68,35 @@ static void status_scopes(void)
     scene.scope=0;offline=loading=false;standin_draw();assert(offline && !loading);
     setup();scene.scope=scene.nav.screen=1;
     no_data=loading=false;standin_draw();assert(no_data && !loading);
+}
+static void pending_history(void)
+{
+    setup();
+    FILE *file=fopen("../../../tests/fixtures/earthquakes/world.json","rb");assert(file);
+    char body[12000];int n=(int)fread(body,1,sizeof body,file);fclose(file);
+    scene.scope=scene.nav.screen=1;maybe_browse();
+    standin_picked(1,-1,200,body,n);
+    assert(shown_count()==8 && success[1]);
+    scene.list.selected=7;app_on_button(BTN_DOWN_PRESSED);
+    assert(requesting && !shown_count());
+    loading=no_events=false;standin_draw();assert(loading && !no_events);
+}
+static void stale_empty(void)
+{
+    setup();
+    const char *empty="{\"type\":\"FeatureCollection\",\"features\":[]}";
+    standin_picked(0,-1,200,empty,(int)strlen(empty));
+    scene.scope=scene.nav.screen=1;maybe_browse();
+    standin_picked(1,-1,200,empty,(int)strlen(empty));
+    for(int screen=0;screen<2;screen++) {
+        scene.nav.screen=screen;scene.scope=0;
+        expired=no_events=false;standin_draw();assert(no_events && !expired);
+    }
+    standin_pass(2701000);
+    for(int screen=0;screen<2;screen++)for(int scope=0;scope<2;scope++) {
+        scene.nav.screen=screen;scene.scope=scope;
+        expired=no_events=false;standin_draw();assert(no_events && expired);
+    }
 }
 static void map_markers(void)
 {
@@ -85,4 +116,4 @@ static void source_clearance(void)
         source_bottom=0;standin_draw();assert(source_bottom && source_bottom<=216);
     }
 }
-int main(void) { status_scopes();map_markers();source_clearance();puts("earthquakes: independent scope status, labeled home, dashed radius, map area and source clearance");return 0; }
+int main(void) { status_scopes();pending_history();stale_empty();map_markers();source_clearance();puts("earthquakes: independent scope status, labeled home, dashed radius, map area and source clearance");return 0; }

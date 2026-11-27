@@ -248,9 +248,13 @@ int main(void)
     assert(stored.count == 0 && sources[3].data.version == EVENTS_VERSION);
     for (int i = 0; i < SOURCES_MAX; i++) { assert(cache.status[i] == state.status); }
 
-    /* A file of another version, or a title outside its source's own, is discarded. */
+    /* A title outside its source's pool discards a populated snapshot. */
+    answer(0, first, 7);
+    reload();
+    assert(stored.count == 2 && sources[0].data.count == 2);
+    assert(!strcmp(event_title(&stored.events[0]), "Meeting"));
     sources[0].data.events[0].title = TITLES_BYTES;
-    save_events(); reload(); assert(stored.count == 0 && sources[0].data.version == EVENTS_VERSION);
+    save_events(); reload(); assert(stored.count == 0 && sources[0].data.count == 0 && sources[0].data.version == EVENTS_VERSION);
 
     /* Full source snapshots retain candidates displaced by another calendar's nearest 24. */
     for (int source = 0; source < SOURCES_MAX; source++) {

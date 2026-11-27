@@ -33,6 +33,16 @@ static void atomic_answers(void)
         feed(0,bad[i],200);
         assert(hash_bytes(cache.events[0],sizeof cache.events[0])==good);
     }
+    const char *invalid_counts[] = { "null", "true", "\"invalid\"", "1" };
+    for (unsigned i = 0; i < sizeof invalid_counts / sizeof invalid_counts[0]; i++) {
+        char body[160];
+        int n = snprintf(body, sizeof body,
+            "{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":%s},\"features\":[]}", invalid_counts[i]);
+        int64_t last_success = success[0];
+        standin_picked(0, -1, 200, body, n);
+        assert(cache.count[0] == 8 && hash_bytes(cache.events[0], sizeof cache.events[0]) == good);
+        assert(state.status[0] == HOST_FAILED_NO_ANSWER && success[0] == last_success);
+    }
     const int failures[]={-1,-2,-3,-4,-5,-6,-7,-8,503,404,429};
     for(unsigned i=0;i<sizeof failures/sizeof failures[0];i++) {
         feed(0,"empty",failures[i]);
