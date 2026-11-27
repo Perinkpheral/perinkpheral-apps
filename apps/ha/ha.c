@@ -31,6 +31,17 @@
 #include "host_api.h"
 #include "strings.h" /* made of the `strings` folder by tools/perinkpheral */
 
+/* Defaults may be shown after a failed read, but must not replace durable state.
+ * Only a later load that can read the store permits writes again. */
+static bool restore_failed;
+
+static int32_t read_store(const char *key, void *value, int32_t capacity)
+{
+    int32_t result = kv_get(key, app_text_length(key), value, capacity);
+    if (result < 0 && result != HOST_ERR_NOT_FOUND) { restore_failed = true; }
+    return result;
+}
+
 /* Service-wide policy: manifest and raw replies both pace raw actions.
  * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
 typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
@@ -39,13 +50,14 @@ static void restore_cooldown(void);
 
 static void save_cooldown(void)
 {
-    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
+    if (!restore_failed &&
+        (cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
         app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
 }
 
 static void load_cooldown(void)
 {
-    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown ||
+    if (read_store("cooldown", &cooldown, sizeof cooldown) != sizeof cooldown ||
         cooldown.boot != time_boot_id()) { cooldown = (cooldown_t){ .boot = time_boot_id() }; }
     saved_cooldown = cooldown;
 }
@@ -70,7 +82,8 @@ static uint32_t pairing(void)
     uint32_t hash = 2166136261u;
     char value[256];
     for (int32_t key = 0; key < 2; key++) {
-        app_setting(keys[key], value, sizeof value);
+        int32_t length = read_store(keys[key], value, sizeof value - 1);
+        value[length >= 0 ? length : 0] = '\0';
         for (int32_t i = 0; value[i] != '\0'; i++) { hash = (hash ^ (uint8_t)value[i]) * 16777619u; }
         hash = (hash ^ 0xFFu) * 16777619u;
     }
@@ -91,7 +104,9 @@ static void follow_pairing(void)
     uint32_t current = pairing();
     char page = (char)('0' + current_page);
     char saved_page[2];
-    if ((app_setting("page", saved_page, sizeof saved_page) != 1 || saved_page[0] != page) &&
+    int32_t length = read_store("page", saved_page, sizeof saved_page);
+    if (restore_failed) { source_ready = false; return; }
+    if ((length != 1 || saved_page[0] != page) &&
         kv_set("page", 4, &page, 1) != HOST_OK) { source_ready = false; return; }
     if (!source_ready || source.pairing != current || source.page != current_page) {
         request_source_t next = { .pairing = current, .page = current_page,
@@ -129,6 +144,7 @@ static bool receiving, screen_dirty, coming_poll;
 
 static void save_screen(void)
 {
+    if (restore_failed) { screen_dirty = true; return; }
     cached_screen_t cache = { .version = SCREEN_VERSION, .pairing = screen_pairing };
     for (int32_t i = 0; i < screen_length; i++) { cache.text[i] = screen[i]; }
     screen_dirty = kv_set(SCREEN_KEY, sizeof SCREEN_KEY - 1, &cache,
@@ -143,7 +159,7 @@ static int32_t last_status, saved_status;
 
 static void save_status(void)
 {
-    if (last_status != saved_status &&
+    if (!restore_failed && last_status != saved_status &&
         kv_set(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status) == HOST_OK) {
         saved_status = last_status;
     }
@@ -285,16 +301,17 @@ void app_on_data(int32_t request, const uint8_t *data, int32_t length, int32_t f
 
 void app_on_load(void)
 {
+    restore_failed = false;
     load_cooldown();
     focused = false;
     current_page = page_count = shown_page = 1;
     last_ask_ms = -1;
-    source_ready = kv_get("source", 6, &source, sizeof source) == sizeof source &&
+    source_ready = read_store("source", &source, sizeof source) == sizeof source &&
                    source.tag >= HOST_REQUEST_FIRST && source.tag <= HOST_REQUEST_LAST;
     if (source_ready) { current_page = source.page; }
-    follow_pairing(); /* Also initialise the scheduled page when upgrading an existing source. */
+    else { source = (request_source_t){0}; }
     cached_screen_t cache;
-    int32_t length = kv_get(SCREEN_KEY, sizeof SCREEN_KEY - 1, &cache, sizeof cache);
+    int32_t length = read_store(SCREEN_KEY, &cache, sizeof cache);
     screen_pairing = pairing();
     screen_dirty = false;
     screen_length = length > (int32_t)offsetof(cached_screen_t, text) &&
@@ -304,9 +321,11 @@ void app_on_load(void)
     if (!valid_screen(screen, screen_length)) { screen_length = 0; }
     screen[screen_length] = '\0';
     read_page();
-    bool loaded_status = kv_get(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status) ==
+    bool loaded_status = read_store(STATUS_KEY, &last_status, sizeof last_status) ==
                          sizeof last_status;
     saved_status = loaded_status ? last_status : 0;
+    /* Read every state key before any migration or pairing invalidation writes. */
+    follow_pairing(); /* Also initialise the scheduled page when upgrading an existing source. */
     bool other_pairing = length >= (int32_t)offsetof(cached_screen_t, text) &&
                          cache.pairing != screen_pairing;
     if (!loaded_status || other_pairing) {
@@ -881,7 +900,7 @@ static void draw_reason(void)
 
 void app_on_draw(void)
 {
-    if (screen_dirty || last_status != saved_status) {
+    if (restore_failed || screen_dirty || last_status != saved_status) {
         host_notice_t notice = { .icon = HOST_ICON_WARNING };
         app_text_copy(notice.first, sizeof notice.first, app_string(STR_STORAGE_ERROR));
         app_text_copy(notice.second, sizeof notice.second, app_string(STR_STORAGE_ERROR_SECOND));

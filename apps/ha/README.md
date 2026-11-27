@@ -89,6 +89,8 @@ contain at least one drawable element in the selected layout. Well-formed conten
 outside that layout or beyond its limits is ignored. Lists require at least one
 row within the twelve-row limit with a nonempty name or value; single layout uses
 only the first item. Without a cached screen, request failures show the standard
-reason; an unusable successful response shows "No screen". A pending failed save
-shows "Storage error." The integration removes whole
+reason; an unusable successful response shows "No screen". A failed state restore
+shows "Storage error." and leaves saved screens, request identities, status and
+cooldowns untouched until a later load can read the store. A pending failed save
+also shows "Storage error." The integration removes whole
 trailing lines to fit, avoiding partial values.

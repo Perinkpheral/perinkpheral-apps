@@ -72,9 +72,14 @@ int main(void)
     char moment[32];
     assert(when_text(HOST_TIME_MIN - 1, moment, sizeof moment) == 0);
     assert(when_text(HOST_TIME_MAX + 1, moment, sizeof moment) == 0);
-    assert(when_text(HOST_TIME_MIN, moment, sizeof moment) > 0);
+    /* Zero is a missing market timestamp, though explicit SDK conversions accept it. */
+    assert(when_text(0, moment, sizeof moment) == 0);
+    assert(when_text(HOST_TIME_MIN + 1, moment, sizeof moment) > 0);
+    assert(when_text(HOST_CLOCK_MIN - 1, moment, sizeof moment) > 0);
+    assert(when_text(HOST_CLOCK_MIN, moment, sizeof moment) > 0);
+    assert(when_text(HOST_CLOCK_MAX, moment, sizeof moment) > 0);
     assert(when_text(standin()->now, moment, sizeof moment) > 0);
-    assert(when_text(HOST_TIME_MIN, moment, 1) == 0);
+    assert(when_text(HOST_CLOCK_MIN, moment, 1) == 0);
     loaded = 0;
     yahoo_answer(200);
     assert(writes() == 1 && redraws() == 1 && reads == 1 && quote.price == 12345);
