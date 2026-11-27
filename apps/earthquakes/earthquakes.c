@@ -15,6 +15,12 @@
 #include "app_values.h"
 #include "strings.h"
 
+/* The surface under the header, the map above its footer, the list above its source line. */
+#define SURFACE_HEIGHT 260
+#define MAP_HEIGHT     224
+#define LIST_TOP       32
+#define LIST_BOTTOM    216
+
 /* Share the SDK's small adapters rather than duplicating them in handlers. */
 static bool equal(const char *a, const char *b) { return app_text_equal(a, b); }
 static int32_t length(const char *s) { return app_text_length(s); }
@@ -796,7 +802,7 @@ static void maybe_browse(void)
 void app_on_load(void)
 {
     zero(&scene, sizeof scene); scene.nav.screens = 2;
-    scene.list.top = 32; scene.list.height = 184;
+    scene.list.top = LIST_TOP; scene.list.height = LIST_BOTTOM - LIST_TOP;
     load_cache(); settings();
     int32_t offset = 0;
     requesting = setting_number("offset", 0, &offset) && (uint32_t)(offset - 1) <= 8000;
@@ -901,6 +907,12 @@ static void draw_text(int32_t x, int32_t y, int32_t style, const char *text, int
 {
     ui_draw_text(x, y, style, text, app_text_length(text), width);
 }
+/* The top of a line whose capitals stand in the middle of a band, in either typeface. */
+static int32_t centred_top(int32_t font, int32_t band_top, int32_t band_height)
+{
+    int32_t cap = gfx_font_cap_height(font);
+    return band_top + (band_height - cap + 1) / 2 - (gfx_font_ascent(font) - cap);
+}
 static void disc(int32_t x, int32_t y)
 {
     for (int32_t dy = -4; dy <= 4; dy++) {
@@ -986,14 +998,14 @@ static void draw_main(void)
         draw_text(16, 132, HOST_UI_CAPTION, word(STR_LOCATION_HELP), 368);
         return;
     }
-    host_map_t map = { .x = 0, .y = 0, .w = 400, .h = 224 };
+    host_map_t map = { .x = 0, .y = 0, .w = 400, .h = MAP_HEIGHT };
     event_map(&map, e, true);
-    gfx_draw_rect(0, 224, 400, 1, HOST_RECT_FILLED);
+    gfx_draw_rect(0, MAP_HEIGHT, 400, 1, HOST_RECT_FILLED);
     if (e) {
         summary(a, e); when_text(b, e->time / 1000);
         FILL(line, "{1}, {2}", 0, a, b);
     } else { copy_text(line, sizeof line, word(scope_status(0))); }
-    draw_text(16, 231, HOST_UI_TEXT, line, 368);
+    draw_text(16, centred_top(HOST_FONT_TEXT, MAP_HEIGHT + 1, SURFACE_HEIGHT - MAP_HEIGHT - 1), HOST_UI_TEXT, line, 368);
     if (e && (state.status[0] != 200 || stale(0))) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status[0] != 200 ? scope_status(0) : STR_STALE), 180); }
 }
 /* USGS generated distance/direction prefixes are not part of a proper name. */
@@ -1051,7 +1063,7 @@ static void draw_list(void)
     int32_t caption = scene.scope && requesting ? STR_WAIT : state.status[scene.scope] && state.status[scene.scope] != 200 ? scope_status(scene.scope) : stale(scene.scope) ? STR_STALE : -1;
     if (caption >= 0 && count) { FILL(line, "{1}  USGS", 0, word(caption), NULL); }
     else { copy_text(line, sizeof line, "USGS"); }
-    draw_text(16, 225, HOST_UI_CAPTION, line, 368);
+    draw_text(16, centred_top(HOST_FONT_SMALL, LIST_BOTTOM, SURFACE_HEIGHT - LIST_BOTTOM), HOST_UI_CAPTION, line, 368);
 }
 static void draw_detail(void)
 {
