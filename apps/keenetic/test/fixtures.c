@@ -24,10 +24,10 @@ static void replace(char *text, size_t capacity, const char *old, const char *va
 
 static void substitute(const char *key, char *value, size_t capacity)
 {
-    if (fixture_case_equal(key, "Set-Cookie")) replace(value, capacity, "[redacted]", "session_id=fixture-session");
-    else if (fixture_case_equal(key, "X-NDM-Realm")) replace(value, capacity, "[redacted]", "Fixture router");
-    else if (fixture_case_equal(key, "X-NDM-Challenge")) replace(value, capacity, "[redacted]", "0123456789abcdef0123456789abcdef");
-    else if (fixture_case_equal(key, "WWW-Authenticate")) {
+    if (strcasecmp(key, "Set-Cookie") == 0) replace(value, capacity, "[redacted]", "session_id=fixture-session");
+    else if (strcasecmp(key, "X-NDM-Realm") == 0) replace(value, capacity, "[redacted]", "Fixture router");
+    else if (strcasecmp(key, "X-NDM-Challenge") == 0) replace(value, capacity, "[redacted]", "0123456789abcdef0123456789abcdef");
+    else if (strcasecmp(key, "WWW-Authenticate") == 0) {
         replace(value, capacity, "realm=\"[redacted]\"", "realm=\"Fixture router\"");
         replace(value, capacity, "challenge=\"[redacted]\"", "challenge=\"0123456789abcdef0123456789abcdef\"");
         replace(value, capacity, "session_id=\"[redacted]\"", "session_id=\"fixture-session\"");
@@ -58,8 +58,8 @@ static void replay(const fixture_json_t *meta, int response, const char *name, c
         fixture_string(meta, first, key, sizeof key);
         fixture_string(meta, second, value, sizeof value);
         substitute(key, value, sizeof value);
-        if (fixture_case_equal(key, "Content-Length")) snprintf(value, sizeof value, "%zu", strlen(body));
-        if (fixture_case_equal(key, "Content-Type")) {
+        if (strcasecmp(key, "Content-Length") == 0) snprintf(value, sizeof value, "%zu", strlen(body));
+        if (strcasecmp(key, "Content-Type") == 0) {
             int written = snprintf(content_type, sizeof content_type, "%s", value);
             assert(written >= 0 && (size_t)written < sizeof content_type);
         }

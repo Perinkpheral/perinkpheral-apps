@@ -127,16 +127,6 @@ static const condition_t *condition_of(int32_t code)
 #define STATUS_KEY "status"
 static int32_t last_status, saved_status;
 static bool forget_forecast;
-typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
-static cooldown_t cooldown, saved_cooldown;
-APP_SESSION_FITS(cooldown_t);
-
-static void save_cooldown(void)
-{
-    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
-        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
-}
-
 static void load_forecast(void)
 {
     if (kv_get(STATUS_KEY, sizeof STATUS_KEY - 1, &last_status, sizeof last_status) !=
@@ -191,16 +181,11 @@ static void show_header(void)
 void app_on_load(void)
 {
     load_forecast();
-    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown || cooldown.boot != time_boot_id()) {
-        cooldown = (cooldown_t){ .boot = time_boot_id() };
-    }
-    saved_cooldown = cooldown;
     show_header();
 }
 
 void app_on_terminate(void)
 {
-    save_cooldown();
     if (last_status != saved_status && app_state_save(STATUS_KEY, &last_status, sizeof last_status)) {
         saved_status = last_status;
     }
@@ -210,31 +195,12 @@ void app_on_terminate(void)
 
 void app_on_focus(void)
 {
-    cooldown_t live;
-    if (app_session_load(&live, sizeof live) && live.boot == cooldown.boot && live.retry_at > cooldown.retry_at) {
-        cooldown = live;
-        save_cooldown();
-    }
     show_header();
-}
-
-void app_on_blur(void)
-{
-    save_cooldown();
-    app_session_save(&cooldown, sizeof cooldown);
 }
 
 void app_on_picked(int32_t request, int32_t http_status)
 {
     (void)request;
-    if (http_status == 429) {
-        host_answer_info_t info = {0};
-        answer_info(&info, sizeof info);
-        int32_t delay = info.retry_after > 0 ? info.retry_after : 60;
-        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
-        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
-        save_cooldown();
-    }
     bool status_was_unsaved = last_status != saved_status;
     if (http_status != last_status) {
         last_status = http_status;
@@ -303,9 +269,7 @@ void app_on_button(int32_t event)
 {
     switch (event) {
     case BTN_OK_PRESSED:
-        if (time_uptime_ms() >= cooldown.retry_at) {
-            poll_run(WEATHER_POLL); /* "refresh": the answer redraws the screen */
-        }
+        poll_run(WEATHER_POLL); /* Perinkpheral OS defers refreshes during server cooldowns. */
         break;
     }
 }
