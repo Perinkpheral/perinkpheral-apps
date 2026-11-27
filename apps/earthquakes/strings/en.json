@@ -21,5 +21,6 @@
   "from_you": "{1} from you",
   "set_location": "Set location",
   "location_help": "Choose Place in app settings",
-  "storage_error": "Storage error."
+  "storage_error": "Storage error.",
+  "storage_error_second": ""
 }

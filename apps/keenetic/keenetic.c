@@ -48,7 +48,7 @@ typedef struct {
     } details;
     int32_t detail_status;
     int64_t down, up, retry_at, refresh_at;
-    int32_t page, status, pending, epoch;
+    int32_t page, status, pending, epoch, refresh_seconds, details_only;
     uint32_t history_source;
     keenetic_history_t history;
 } scene_t;
@@ -65,7 +65,7 @@ static int device_first;
 #define detail_status scene.detail_status
 #define facts scene.details.facts
 static int detail_page;
-#define SCENE_MAGIC 0x4b454e3du
+#define SCENE_MAGIC 0x4b454e3eu
 static const char *const setting_keys[] = { "router", "username", "wan", "password", "links", "every" };
 
 /* Share the language-table lookup instead of expanding it at every label. */
@@ -239,6 +239,7 @@ static void header(void)
     app_nav_set_header(&nav, text, true);
 }
 /* Share scheduling and setting lookup to keep the interpreter code within its budget. */
+static int32_t foreground_pace(void);
 __attribute__((noinline)) static void schedule(int32_t seconds)
 {
     int64_t remaining = (control.retry_at - time_uptime_ms() + 999) / 1000;
@@ -253,7 +254,10 @@ __attribute__((noinline)) static void schedule(int32_t seconds)
             log_write(HOST_LOG_WARN, "Keenetic retry alarm refused", app_text_length("Keenetic retry alarm refused"));
         }
     }
-    if (result == HOST_OK) scene.refresh_at = seconds ? time_uptime_ms() + (int64_t)seconds * 1000 : 0;
+    if (result == HOST_OK) {
+        scene.refresh_at = seconds ? time_uptime_ms() + (int64_t)seconds * 1000 : 0;
+        if (visible) scene.refresh_seconds = foreground_pace();
+    }
 }
 static int32_t foreground_pace(void)
 {
@@ -316,6 +320,11 @@ static void finish(int32_t status)
     } else if (!configured()) {
         scene.status = 0;
         schedule(0);
+    } else if (scene.details_only) {
+        int64_t due = scene.refresh_at;
+        int64_t remaining = due - time_uptime_ms();
+        schedule(remaining > 0 ? (int32_t)((remaining + 999) / 1000) : 1);
+        if (remaining > 0 && control.retry_at <= due) scene.refresh_at = due;
     } else {
         int32_t delay = pace();
         /* Repeated failures need a retry delay, not another flash write. */
@@ -323,6 +332,7 @@ static void finish(int32_t status)
             delay = 120;
         schedule(delay);
     }
+    scene.details_only = 0;
     header();
     screen_redraw(HOST_REDRAW_NORMAL);
 }
@@ -369,7 +379,7 @@ static bool set_watchdog(int32_t seconds)
 __attribute__((noinline)) static bool requested(int pending)
 {
     scene.pending = pending;
-    schedule(pace());
+    if (!scene.details_only) schedule(pace());
     if (!set_watchdog(330)) {
         finish(HOST_FAILED_NO_MEMORY);
         return false;
@@ -428,6 +438,7 @@ static void start(bool explicit_retry)
     if (!configured()) { finish(HOST_FAILED_NOT_READY); return; }
     if (cooling_down()) { return; }
     if (scene.pending || (control.blocked && !explicit_retry)) return;
+    scene.details_only = 0;
     if (explicit_retry && control.blocked) {
         control.blocked = control.renewing = 0;
         save_control();
@@ -505,6 +516,7 @@ __attribute__((noinline)) static void read_fact(int pick, int field)
 }
 static void accept_batch(void)
 {
+    scene.details_only = 0;
     keenetic_reading_t reading;
     if (!keenetic_read(&reading)) { finish(HOST_FAILED_NO_ANSWER); return; }
     if (scene.page != 3) {
@@ -665,13 +677,34 @@ void app_on_focus(void)
 {
     visible = true;
     restore();
-    break_stale_history(time_uptime_ms(), foreground_pace());
+    int32_t seconds = foreground_pace();
+    if (scene.refresh_seconds != seconds) {
+        scene.refresh_seconds = seconds;
+        scene.refresh_at = 0;
+    }
+    break_stale_history(time_uptime_ms(), seconds);
     header();
     int64_t refresh_at = scene.refresh_at;
     int64_t remaining = refresh_at - time_uptime_ms();
     if (!control.blocked && remaining > 0) {
         schedule((int32_t)((remaining + 999) / 1000));
         scene.refresh_at = refresh_at;
+        bool missing = scene.page && !detail_status;
+        if (scene.page == 3) {
+            for (int i = 0; i < hosts.count; i++)
+                if (!hosts.rows[i].ip[0]) missing = true;
+        } else if (scene.page == 2) {
+            for (int i = 0; i < 9; i++)
+                if ((WAN_FACTS & (1 << i)) && !facts[i][0]) missing = true;
+        }
+        bool missing_dns = scene.page == 2 && (!facts[4][0] || !facts[5][0]);
+        if ((missing || missing_dns) && !scene.pending && !cooling_down()) {
+            if (missing_dns) start(false);
+            else {
+                scene.details_only = 1;
+                request_details();
+            }
+        }
     } else
         start(false);
 }

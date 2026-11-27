@@ -110,3 +110,8 @@ runs the module in the firmware's own code: what the panel shows is its to say.
 CI runs both with offline fixtures. Passing checks do not establish panel timing, real
 button behavior, network endurance or battery life. Those belong to the
 [firmware's hardware qualification](https://github.com/Perinkpheral/perinkpheral-os/blob/main/docs/testing/stability.md).
+
+Storage failure scenarios cover Air, Calendar, Earthquakes, HA, Rates, Stocks and
+Weather in both languages and font families. Their notices use "Storage error."
+and its standard Russian translation. Warning notices split the Russian message
+across two main lines. Keenetic does not display a failed-write notice.

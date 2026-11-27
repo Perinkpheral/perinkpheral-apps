@@ -54,5 +54,6 @@
   "calendar_2": "Календарь 2",
   "calendar_3": "Календарь 3",
   "calendar_4": "Календарь 4",
-  "storage_error": "Ошибка хранилища."
+  "storage_error": "Ошибка",
+  "storage_error_second": "хранилища."
 }

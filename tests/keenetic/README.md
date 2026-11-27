@@ -17,6 +17,9 @@ callbacks against the SDK stand-in, including challenge/login, cookie renewal,
 restart recovery, blocked sessions, unsolicited detail failures, cached rates,
 chart spacing/gaps, checkpoint limits, Network delivery, PPPoE/IPoE, variable
 link lists, device navigation and the shared list-buffer boundary.
+Resume checks assert requests for missing device rows and unfinished Network
+details, preserve completed traffic deadlines, and apply interval changes through
+off-screen settings, authentication and data callbacks before returning to focus.
 [fixtures.c](../../apps/keenetic/test/fixtures.c) validates retained JSON inputs,
 response links and headers, interface projections, DNS compositions, manifest
 picker paths and method/body-sensitive scenario mocks.

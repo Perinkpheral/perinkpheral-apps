@@ -1026,8 +1026,8 @@ static void network_delivery_order(void)
         }
         network_delivery_values(poll == INTERFACES);
     }
-    /* Off-screen VALUES get distinct instances and cannot write the saved
-     * session. On return, keep the known viewport and finish a fresh round. */
+    /* Off-screen VALUES cannot write the saved session. Completed Network
+     * details need no request on return; OK explicitly starts the next round. */
     app_on_blur(); in_scene = false;
     network_reload(false); poll_fixture(BATCH, "v9-batch-1.json");
     network_reload(false); poll_fixture(INTERFACES, "router/v9-get-01.json");
@@ -1037,10 +1037,20 @@ static void network_delivery_order(void)
         picked_item(LINKS, item, 200, body);
         free(body);
     }
+    int batch_requests = standin()->polls_run[BATCH];
+    int interface_requests = standin()->polls_run[INTERFACES];
+    int link_requests = standin()->polls_run[LINKS];
     network_reload(true);
     network_delivery_values(false);
+    assert(standin()->polls_run[BATCH] == batch_requests);
+    assert(standin()->polls_run[INTERFACES] == interface_requests);
+    assert(standin()->polls_run[LINKS] == link_requests);
+    app_on_button(BTN_OK_PRESSED);
+    assert(standin()->polls_run[BATCH] == batch_requests + 1);
     poll_fixture(BATCH, "v9-batch-1.json");
+    assert(standin()->polls_run[INTERFACES] == interface_requests + 1);
     poll_fixture(INTERFACES, "router/v9-get-01.json");
+    assert(standin()->polls_run[LINKS] == link_requests + 1);
     for (int item = 0; item < 3; item++) {
         char *body = load(links[item]); picked_item(LINKS, item, 200, body); free(body);
     }
@@ -1211,6 +1221,115 @@ static int cooldown_requests(void)
     return total;
 }
 
+static void resumed_details(void)
+{
+    logged_in(true); setting("every", "15 min"); scene.page = 3;
+    poll_fixture(BATCH, "v9-batch-1.json");
+    poll_fixture(HOSTS, "router/hotspot.json"); device_first = 5;
+    int64_t due = scene.refresh_at;
+    int batch_requests = standin()->polls_run[BATCH];
+    int host_requests = standin()->polls_run[HOSTS];
+    app_on_blur(); in_scene = false;
+    standin_pass(10001); network_reload(true);
+    assert(scene.page == 3 && device_first == 5 && hosts.count == 32);
+    assert(hosts.rows[5].ip[0] && !hosts.rows[8].ip[0]);
+    assert(standin()->polls_run[HOSTS] == host_requests + 1);
+    assert(standin()->polls_run[BATCH] == batch_requests && scene.refresh_at == due);
+    app_on_button(BTN_DOWN_PRESSED); /* Leave the retained viewport while the refill waits. */
+    poll_fixture(HOSTS, "router/hotspot.json");
+    assert(device_first == 6 && hosts.rows[8].ip[0] && hosts.rows[31].ip[0]);
+    assert(!scene.pending && standin()->polls_run[BATCH] == batch_requests);
+    assert(scene.refresh_at == due && standin_alarm_left(REFRESH) == (due - uptime_ms + 999) / 1000);
+    draw_recorded(); assert(strcmp(drawn_text[4].value, word(STR_LOADING)));
+    app_on_blur(); in_scene = false; network_reload(true);
+    standin_pass(due - uptime_ms);
+    poll_fixture(HOSTS, "router/hotspot.json");
+    assert(standin_alarm_left(REFRESH) == 1);
+    app_on_alarm(REFRESH);
+    assert(standin()->polls_run[BATCH] == batch_requests + 1);
+
+    logged_in(true); setting("every", "15 min");
+    poll_fixture(BATCH, "v9-batch-1.json");
+    app_on_button(BTN_UP_PRESSED); app_on_button(BTN_UP_LONG_PRESSED);
+    app_on_blur(); in_scene = false;
+    network_reload(false); poll_fixture(BATCH, "v9-batch-1.json");
+    batch_requests = standin()->polls_run[BATCH];
+    network_reload(true);
+    /* DNS is in the batch; this scene had not retained that answer yet. */
+    assert(scene.page == 2 && !facts[4][0] && !facts[5][0]);
+    assert(standin()->polls_run[BATCH] == batch_requests + 1);
+    poll_fixture(BATCH, "v9-batch-1.json");
+    poll_fixture(INTERFACES, "router/v9-get-01.json");
+    const char *links[] = {"router/v9-get-05.json", "router/v9-get-06.json", "router/v9-get-07.json"};
+    for (int item = 0; item < 3; item++) {
+        char *body = load(links[item]); picked_item(LINKS, item, 200, body); free(body);
+    }
+    network_delivery_values(false);
+
+    for (int completed_wan = 0; completed_wan < 2; completed_wan++) {
+        logged_in(true); setting("every", "15 min"); scene.page = 2;
+        poll_fixture(BATCH, "v9-batch-1.json");
+        if (completed_wan) poll_fixture(INTERFACES, "router/v9-get-01.json");
+        due = scene.refresh_at;
+        app_on_blur(); in_scene = false;
+        /* The outstanding details finish in instances that cannot update the scene. */
+        network_reload(false); poll_fixture(INTERFACES, "router/v9-get-01.json");
+        const char *links[] = {"router/v9-get-05.json", "router/v9-get-06.json", "router/v9-get-07.json"};
+        for (int item = 0; item < 3; item++) {
+            network_reload(false);
+            char *body = load(links[item]); picked_item(LINKS, item, 200, body); free(body);
+        }
+        batch_requests = standin()->polls_run[BATCH];
+        int interface_requests = standin()->polls_run[INTERFACES];
+        int link_requests = standin()->polls_run[LINKS];
+        standin_pass(10001); network_reload(true);
+        assert(scene.page == 2 && standin()->polls_run[BATCH] == batch_requests);
+        assert(standin()->polls_run[INTERFACES] == interface_requests + 1);
+        assert(scene.refresh_at == due);
+        poll_fixture(INTERFACES, "router/v9-get-01.json");
+        assert(standin()->polls_run[LINKS] == link_requests + 1);
+        for (int item = 0; item < 3; item++) {
+            char *body = load(links[item]); picked_item(LINKS, item, 200, body); free(body);
+        }
+        network_delivery_values(false);
+        assert(!scene.pending && standin()->polls_run[BATCH] == batch_requests);
+        assert(scene.refresh_at == due);
+    }
+    puts("keenetic: resume requests missing device rows and unfinished Network picks without a traffic round or deadline reset");
+}
+
+static void offscreen_settings_interval(void)
+{
+    const char *intervals[] = {"1 min", "5 min", "15 min"};
+    const int seconds[] = {60, 300, 900};
+    for (int old = 0; old < 3; old++) for (int changed = 0; changed < 3; changed++) {
+        if (old == changed) continue;
+        for (int page = 2; page <= 3; page++) {
+            logged_in(true); setting("every", intervals[old]); scene.page = page;
+            poll_fixture(BATCH, "v9-batch-1.json");
+            if (page == 2) interface_fixture();
+            else { poll_fixture(HOSTS, "router/hotspot.json"); device_first = 5; }
+            app_on_blur(); in_scene = false;
+            /* Settings are written before the background instance is loaded. */
+            setting("every", intervals[changed]); network_reload(false); app_on_settings();
+            assert(control.auth && !visible);
+            network_reload(false); challenge();
+            network_reload(false); recorded_answer("login-success", NULL);
+            network_reload(false); poll_fixture(BATCH, "v9-batch-sample-b.json");
+            assert(!control.auth && !scene.pending);
+            int batch_requests = standin()->polls_run[BATCH];
+            standin_pass(10001); network_reload(true);
+            assert(scene.page == page && scene.refresh_seconds == seconds[changed]);
+            if (page == 3) assert(device_first == 5 && hosts.rows[5].ip[0]);
+            else { assert(facts[0][0] && facts[8][0]); }
+            assert(standin()->polls_run[BATCH] == batch_requests + 1);
+            assert(standin_alarm_left(REFRESH) == seconds[changed]);
+            assert(scene.refresh_at == uptime_ms + seconds[changed] * 1000);
+        }
+    }
+    puts("keenetic: off-screen settings and completed authentication/data apply every interval change on focus without losing navigation");
+}
+
 static void resumed_refresh(void)
 {
     static const char *const intervals[] = { "1 min", "5 min", "15 min" };
@@ -1335,7 +1454,7 @@ static void cooldown_and_sessions(void)
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
-    resumed_refresh(); blocked_navigation();
+    resumed_refresh(); resumed_details(); offscreen_settings_interval(); blocked_navigation();
     cooldown_and_sessions(); timeout_scene();
     chart_neighbours(); refresh_phase(); optional_rates();
     restart_login(); detail_failures(); long_host_cut(); network_variants();

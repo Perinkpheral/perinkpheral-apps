@@ -2,7 +2,7 @@
 
 A four-screen dashboard for Keenetic 5.01: Traffic, System, Network and Devices.
 English and Russian work with Departure Mono and Jersey fonts.
-Version 0.4.10 requires Perinkpheral OS 0.1.95 or later. Failure and offline
+Version 0.4.14 requires Perinkpheral OS 0.1.95 or later. Failure and offline
 scenarios can exhaust the interpreter arena on earlier firmware.
 
 Set Router address, Username, Password, Refresh and WAN interface (default
@@ -62,7 +62,8 @@ The cookie is stored only when it changes. Non-secret readings and history
 share a checkpoint at the first reading and every 15 minutes of successful
 reads, or when leaving a scene with uncheckpointed graph changes. Very long
 settings can leave room for fewer historical points in the shared store, in
-which case the newest are kept. Passwords, cookies and login bodies are not logged.
+which case the newest are kept. Checkpoint write failures do not display a storage
+notice. Passwords, cookies and login bodies are not logged.
 HTTPS uses SDK certificate validation.
 
 Hotspot columns share the SDK's 8192-byte list buffer. The application stops

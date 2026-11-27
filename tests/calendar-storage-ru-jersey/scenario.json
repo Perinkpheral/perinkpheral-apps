@@ -1,0 +1,17 @@
+{
+  "at": 1794992400,
+  "tz": "Europe/Moscow",
+  "app": "tests/fixtures/storage/calendar",
+  "store": {
+    "feed": "https://calendar.example.test/events.ics",
+    "remind": "Off"
+  },
+  "mocks": "../calendar-details/mocks.json",
+  "steps": [
+    "wait 3",
+    "shot storage-error"
+  ],
+  "language": "ru",
+  "font": "jersey",
+  "glyphs": "glyphs"
+}

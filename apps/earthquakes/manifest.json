@@ -1,6 +1,6 @@
 {
   "name": "earthquakes",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "title": "Earthquakes",
   "author": "Perinkpheral",
   "description": "Recent earthquakes worldwide, with optional nearby notices",

@@ -25,5 +25,6 @@
   "ragweed": "Ragweed",
   "olive": "Olive",
   "decimal_point": ".",
-  "storage_error": "Storage error."
+  "storage_error": "Storage error.",
+  "storage_error_second": ""
 }

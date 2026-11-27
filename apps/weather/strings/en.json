@@ -3,5 +3,6 @@
   "no_data": "No data",
   "km_per_hour": "km/h",
   "miles_per_hour": "mph",
-  "storage_error": "Storage error."
+  "storage_error": "Storage error.",
+  "storage_error_second": ""
 }

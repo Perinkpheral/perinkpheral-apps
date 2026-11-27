@@ -58,5 +58,6 @@
   "from_you": "{1} от вас",
   "set_location": "Укажите место",
   "location_help": "Выберите место в настройках",
-  "storage_error": "Ошибка хранилища."
+  "storage_error": "Ошибка",
+  "storage_error_second": "хранилища."
 }
