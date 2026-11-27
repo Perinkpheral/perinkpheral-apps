@@ -35,19 +35,20 @@ static bool drew(int32_t strokes)
 int main(void)
 {
     standin_reset();
-    standin_clock(600);
+    standin_clock(HOST_CLOCK_MIN + 600);
+    const int32_t base = HOST_CLOCK_MIN / 60;
     state.track = (orbit_track_t){0};
-    orbit_track_add(&state.track, 0, 0, -9000);
-    orbit_track_add(&state.track, 5, 0, -7200);
-    orbit_track_add(&state.track, 10, 0, -5400);
+    orbit_track_add(&state.track, base, 0, -9000);
+    orbit_track_add(&state.track, base + 5, 0, -7200);
+    orbit_track_add(&state.track, base + 10, 0, -5400);
     assert(drew(5));
     state.track = (orbit_track_t){0};
-    orbit_track_add(&state.track, 5, 0, 17900);
-    orbit_track_add(&state.track, 10, 0, -17900);
+    orbit_track_add(&state.track, base + 5, 0, 17900);
+    orbit_track_add(&state.track, base + 10, 0, -17900);
     assert(drew(0));
     state.track = (orbit_track_t){0};
-    orbit_track_add(&state.track, -5, 0, -9000);
-    orbit_track_add(&state.track, 10, 0, -5400);
+    orbit_track_add(&state.track, base - 5, 0, -9000);
+    orbit_track_add(&state.track, base + 10, 0, -5400);
     assert(drew(0));
     puts("ISS track: dash spacing survives sample boundaries; date line and missing fixes passed");
 }

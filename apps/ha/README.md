@@ -20,7 +20,9 @@ application. These fields are hidden on the device's page; no long-lived Home
 Assistant access token or template sensor is required. The application's visible
 setting is the refresh interval. Perinkpheral OS schedules refreshes, with a five-minute
 minimum while power saving is active. OK requests a refresh when no server
-cooldown is active; Retry-After also delays manual refreshes.
+cooldown is active. Perinkpheral OS enforces cooldowns for scheduled polls without
+changing the refresh setting. The application also retains a service-wide cooldown
+for button-driven raw requests, using refusals from either request type.
 Hold UP or DOWN to switch screens, wrapping at the ends. Short UP and DOWN also
 switch screens outside lists. In a list, short presses scroll and stop at the
 ends; held presses scroll when there is only one screen.

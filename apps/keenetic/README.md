@@ -76,3 +76,9 @@ joined by the SDK; captured complete columns are the supported shape. Names
 retain up to 63 UTF-8 bytes before kit width fitting.
 
 [Offline tests and fixtures](../../tests/keenetic/README.md) describe validation.
+
+Login request generations use the full SDK tag range, reserving sixteen tags per
+generation. Settings changes and timed-out requests advance the generation;
+after generation 134217726 it wraps to zero. Late replies from older generations
+are ignored. Raw login cooldowns remain application-owned; the SDK normalizes
+Retry-After seconds and supported HTTP dates.

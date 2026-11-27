@@ -44,74 +44,6 @@ static state_t state;
 static bool    state_unsaved; /* the store refused the last write of it */
 static int32_t status, saved_status;
 static bool urgent;
-/* Scheduled polls and explicit refreshes share the server cooldown.
- * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
-typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
-static cooldown_t cooldown, saved_cooldown;
-APP_SESSION_FITS(cooldown_t);
-
-static void save_cooldown(void)
-{
-    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
-        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
-}
-
-static void load_cooldown(void)
-{
-    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown ||
-        cooldown.boot != time_boot_id()) { cooldown = (cooldown_t){ .boot = time_boot_id() }; }
-    saved_cooldown = cooldown;
-}
-
-static void pace_polls(void);
-
-static void restore_cooldown(void)
-{
-    cooldown_t live;
-    if (app_session_load(&live, sizeof live) && live.boot == cooldown.boot && live.retry_at > cooldown.retry_at) {
-        cooldown = live;
-        save_cooldown();
-        pace_polls();
-    }
-}
-
-/* The override survives instance replacement. A changed resolved interval is
- * required to move the deadline, even for two identical refusals or when the
- * configured refresh is already longer than Retry-After. */
-static void pace_polls(void)
-{
-    int64_t remaining = cooldown.retry_at - time_uptime_ms();
-    int32_t result;
-    if (remaining > 0) {
-        int64_t seconds = (remaining + 999) / 1000;
-        int32_t normal = app_setting_seconds("every", 30 * 60);
-        if (seconds < normal) { seconds = normal; }
-        if (seconds < 10) { seconds = 10; }
-        if (seconds > 86400) { seconds = 86400; }
-        result = poll_set_interval(0, seconds == 86400 ? 86399 : (int32_t)seconds + 1);
-        if (result == HOST_OK) { result = poll_set_interval(0, (int32_t)seconds); }
-    } else {
-        result = poll_set_interval(0, 0);
-    }
-    if (result != HOST_OK) {
-        log_write(HOST_LOG_WARN, "Poll cooldown save failed", sizeof "Poll cooldown save failed" - 1);
-    }
-}
-
-static void receive_cooldown(int32_t status)
-{
-    restore_cooldown();
-    host_answer_info_t info = {0};
-    answer_info(&info, sizeof info);
-    int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
-    if (delay > 0) {
-        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
-        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
-    }
-    save_cooldown();
-    pace_polls();
-}
-
 static const struct { int32_t name, icon; } IRRITANTS[AIR_IRRITANTS] = {
     [AIR_OZONE] = { STR_OZONE, HOST_ICON_GAS },
     [AIR_NO2] = { STR_NO2, HOST_ICON_GAS },
@@ -171,8 +103,6 @@ static const char *index_word(int32_t index, bool us)
 
 void app_on_load(void)
 {
-    load_cooldown();
-    if (time_uptime_ms() >= cooldown.retry_at) { pace_polls(); }
     int32_t length = kv_get("state", 5, &state, sizeof state);
     if (length == offsetof(state_t, updated_at) && state.version == PREVIOUS_STATE_VERSION) {
         state.version = STATE_VERSION;
@@ -185,27 +115,16 @@ void app_on_load(void)
     state_unsaved = false;
 }
 
-void app_on_focus(void) { restore_cooldown(); show_header(); }
-
-void app_on_blur(void)
-{
-    save_cooldown();
-    if (!app_session_save(&cooldown, sizeof cooldown)) {
-        log_write(HOST_LOG_WARN, "Air cooldown session save failed", sizeof "Air cooldown session save failed" - 1);
-    }
-}
+void app_on_focus(void) { show_header(); }
 
 void app_on_terminate(void)
 {
-    save_cooldown();
     save_status();
     if (state_unsaved) { state_unsaved = !app_state_save("state", &state, sizeof state); }
 }
 
 void app_on_settings(void)
 {
-    restore_cooldown();
-    pace_polls();
     if (state.has_data && !same_place(&state)) {
         state = (state_t){ .version = STATE_VERSION };
         state_unsaved = false;
@@ -220,15 +139,14 @@ void app_on_settings(void)
 void app_on_button(int32_t event)
 {
     if (event == BTN_OK_PRESSED) {
-        save_cooldown();
-        if (time_uptime_ms() >= cooldown.retry_at) { urgent = true; poll_run(0); }
+        urgent = true;
+        poll_run(0);
     }
 }
 
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request != 0) { return; }
-    receive_cooldown(http_status);
     status = http_status;
     if (status >= 200 && status < 300 && place_set()) {
         state_t fresh = { .version = STATE_VERSION, .has_data = 1 };

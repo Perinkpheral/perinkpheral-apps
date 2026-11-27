@@ -132,7 +132,7 @@ int32_t fixture_header(const char *name, int32_t length, int32_t occurrence, cha
 {
     for (int i = 0; i < 32; i++)
         if (header_names[i] && (int)strlen(header_names[i]) == length &&
-            fixture_case_equal_n(header_names[i], name, (size_t)length)) {
+            strncasecmp(header_names[i], name, (size_t)length) == 0) {
             if (occurrence-- > 0)
                 continue;
             int n = (int)strlen(header_values[i]);
@@ -171,8 +171,8 @@ static void recorded_answer(const char *name, const char *body)
         assert(count < 32);
         fixture_string(&mock, key, names[count], sizeof names[count]);
         /* The app reads only these singleton headers; duplicate Cache-Control is kept in the evidence. */
-        if (!fixture_case_equal(names[count], "Set-Cookie") && !fixture_case_equal(names[count], "X-NDM-Realm") &&
-            !fixture_case_equal(names[count], "X-NDM-Challenge")) continue;
+        if (strcasecmp(names[count], "Set-Cookie") != 0 && strcasecmp(names[count], "X-NDM-Realm") != 0 &&
+            strcasecmp(names[count], "X-NDM-Challenge") != 0) continue;
         fixture_string(&mock, key + 1, values[count], sizeof values[count]);
         header_names[count] = names[count];
         header_values[count] = values[count];
@@ -1575,9 +1575,64 @@ static void unconfigured_scrolling(void)
     puts("keenetic: scrolling Devices into missing rows asks nothing while a required setting is empty");
 }
 
+static void update_ownership(void)
+{
+    standin_reset();
+    standin_handlers.on_load = app_on_load;
+    standin_handlers.on_installed = app_on_installed;
+    standin_handlers.on_updated = app_on_updated;
+    standin_handlers.on_focus = app_on_focus;
+    standin_handlers.on_blur = app_on_blur;
+    standin_load(); standin_focus();
+    assert(scene.pending == BATCH + 1 && standin_alarm_left(WATCHDOG));
+    assert(standin()->poll_pending[BATCH]);
+    standin_prepare_update();
+    assert(!standin()->poll_pending[BATCH] && !standin_alarms());
+    standin_load();
+    /* Replacement discarded the pending manifest request and its scene. Only
+     * the ordinary refresh alarm is needed until new work actually starts. */
+    assert(!scene.pending && !control.auth && !standin_alarm_left(WATCHDOG));
+    assert(standin_alarms() == (1u << REFRESH));
+    standin_focus();
+    assert(scene.pending == BATCH + 1 && standin_alarm_left(WATCHDOG));
+}
+
+static void request_epoch_rollover(void)
+{
+    assert(REQUEST_EPOCH_MAX == 134217726);
+    const int32_t epochs[] = { 13, 14, REQUEST_EPOCH_MAX - 1, REQUEST_EPOCH_MAX };
+    for (unsigned i = 0; i < sizeof epochs / sizeof *epochs; i++) {
+        reset(true);
+        control.epoch = epochs[i];
+        save_control();
+        app_on_load();
+        assert(control.epoch == epochs[i]); /* No old 0..13 validation. */
+        for (int poll = 0; poll < POLLS; poll++) for (int phase = AUTH; phase <= LOGIN; phase++) {
+            send_login(phase, poll, true, phase == LOGIN ? "{}" : "");
+            assert(control.auth == HOST_REQUEST_FIRST + epochs[i] * 16 + poll * 2 + phase + RENEW);
+            assert(control.auth >= HOST_REQUEST_FIRST && control.auth <= HOST_REQUEST_LAST);
+            standin()->request_count = 0;
+        }
+        int stale = control.auth;
+        app_on_settings();
+        int32_t next = epochs[i] < REQUEST_EPOCH_MAX ? epochs[i] + 1 : 0;
+        assert(control.epoch == next);
+        int active = control.auth, sent = sends;
+        app_on_data(stale, NULL, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 401);
+        assert(control.auth == active && sends == sent);
+        control.epoch = epochs[i];
+        app_on_alarm(WATCHDOG);
+        assert(control.epoch == next);
+        app_on_data(stale, NULL, 0, HOST_DATA_FIRST | HOST_DATA_LAST, 401);
+        assert(!control.auth);
+    }
+    puts("keenetic: full tag stride, settings/watchdog rollover and stale replies at the epoch bound passed");
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
+    update_ownership(); request_epoch_rollover();
     resumed_refresh(); resumed_details(); refresh_during_details(); resumed_system_radios(); stationary_resumes(); unconfigured_scrolling();
     offscreen_settings_interval(); blocked_navigation();
     cooldown_and_sessions(); timeout_scene();

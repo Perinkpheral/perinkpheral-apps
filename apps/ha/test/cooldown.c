@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include <assert.h>
 #include <stdio.h>
-/* Stand in the documented scheduler: only a changed resolved interval
- * moves its deadline. standin_pass() alone never delivers scheduled polls. */
-static int scheduler_interval = 60;
-static long long scheduler_due;
-int scheduled_interval(int poll, int seconds);
-#define poll_set_interval scheduled_interval
 #include "../ha.c"
-#undef poll_set_interval
-int32_t poll_set_interval(int32_t poll, int32_t seconds);
 #include "standin.h"
 
 static int requests(void) { return standin()->sends + standin()->polls_run[0]; }
@@ -22,46 +14,18 @@ static void reply(int status, const char *delay)
     standin_data(0, -1, status, body, sizeof body - 1, 3, STANDIN_WHOLE, 0);
 }
 
-int scheduled_interval(int poll, int seconds)
-{
-    int result = poll_set_interval(poll, seconds);
-    int resolved = seconds ? seconds : 60;
-    if (result == HOST_OK && resolved != scheduler_interval) {
-        scheduler_interval = resolved;
-        scheduler_due = time_uptime_ms() + (int64_t)resolved * 1000;
-    }
-    return result;
-}
-
-static int scheduled_deliveries;
-
-static void scheduler_advance(int64_t milliseconds)
-{
-    int64_t until = time_uptime_ms() + milliseconds;
-    while (scheduler_due <= until) {
-        standin_pass(scheduler_due - time_uptime_ms());
-        scheduler_due += (int64_t)scheduler_interval * 1000;
-        scheduled_deliveries++;
-        reply(200, "0");
-    }
-    standin_pass(until - time_uptime_ms());
-}
-
 static void scheduled_polls(void)
 {
-    /* A manual response may arrive just before the next scheduled poll. */
-    scheduler_due = time_uptime_ms() + 1000;
+    standin()->refuse_intervals = HOST_ERR_FAILED;
     reply(429, "300");
-    int before = scheduled_deliveries;
-    scheduler_advance(60000);
-    assert(scheduled_deliveries == before);
-    /* Another identical refusal must start a new full cooldown. */
+    assert(!standin_poll_take(0));
+    standin_pass(60000);
     reply(429, "300");
-    scheduler_advance(299999);
-    assert(scheduled_deliveries == before);
-    scheduler_advance(scheduler_due - time_uptime_ms());
-    assert(scheduled_deliveries == before + 1);
-    assert(standin()->poll_interval[0] == 0); /* Resume the configured pace. */
+    standin_pass(299999);
+    assert(!standin_poll_take(0));
+    standin_pass(1);
+    assert(standin_poll_take(0));
+    assert(!standin()->refused_intervals && standin()->poll_interval[0] == 0);
 }
 
 static void triggers(void)
@@ -83,7 +47,7 @@ static void refused_cooldown(void)
         standin()->refuse_writes = HOST_OK;
         app_on_terminate();
         standin_forget_session();
-        app_on_load(); app_on_focus();
+        app_on_load(); standin_focus();
         app_on_button(BTN_OK_PRESSED);
         assert(requests() == before);
         standin_pass(300000);
@@ -94,13 +58,13 @@ static void refused_cooldown(void)
         reply(429, "300");
         before = requests();
         app_on_blur(); app_on_terminate();
-        app_on_load(); app_on_focus();
+        app_on_load(); standin_focus();
         app_on_button(BTN_OK_PRESSED);
         assert(requests() == before);
         standin()->refuse_writes = HOST_OK;
         app_on_terminate();
         standin_forget_session();
-        app_on_load(); app_on_focus();
+        app_on_load(); standin_focus();
         standin_pass(299999);
         app_on_button(BTN_OK_PRESSED);
         assert(requests() == before);
@@ -115,8 +79,9 @@ int main(void)
     standin_reset();
     standin()->is_session_writable = true;
     standin_handlers.on_data = app_on_data;
+    standin_handlers.on_focus = app_on_focus;
     standin_set("every", "1 min");
-    app_on_load(); app_on_focus();
+    app_on_load(); standin_focus();
     reply(200, "0");
     /* An in-flight page may be superseded before its server refusal arrives. */
     app_on_button(BTN_DOWN_LONG_PRESSED);
@@ -143,11 +108,11 @@ int main(void)
         /* A shorter later refusal must not shorten the original deadline. */
         reply(429, "1");
         standin_clock(standin()->now + 86400); /* wall-clock jumps do not waive it */
-        app_on_blur(); app_on_load(); app_on_focus();
+        app_on_blur(); app_on_load(); standin_focus();
         triggers();
         assert(requests() == before);
         standin_pass((int64_t)seconds[round] * 1000 - 1);
-        app_on_blur(); app_on_load(); app_on_focus();
+        app_on_blur(); app_on_load(); standin_focus();
         triggers();
         assert(requests() == before);
         standin_pass(1);
@@ -158,7 +123,7 @@ int main(void)
     /* Positive Retry-After also applies to a service-unavailable response. */
     reply(503, "120");
     int before = requests();
-    app_on_blur(); app_on_load(); app_on_focus();
+    app_on_blur(); app_on_load(); standin_focus();
     triggers(); assert(requests() == before);
     standin_pass(120000);
     app_on_button(BTN_OK_PRESSED); assert(requests() == before + 1);
@@ -166,7 +131,7 @@ int main(void)
     /* Uptime deadlines from a previous boot must never block a new boot. */
     reply(429, "300");
     standin()->boot_id++;
-    app_on_blur(); app_on_load(); app_on_focus();
+    app_on_blur(); app_on_load(); standin_focus();
     before = requests();
     app_on_button(BTN_OK_PRESSED); assert(requests() == before + 1);
     puts("ha: Retry-After across refresh, lifecycle, chained refusals and clock changes passed");

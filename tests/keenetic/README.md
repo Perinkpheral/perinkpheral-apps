@@ -52,3 +52,13 @@ Scenario PNGs are the catalog's reference pictures. They were generated and
 visually inspected using native application callbacks and production kit/gfx
 rendering. This does not run the simulator or establish simulator parity.
 Review-only pictures and working reports are kept outside the repository.
+
+The final SDK regression in `apps/keenetic/test/logic.c` covers sixteen-tag
+request generations through epoch 134217726, rollover on settings and watchdog
+expiry, rejection of stale replies, and update ownership. After
+`standin_prepare_update()` cancels a pending manifest request and clears its
+scene, the replacement needs only its normal refresh alarm; starting fresh work
+adds the watchdog again. The SDK 0.2.0 generic `timers` check still expects the
+pre-update alarm mask (including that canceled request's watchdog), so it reports
+`0x1` versus `0x3`. The unchanged catalog version reproduces this finding too.
+The focused lifecycle regression checks the actual replacement behavior.

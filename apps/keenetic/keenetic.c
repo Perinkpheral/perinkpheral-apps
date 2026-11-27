@@ -16,6 +16,8 @@
 
 enum { BATCH, INTERFACES, LINKS, HOSTS, POLLS };
 enum { AUTH, LOGIN, RENEW = 8 };
+/* Reserve all sixteen tags before advancing to another request generation. */
+enum { REQUEST_EPOCH_MAX = (HOST_REQUEST_LAST - HOST_REQUEST_FIRST - 15) / 16 };
 enum { REFRESH = 0, WATCHDOG = 1, CHECKPOINT_SECONDS = 900 };
 enum { device_top = HOST_UI_MARGIN, device_row_height = 68, device_track_height = 202 };
 enum { shown_rows = 3, WAN_FACTS = 0x10f, LINK_FACTS = 0xc4 };
@@ -690,7 +692,7 @@ void app_on_load(void)
         control.version = 4;
     }
     if (control.boot != time_boot_id()) { control.boot = time_boot_id(); control.retry_at = 0; }
-    if (control.epoch < 0 || control.epoch > 13)
+    if (control.epoch < 0 || control.epoch > REQUEST_EPOCH_MAX)
         control.epoch = 0;
     keenetic_clear(&scene, sizeof scene);
     scene.magic = SCENE_MAGIC;
@@ -757,7 +759,7 @@ void app_on_alarm(int32_t id)
     if (id == WATCHDOG) {
         /* Raw responses can be abandoned without a final callback. Invalidate
          * their tags before retrying; no per-sample pending record in flash. */
-        control.epoch = (control.epoch + 1) % 14;
+        control.epoch = control.epoch < REQUEST_EPOCH_MAX ? control.epoch + 1 : 0;
         control.renewing = 0;
         save_control();
         scene.pending = 0;
@@ -768,7 +770,7 @@ void app_on_alarm(int32_t id)
 void app_on_settings(void)
 {
     restore();
-    control.epoch = (control.epoch + 1) % 14;
+    control.epoch = control.epoch < REQUEST_EPOCH_MAX ? control.epoch + 1 : 0;
     scene.epoch = (int32_t)settings_identity(5);
     control.blocked = control.renewing = control.auth = 0;
     save_control();

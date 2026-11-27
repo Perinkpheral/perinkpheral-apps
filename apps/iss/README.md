@@ -3,11 +3,13 @@
 The station's current position and up to 90 minutes of observed positions.
 The configured poll interval is one minute, subject to a five-minute floor while
 Perinkpheral OS power saving is active and to server cooldowns. OK requests an
-update outside cooldown. The visible position follows each good fix. The track
+update; Perinkpheral OS queues it until any server cooldown expires. The visible position follows each good fix. The track
 samples at five-minute intervals. While loaded, readings and track are
 checkpointed every five minutes or when request status changes. Termination saves
 any remaining changes, including background replies; blur also saves persistently
-if session storage fails. The newest visible fix
+if session storage fails. A failed durable-state read blocks checkpoint and
+termination writes until a later load restores the state or establishes that it
+is absent or incompatible. The newest visible fix
 survives temporary unloads in scene memory. Old points expire by age, and the line breaks at the
 date line and over gaps longer than ten minutes.
 
@@ -25,4 +27,4 @@ night are not shown.
 The observed track uses thin four-pixel dashes with four-pixel gaps, continued across samples.
 
 Perinkpheral OS's map service draws the world: stippled land with an ink coastline, paper sea; with dithering off, the coastline alone.
-The service requires firmware 0.1.94 or later; the build computes the package's minimum.
+The build computes the package's firmware minimum from the ABI 3 release floor (0.2.0).

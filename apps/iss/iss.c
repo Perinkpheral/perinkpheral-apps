@@ -11,60 +11,6 @@
 #include "orbit.h"
 #include "strings.h"
 
-/* Scheduled polls and explicit refreshes share the server cooldown.
- * Uptime survives instance replacement and cannot be waived by a wall-clock change. */
-typedef struct { uint32_t boot; int64_t retry_at; } cooldown_t;
-static cooldown_t cooldown, saved_cooldown;
-
-static void save_cooldown(void)
-{
-    if ((cooldown.boot != saved_cooldown.boot || cooldown.retry_at != saved_cooldown.retry_at) &&
-        app_state_save("cooldown", &cooldown, sizeof cooldown)) { saved_cooldown = cooldown; }
-}
-
-static void load_cooldown(void)
-{
-    if (kv_get("cooldown", 8, &cooldown, sizeof cooldown) != sizeof cooldown ||
-        cooldown.boot != time_boot_id()) { cooldown = (cooldown_t){ .boot = time_boot_id() }; }
-    saved_cooldown = cooldown;
-}
-
-/* The override survives instance replacement. A changed resolved interval is
- * required to move the deadline, even for two identical refusals or when the
- * configured refresh is already longer than Retry-After. */
-static void pace_polls(void)
-{
-    int64_t remaining = cooldown.retry_at - time_uptime_ms();
-    int32_t result;
-    if (remaining > 0) {
-        int64_t seconds = (remaining + 999) / 1000;
-        int32_t normal = 60;
-        if (seconds < normal) { seconds = normal; }
-        if (seconds < 10) { seconds = 10; }
-        if (seconds > 86400) { seconds = 86400; }
-        result = poll_set_interval(0, seconds == 86400 ? 86399 : (int32_t)seconds + 1);
-        if (result == HOST_OK) { result = poll_set_interval(0, (int32_t)seconds); }
-    } else {
-        result = poll_set_interval(0, 0);
-    }
-    if (result != HOST_OK) {
-        log_write(HOST_LOG_WARN, "Poll cooldown save failed", sizeof "Poll cooldown save failed" - 1);
-    }
-}
-
-static void receive_cooldown(int32_t status)
-{
-    host_answer_info_t info = {0};
-    answer_info(&info, sizeof info);
-    int32_t delay = info.retry_after > 0 ? info.retry_after : status == 429 ? 60 : 0;
-    if (delay > 0) {
-        int64_t retry_at = time_uptime_ms() + (int64_t)delay * 1000;
-        if (retry_at > cooldown.retry_at) { cooldown.retry_at = retry_at; }
-    }
-    save_cooldown();
-    pace_polls();
-}
-
 enum {
     VERSION = 2, SECONDS_PER_MINUTE = 60,
     ALTITUDE_DECIMALS = 3, MAX_ALTITUDE_METERS = 2000000,
@@ -83,7 +29,7 @@ typedef struct {
 } state_t;
 static state_t state;
 static int32_t saved_minute, saved_status;
-static bool state_dirty;
+static bool state_dirty, state_readable;
 _Static_assert(sizeof(state_t) <= HOST_SESSION_MAX, "ISS snapshot fits scene storage");
 _Static_assert(sizeof(state_t) <= HOST_KV_VALUE_MAX, "ISS snapshot fits one store value");
 static bool restore_state(state_t *saved)
@@ -101,10 +47,13 @@ static bool restore_state(state_t *saved)
 
 void app_on_load(void)
 {
-    load_cooldown();
-    if (time_uptime_ms() >= cooldown.retry_at) { pace_polls(); }
-    if ((!app_state_load("state", &state, sizeof state, VERSION) &&
-         !app_state_load("state", &state, sizeof state, 1)) || !restore_state(&state)) {
+    int32_t result = app_state_load("state", &state, sizeof state, VERSION);
+    if (result == HOST_ERR_NOT_FOUND) {
+        result = app_state_load("state", &state, sizeof state, 1);
+    }
+    /* Display defaults may not replace a durable snapshot we could not read. */
+    state_readable = result == HOST_OK || result == HOST_ERR_NOT_FOUND;
+    if (result != HOST_OK || !restore_state(&state)) {
         state = (state_t){ .version = VERSION, .unused = { 0, 0x495353 } };
     }
     saved_minute = state.minute;
@@ -126,7 +75,7 @@ void app_on_focus(void)
 
 void app_on_blur(void)
 {
-    if (session_set(&state, sizeof state) != HOST_OK) {
+    if (session_set(&state, sizeof state) != HOST_OK && state_readable) {
         state_dirty = !app_state_save("state", &state, sizeof state);
         if (state_dirty) { log_write(HOST_LOG_WARN, "ISS state save failed", app_text_length("ISS state save failed")); }
     }
@@ -135,15 +84,13 @@ void app_on_blur(void)
 void app_on_button(int32_t event)
 {
     if (event == BTN_OK_PRESSED) {
-        save_cooldown();
-        if (time_uptime_ms() >= cooldown.retry_at) { poll_run(0); }
+        poll_run(0);
     }
 }
 
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request) { return; }
-    receive_cooldown(http_status);
     app_on_focus(); /* Background replies also follow the latest unsaved scene. */
     state_t fresh = state;
     int32_t previous_status = state.status;
@@ -155,7 +102,7 @@ void app_on_picked(int32_t request, int32_t http_status)
         app_value_number(2, ALTITUDE_DECIMALS, &fresh.altitude) &&
         fresh.altitude >= 0 && fresh.altitude < MAX_ALTITUDE_METERS &&
         app_value_number(3, 0, &fresh.velocity) && fresh.velocity >= 0 && fresh.velocity < 100000 &&
-        app_value_fixed(4, 0, &timestamp) && timestamp >= HOST_TIME_MIN && timestamp <= HOST_TIME_MAX;
+        app_value_fixed(4, 0, &timestamp) && timestamp >= HOST_CLOCK_MIN && timestamp <= HOST_CLOCK_MAX;
     if (valid && timestamp >= (int64_t)state.minute * SECONDS_PER_MINUTE + state.second) {
         fresh.has_data = 1;
         fresh.status = 200;
@@ -170,7 +117,7 @@ void app_on_picked(int32_t request, int32_t http_status)
     }
     state_dirty |= previous_status != state.status;
     if (state_dirty) { state.unused[0]++; } /* Orders status changes as well as fixes across unloads. */
-    if ((state.status != saved_status || state.minute - saved_minute >= TRACK_SAMPLE_MINUTES) &&
+    if (state_readable && (state.status != saved_status || state.minute - saved_minute >= TRACK_SAMPLE_MINUTES) &&
         app_state_save("state", &state, sizeof state)) {
         saved_minute = state.minute;
         saved_status = state.status;
@@ -181,8 +128,7 @@ void app_on_picked(int32_t request, int32_t http_status)
 
 void app_on_terminate(void)
 {
-    save_cooldown();
-    if (state_dirty && app_state_save("state", &state, sizeof state)) {
+    if (state_readable && state_dirty && app_state_save("state", &state, sizeof state)) {
         saved_minute = state.minute;
         saved_status = state.status;
         state_dirty = false;
@@ -351,8 +297,7 @@ static void draw_failed_update(void)
     app_text_add(&text, date); app_text_add(&text, " "); app_text_add(&text, clock);
     host_text_argument_t arg = { .text = moment, .length = app_text_length(moment) };
     const char *pattern = app_string(STR_LAST_UPDATE);
-    int32_t length = text_fill(pattern, app_text_length(pattern), &arg, 1, line, sizeof line - 1);
-    line[length > 0 ? length : 0] = 0;
+    app_text_fill(pattern, &arg, 1, line, sizeof line);
     /* Keep the observation visible, but never make an old fix look current. */
     int32_t height = gfx_font_height(HOST_FONT_SMALL);
     int32_t top = MAP_HEIGHT - 2 * height - 8;
