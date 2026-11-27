@@ -400,6 +400,7 @@ static bool extract(event_t *events, int32_t *count)
     char text[64];
     if (!element(V_TYPE, 0, text, sizeof text) || !app_text_equal(text, "FeatureCollection")) { return false; }
     int32_t n = answer_count(V_ID);
+    int32_t retained = n;
     /* Queries with a limit omit metadata.count. An extracted scalar count
      * must match the number of features. */
     int32_t declared;
@@ -418,7 +419,17 @@ static bool extract(event_t *events, int32_t *count)
         for (int32_t k = 0; k < 3; k++) {
             char *value = (char *)e + strings[k].offset;
             if (!element(strings[k].path, i, value, strings[k].size)) { return false; }
-            if (app_text_equal(value, "null")) { copy_text(value, strings[k].size, k == 2 ? "--" : ""); }
+            if (app_text_equal(value, "null")) {
+                if (k != 2) { return false; }
+                copy_text(value, strings[k].size, "--");
+            }
+            if (k == 2 && app_text_length(value) == HOST_VALUE_MAX) {
+                /* The picker may have cut a longer place name. Mark that
+                 * boundary conservatively, without splitting UTF-8. */
+                int32_t end = HOST_VALUE_MAX - 3;
+                while (((uint8_t)value[end] & 0xc0) == 0x80) { end--; }
+                copy_text(value + end, strings[k].size - end, "...");
+            }
         }
         if (!e->id[0] || app_text_length(e->id) >= 31 || app_text_length(e->aliases) >= 63) { return false; }
         int64_t values[6];
@@ -428,9 +439,6 @@ static bool extract(event_t *events, int32_t *count)
             else if (!decimal(text, decimals[k], &values[k]) || values[k] < low[k] || values[k] > high[k]) { return false; }
         }
         e->lat = values[0]; e->lon = values[1]; e->mag = values[2]; e->depth = values[3]; e->time = values[4]; e->updated = values[5];
-        if (e->time < (time_now() / 86400 - HISTORY_DAYS) * 86400000) {
-            zero(e, (BATCH - i) * sizeof *e); *count = i; return true;
-        }
         if (e->updated < e->time ||
             !element(V_EVENTTYPE, i, text, sizeof text) || !app_text_equal(text, "earthquake")) { return false; }
         int32_t len = app_text_length(e->aliases);
@@ -438,8 +446,12 @@ static bool extract(event_t *events, int32_t *count)
         /* FDSN returns unique events. An ambiguous collection is not a
          * basis for replacing good cached data or generating notices. */
         for (int32_t j = 0; j < i; j++) { if (same_event(e, &events[j])) { return false; } }
+        if (i < retained && e->time < (time_now() / 86400 - HISTORY_DAYS) * 86400000) { retained = i; }
     }
-    *count = n;
+    /* Validate the entire collection before applying the display window.
+     * An old first row must not hide malformed fields or later records. */
+    zero(events + retained, (BATCH - retained) * sizeof *events);
+    *count = retained;
     return true;
 }
 
@@ -615,6 +627,7 @@ static void selection(void)
     if (scene.list.selected >= scene.list.count) { scene.list.selected = 0; }
 }
 static void browse(int32_t page);
+static void maybe_browse(void);
 /* Keep older equal-time identities on disk, leaving the bounded RAM cache
  * unchanged in size. The snapshot commits the length after each append; an
  * interrupted append cannot add identities to the committed prefix. */
@@ -651,8 +664,12 @@ __attribute__((noinline)) static bool store_boundary(void)
 void app_on_picked(int32_t request, int32_t http_status)
 {
     if (request < 0 || request > 1 || (request == 0 && !placed)) { return; }
-    if (request == 1 && (!requesting || http_status == HOST_FAILED_NOT_READY)) { return; }
+    if (request == 1 && http_status == HOST_FAILED_NOT_READY) { return; }
+    /* A manual poll can only deliver requested work. A transport retry may
+     * finish after the pending UI marker was cleared by its first failure;
+     * the retained query and request_page still identify that reply. */
     uint32_t before = checksum(&cache);
+    int64_t previous_success = success[request];
     if (request == 1) { cancel_browse(); }
     int32_t n = 0;
     event_t fresh[BATCH]; zero(fresh, sizeof fresh);
@@ -706,7 +723,10 @@ void app_on_picked(int32_t request, int32_t http_status)
     save_cache();
     if (!request && ok) { try_notice(); }
     selection();
-    if (request || checksum(&cache) != before) { screen_redraw(HOST_REDRAW_NORMAL); }
+    /* A refused query save may have prevented the visible Worldwide request
+     * from entering the queue. Retry its setup when storage is available. */
+    if (!request && query_unsaved && !requesting) { maybe_browse(); }
+    if (request || success[request] != previous_success || checksum(&cache) != before) { screen_redraw(HOST_REDRAW_NORMAL); }
 }
 
 /* Latest uses the platform's date ceiling, so it remains live without a
@@ -831,6 +851,7 @@ void app_on_intent(int32_t intent)
         state.seed = 1; state.pending = 0;
         if (success[0]) { schedule_alarm(1, (refresh * 3 > 900 ? refresh * 3 : 900) + 1); }
         provider_pause(); save_cache();
+        maybe_browse();
         screen_redraw(HOST_REDRAW_NORMAL);
     }
 }

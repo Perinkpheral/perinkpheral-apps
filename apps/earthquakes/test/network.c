@@ -10,7 +10,8 @@ static void setup(void)
 {
     standin_reset();
     standin_handlers = (standin_handlers_t){.on_load=app_on_load, .on_focus=app_on_focus,
-        .on_blur=app_on_blur, .on_picked=app_on_picked,
+        .on_blur=app_on_blur, .on_terminate=app_on_terminate, .on_picked=app_on_picked,
+        .on_intent=app_on_intent,
         .on_draw=app_on_draw, .on_alarm=app_on_alarm, .on_button=app_on_button, .on_back=app_on_back};
     standin_load(); standin_focus();
 }
@@ -50,6 +51,7 @@ static void atomic_answers(void)
         feed(0,"near",200);
     }
     feed(0,"worst",200);assert(cache.count[0]==8 && strlen(cache.events[0][0].place)==63);
+    assert(!strcmp(cache.events[0][0].place+60,"..."));
     feed(0,"near",200);feed(0,"duplicate",200);assert(cache.count[0]==8 && cache.events[0][0].mag==42);
     feed(0,"revision",200);assert(cache.count[0]==8 && !strcmp(cache.events[0][0].id,"revised-id"));
     setup(); feed(0,"null",200); assert(cache.events[0][0].mag==UNKNOWN && cache.events[0][0].depth==UNKNOWN);
@@ -354,8 +356,92 @@ static void refused_state(void)
     }
 }
 
+static void worldwide_resume(void)
+{
+    for (int page = 0; page < 2; page++) {
+        setup(); feed(0, "near", 200);
+        /* The declared checker trigger is the real UI path. */
+        standin_press(BTN_DOWN); standin_long_press(BTN_OK);
+        assert(scene.nav.screen == 1 && scene.scope == 1 && requesting);
+        feed(1, "world", 200);
+        if (page) { history_page(1); feed(1, "history", 200); }
+        scene.list.selected = 3;
+        uint64_t picture = standin_screen(standin_draw());
+        standin_leave();
+        standin_load(); feed(0, "near", 200); standin_terminate();
+        standin_load(); standin_focus();
+        assert(scene.scope == 1 && scene.page == page && scene.list.selected == 3);
+        assert(standin_screen(standin_draw()) == picture);
+        /* Crossing a DST boundary changes time labels, never navigation. */
+        standin_clock(1806195601); standin_intent(HOST_INTENT_TIME_CHANGED);
+        picture = standin_screen(standin_draw());
+        standin_leave(); standin_load(); standin_focus();
+        assert(scene.scope == 1 && scene.page == page && scene.list.selected == 3);
+        assert(standin_screen(standin_draw()) == picture);
+    }
+}
+
+static void requested_retry(void)
+{
+    setup(); standin_press(BTN_DOWN); standin_long_press(BTN_OK);
+    assert(requesting); standin_picked(1, -1, HOST_FAILED_NO_NETWORK, NULL, 0);
+    assert(!requesting && state.status[1] == HOST_FAILED_NO_NETWORK);
+    standin_leave(); standin_load();
+    /* The firmware retries requested work without another UI press. */
+    FILE *file = fopen("../../../tests/fixtures/earthquakes/world.json", "rb"); assert(file);
+    char body[12000]; int n = (int)fread(body, 1, sizeof body, file); fclose(file);
+    standin_picked(1, -1, 200, body, n); standin_terminate();
+    standin_load(); standin_focus();
+    assert(scene.scope == 1 && cache.count[1] == 8 && state.status[1] == 200);
+}
+
+static void malformed_old_collection(void)
+{
+    static const char *const TYPES[] = { "null", "\"quarry blast\"", "\"earthquake\"" };
+    for (int scope = 0; scope < 2; scope++) for (int i = 0; i < 3; i++) {
+        setup(); feed(0, "near", 200); feed(1, "world", 200);
+        uint32_t good = hash_bytes(cache.events, sizeof cache.events);
+        /* Old records still require valid type/revision, and so do later
+         * records outside the displayed 120-day window. */
+        char body[1024];
+        int size = snprintf(body, sizeof body,
+            "{\"type\":\"FeatureCollection\",\"metadata\":{\"count\":1},\"features\":[{\"id\":\"old\","
+            "\"properties\":{\"ids\":\",old,\",\"place\":\"Old\",\"mag\":4.5,\"time\":1767225600000,"
+            "\"updated\":%lld,\"type\":%s},\"geometry\":{\"coordinates\":[26,37,15]}}]}",
+            (long long)(i == 2 ? 1767225599000LL : 1767225600000LL), TYPES[i]);
+        standin_picked(scope, -1, 200, body, size);
+        assert(hash_bytes(cache.events, sizeof cache.events) == good);
+        assert(state.status[scope] == HOST_FAILED_NO_ANSWER);
+        standin_leave(); standin_load(); standin_focus();
+        assert(hash_bytes(cache.events, sizeof cache.events) == good);
+    }
+}
+
+static void required_nulls(void)
+{
+    for (int scope = 0; scope < 2; scope++) for (int field = 0; field < 9; field++) {
+        setup(); feed(0, "near", 200); feed(1, "world", 200);
+        uint32_t good = hash_bytes(cache.events, sizeof cache.events);
+        const char *values[] = { "\"FeatureCollection\"", "\"report\"", "\",report,\"",
+            "1795456740000", "1795456740000", "\"earthquake\"", "26", "37", "1" };
+        values[field] = "null";
+        char body[1024];
+        int size = snprintf(body, sizeof body,
+            "{\"type\":%s,\"metadata\":{\"count\":%s},\"features\":[{\"id\":%s,"
+            "\"properties\":{\"ids\":%s,\"place\":\"Report\",\"mag\":4.5,\"time\":%s,"
+            "\"updated\":%s,\"type\":%s},\"geometry\":{\"coordinates\":[%s,%s,15]}}]}",
+            values[0], values[8], values[1], values[2], values[3], values[4], values[5], values[6], values[7]);
+        standin_picked(scope, -1, 200, body, size);
+        assert(hash_bytes(cache.events, sizeof cache.events) == good);
+        assert(state.status[scope] == HOST_FAILED_NO_ANSWER);
+        standin_leave(); standin_load(); standin_focus();
+        assert(hash_bytes(cache.events, sizeof cache.events) == good);
+    }
+}
+
 int main(void)
 {
+    worldwide_resume(); requested_retry(); malformed_old_collection(); required_nulls();
     recovered_coordinates(); refused_state(); changing_equal_time_history(); equal_time_history(); atomic_answers(); cache_recovery(); paging(); background_liveness(); hourly_world_checkpoint(); changing_boundary();
     puts("earthquakes: atomic extraction, nulls, failures, unchanged data, cache recovery and history");
     return 0;

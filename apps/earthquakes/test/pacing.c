@@ -133,4 +133,51 @@ static void world_deadline(void)
         standin_pass(840000);maybe_browse();assert(requesting);
     }
 }
-int main(void) { manual_worldwide();firmware_cooldown();unchanged_headers();unchanged_long_headers();world_deadline();existing_pacing();return 0; }
+static void learned_clock(void)
+{
+    standin_reset(); cache_control=response_age=NULL; standin_clock(0);
+    standin_handlers=(standin_handlers_t){.on_load=app_on_load,.on_focus=app_on_focus,
+        .on_button=app_on_button,.on_intent=app_on_intent};
+    standin_load(); standin_focus();
+    standin_press(BTN_DOWN); standin_long_press(BTN_OK);
+    assert(scene.scope==1 && !requesting && !standin_poll_take(1));
+    standin_clock(standin_subject.at); standin_intent(HOST_INTENT_TIME_CHANGED);
+    assert(requesting && standin_poll_take(1));
+    /* An offscreen clock correction cannot invent manual Worldwide work. */
+    standin_reset(); standin_clock(0); standin_load();
+    standin_clock(standin_subject.at); standin_intent(HOST_INTENT_TIME_CHANGED);
+    assert(!requesting && !standin_poll_take(1));
+}
+
+static void refreshed_picture(void)
+{
+    standin_reset(); cache_control=response_age=NULL;
+    standin_handlers=(standin_handlers_t){.on_picked=app_on_picked}; app_on_load();
+    const char *empty="{\"type\":\"FeatureCollection\",\"features\":[]}";
+    standin_picked(0,-1,200,empty,(int)strlen(empty));
+    standin_pass(901000); assert(stale(0));
+    int redraws=standin()->redraws, files=standin()->file_writes;
+    standin_picked(0,-1,200,empty,(int)strlen(empty));
+    assert(!stale(0) && standin()->redraws>redraws && standin()->file_writes==files);
+}
+
+static void refused_worldwide_query(void)
+{
+    standin_reset(); cache_control=response_age=NULL;
+    standin_handlers=(standin_handlers_t){.on_load=app_on_load,.on_focus=app_on_focus,
+        .on_picked=app_on_picked,.on_button=app_on_button};
+    standin_load(); standin_focus();
+    standin()->refuse_writes=HOST_ERR_FAILED;
+    standin_press(BTN_DOWN); standin_long_press(BTN_OK);
+    assert(scene.scope==1 && query_unsaved && !requesting && !standin_poll_take(1));
+    const char *empty="{\"type\":\"FeatureCollection\",\"features\":[]}";
+    standin_picked(0,-1,200,empty,(int)strlen(empty));
+    assert(query_unsaved && !requesting);
+    standin()->refuse_writes=HOST_OK;
+    standin_picked(0,-1,200,empty,(int)strlen(empty));
+    assert(!query_unsaved && requesting && standin_poll_take(1));
+    standin_picked(1,-1,200,empty,(int)strlen(empty));
+    assert(!requesting && !cache_unsaved && state.status[1]==200);
+}
+
+int main(void) { learned_clock();refreshed_picture();refused_worldwide_query();manual_worldwide();firmware_cooldown();unchanged_headers();unchanged_long_headers();world_deadline();existing_pacing();return 0; }

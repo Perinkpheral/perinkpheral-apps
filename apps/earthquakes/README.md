@@ -60,6 +60,11 @@ parameters stay locked until a complete reply. A pending request can resume
 after an unload. A separate pending marker retains that request binding; `end` and
 `offset` remain available for requested-work retries after a reply. Perinkpheral OS never
 starts idle Worldwide polls at startup, on settings changes, periodically or on reconnect.
+If the clock becomes known while the Worldwide list is visible, its waiting
+request starts immediately. Completed transport retries use the retained query,
+including after an offscreen delivery; returning from another screen restores
+the scope, history page and selected row.
+A request blocked by a failed parameter save is retried on a later Nearby reply.
 
 Perinkpheral OS normalizes numeric and HTTP-date Retry-After and defers all manifest
 polls by that delay (60 seconds for a 429 without one), using uptime within the current
@@ -99,6 +104,9 @@ Without an extracted count, a whole missing record cannot be distinguished from
 legitimately fewer events.
 Exact IDs and complete aliases merge across cached scopes; the highest revision wins. Only bounded plain
 decimal numbers are accepted; null magnitude/depth remains unknown.
+Null identities and aliases are rejected. The entire collection is validated
+before older reports are removed by the display window. Place names reaching
+the picker's 63-byte limit end with `...`, including at UTF-8 boundaries.
 
 ## Notices
 
@@ -166,6 +174,17 @@ Regression tests cover the following cases:
 `test/pacing.c` covers manual Worldwide dispatch and firmware cooldowns alongside
 Cache-Control and independent backoff. `test/read_failures.c` injects partial cache and
 history read failures and verifies preservation and subsequent restoration.
+`test/network.c` checks Worldwide scope/page/selection across background replies
+and clock changes, requested-work retries and required-field nulls in both scopes.
+`test/pacing.c` also checks first clock acquisition and redraw after identical
+data becomes fresh, without adding cache writes, and recovery after refused
+Worldwide parameter saves.
+
+The proposed SDK correction in `test/sdk-checker.patch` prepares the `Do`
+request trigger once for a fresh scene. Replaying it after session restoration
+or between response rounds toggles the scope before comparing pictures, which
+contradicts the checker's reload and response invariants. Response rounds replay
+previously requested manual work; cooldown checks use the scheduler.
 
 Cache format version 4 is required. Incompatible snapshots are discarded, and
 the next Nearby reply seeds notifications silently.
