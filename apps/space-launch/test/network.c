@@ -1,32 +1,11 @@
 // SPDX-License-Identifier: MIT
-/* Regression checks for validated records, complete statistics and the service gate. */
+/* Regression checks for validated records, complete statistics and manual scheduling. */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#define answer_info answer_info_with_retry
-#define answer_header header_with_retry
 #include "../launch.c"
-#undef answer_info
-#undef answer_header
 #include "standin.h"
 #include "fixtures.h"
-
-int32_t answer_info(host_answer_info_t *, int32_t);
-int32_t answer_header(const char *, int32_t, int32_t, char *, int32_t);
-static const char *retry_header;
-static int32_t retry_after;
-int32_t header_with_retry(const char *name, int32_t length, int32_t occurrence, char *out, int32_t capacity)
-{
-    if (!retry_header) { return answer_header(name, length, occurrence, out, capacity); }
-    int32_t size = (int32_t)strlen(retry_header);
-    assert(size <= capacity); memcpy(out, retry_header, (size_t)size); return size;
-}
-int32_t answer_info_with_retry(host_answer_info_t *response, int32_t capacity)
-{
-    int32_t length = answer_info(response, capacity);
-    if (length >= 12) { memcpy((uint8_t *)response + offsetof(host_answer_info_t, retry_after), &retry_after, sizeof retry_after); }
-    return length;
-}
 
 static void records(void)
 {
@@ -71,33 +50,51 @@ static void records(void)
 static int sends(void) { return standin()->polls_run[0] + standin()->polls_run[1] + standin()->polls_run[2]; }
 static void throttle(void)
 {
-    standin_reset(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
-    assert(sends() == 1 && state.active_poll);
-    int32_t binding = state.active_poll;
-    standin_pass(20 * MINUTE * 1000);
-    app_on_settings(); app_on_focus(); app_on_alarm(FETCH_ALARM);
-    assert(sends() == 2 && state.active_poll == binding); /* requeue the same coalesced binding, never expire it */
-    int32_t asked = sends();
-    app_on_load(); fetch(); assert(sends() == asked); /* queued binding survives unload */
-    retry_after = 7 * DAY;
-    answer_text(POLL_UPCOMING, -1, 429, "{}");
-    assert(!standin_poll_ready(0, -1) && !standin_poll_ready(1, -1) && !standin_poll_ready(2, -1));
-    int64_t until = state.cooldown;
-    assert(until == time_now() + 7 * DAY);
-    for (int i = 0; i < 4; i++) {
-        app_on_settings(); app_on_alarm(FETCH_ALARM); app_on_intent(HOST_INTENT_NETWORK_UP);
-        app_on_load(); fetch(); assert(sends() == asked);
+    static const char *const HEADERS[] = { "604800", "Tue, 24 Nov 2026 18:00:00 GMT", NULL };
+    static const int32_t DELAYS[] = { 7 * DAY, DAY, 60 };
+    for (int32_t i = 0; i < 3; i++) {
+        standin_reset(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+        assert(sends() == 1 && state.active_poll && standin_poll_take(0));
+        standin_pair_t header = { "Retry-After", HEADERS[i] };
+        if (HEADERS[i]) { standin_answer_headers(&header, 1); }
+        answer_text(POLL_UPCOMING, -1, 429, "{}");
+        assert(standin()->poll_cooldown_until_ms == time_uptime_ms() + (int64_t)DELAYS[i] * 1000);
+        assert(state.due[0] == AT + HOUR); /* application cadence remains independent */
+        standin_pass(REQUEST_GAP * 1000); app_on_alarm(FETCH_ALARM);
+        assert(state.request == POLL_PREVIOUS && state.active_poll == 2);
+        app_on_load(); app_on_settings(); app_on_intent(HOST_INTENT_NETWORK_UP);
+        if (DELAYS[i] > REQUEST_GAP) {
+            assert(!standin_poll_take(POLL_PREVIOUS));
+            standin_clock(AT + 30 * DAY); app_on_intent(HOST_INTENT_TIME_CHANGED);
+            assert(!standin_poll_take(POLL_PREVIOUS)); /* firmware wait uses uptime */
+            standin_clock(AT); app_on_intent(HOST_INTENT_TIME_CHANGED);
+            standin_pass((int64_t)(DELAYS[i] - REQUEST_GAP) * 1000);
+        }
+        assert(standin_poll_take(POLL_PREVIOUS));
+        answer_file(POLL_PREVIOUS, -1, "previous.json");
+        assert(cache.count[1] == 10 && !standin_poll_take(POLL_PREVIOUS));
     }
-    standin_clock(AT + DAY); fetch(); assert(sends() == asked); /* forward jump cannot waive wait */
-    standin_clock(AT); app_on_intent(HOST_INTENT_TIME_CHANGED); assert(sends() == asked);
-    standin_pass(7LL * DAY * 1000); fetch(); assert(sends() == asked + 1);
-    retry_after = 0;
-    answer_text(state.request, state.item, 429, "{}");
-    assert(state.cooldown == time_now() + HOUR);
+}
+
+/* Readiness of real parameters cannot make a manual poll run on its own. */
+static void manual_polls(void)
+{
     standin_reset(); app_on_load();
-    retry_header = "Tue, 24 Nov 2026 18:00:00 GMT";
-    answer_text(POLL_UPCOMING, -1, 429, "{}");
-    assert(state.cooldown == AT + DAY); retry_header = NULL;
+    assert(set_text("offset", "0") && set_text("yr", "2026"));
+    for (int32_t i = 0; i < POLLS; i++) {
+        assert(standin_subject.polls[i].manual && standin_poll_ready(i, -1));
+        assert(!standin_poll_take(i));
+        assert(poll_set_interval(i, 0) == HOST_ERR_ARGUMENT);
+    }
+    standin_pass(2LL * DAY * 1000);
+    standin_intent(HOST_INTENT_NETWORK_UP); standin_settings();
+    for (int32_t i = 0; i < POLLS; i++) { assert(!standin_poll_take(i)); }
+    state_t before = state;
+    app_on_intent(INT32_MAX);
+    assert(!memcmp(&state, &before, sizeof state) && !sends());
+    app_on_intent(HOST_INTENT_STARTED);
+    assert(standin_poll_take(POLL_UPCOMING));
+    assert(!standin_poll_take(POLL_PREVIOUS) && !standin_poll_take(POLL_YEAR));
 }
 
 static void install_then_start(void)
@@ -122,6 +119,27 @@ static void delayed_success(void)
     assert(sends() == before + 1 && state.request == POLL_PREVIOUS);
 }
 
+static void paced_retry(void)
+{
+    standin_reset(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
+    assert(standin_poll_take(POLL_UPCOMING));
+    answer_text(POLL_UPCOMING, -1, HOST_FAILED_NO_NETWORK, "{}");
+    app_on_alarm(FETCH_ALARM);
+    assert(sends() == 1); /* a frozen clock cannot start a fresh manual request */
+    standin_pass(REQUEST_GAP * 1000); app_on_alarm(FETCH_ALARM);
+    assert(state.request == POLL_PREVIOUS && standin_poll_take(POLL_PREVIOUS));
+    answer_file(POLL_PREVIOUS, -1, "previous.json");
+    standin_pass(REQUEST_GAP * 1000); app_on_alarm(FETCH_ALARM);
+    assert(state.request == POLL_YEAR && standin_poll_take(POLL_YEAR));
+    answer_text(POLL_YEAR, 0, 200, "{\"count\":0,\"results\":[]}");
+    standin_pass((HOUR - 2 * REQUEST_GAP - 1) * 1000); app_on_alarm(FETCH_ALARM);
+    assert(sends() == 3 && !state.active_poll);
+    standin_pass(1000); app_on_load(); app_on_alarm(FETCH_ALARM);
+    assert(state.request == POLL_UPCOMING && standin_poll_take(POLL_UPCOMING));
+    answer_file(POLL_UPCOMING, -1, "upcoming.json");
+    assert(cache.count[0] == 10 && state.status[POLL_UPCOMING] == HTTP_OK);
+}
+
 static void recovery(void)
 {
     int32_t length;
@@ -142,38 +160,35 @@ static void recovery(void)
             if (away) { app_on_terminate(); app_on_load(); }
             app_on_settings(); app_on_alarm(FETCH_ALARM);
             assert(sends() == before && state.due[0] == AT + HOUR);
-            assert(standin_poll_ready(0, -1) == (FAILURES[i] != 429));
-            /* No helper may manufacture a new binding, open its gate or advance time. */
+            assert(standin_poll_ready(0, -1));
+            /* A delayed complete answer needs no new binding or clock advancement. */
             standin_picked(POLL_UPCOMING, -1, 200, body, length);
             assert(cache.count[0] == 10 && state.status[0] == 200);
-            assert(sends() == before && !standin_poll_ready(0, -1));
+            assert(sends() == before && standin_poll_ready(0, -1));
             if (away) { app_on_terminate(); app_on_load(); app_on_focus(); }
             assert(standin_screen(standin_draw()) == whole);
-            if (FAILURES[i] == 429) { assert(state.cooldown == AT + HOUR); }
+            if (FAILURES[i] == 429) { assert(standin()->poll_cooldown_until_ms == time_uptime_ms() + 60000); }
         }
     }
     free(body);
 }
 
-static void restarted_gate(void)
+static void restarted_binding(void)
 {
     standin_reset(); app_on_load();
-    state.active_poll = 3; state.request = POLL_YEAR; state.cursor = 0;
-    assert(kv_set("year_gate", 9, "1", 1) == HOST_OK); save_state();
+    state.active_poll = 3; state.request = POLL_YEAR; state.cursor = 0; save_state();
     standin_restart(); app_on_load(); app_on_intent(HOST_INTENT_STARTED);
-    assert(state.request == POLL_UPCOMING && !standin_poll_ready(1, -1) && !standin_poll_ready(2, -1));
-    /* Even a late refusal with another poll binding closes every service gate. */
+    assert(state.request == POLL_UPCOMING && state.active_poll == 1);
     int32_t binding = state.active_poll;
-    retry_after = 600; standin_handlers.on_picked = app_on_picked;
+    standin_pair_t header = { "Retry-After", "600" };
+    standin_answer_headers(&header, 1); standin_handlers.on_picked = app_on_picked;
     standin_picked(2, -1, 429, "{}", 2);
-    assert(state.active_poll == binding);
-    assert(state.cooldown == time_now() + 600);
-    assert(!standin_poll_ready(0, -1) && !standin_poll_ready(1, -1) && !standin_poll_ready(2, -1));
+    assert(state.active_poll == binding && !standin_poll_take(0));
+    assert(standin()->poll_cooldown_until_ms == time_uptime_ms() + 600000);
     int32_t before = sends(); fetch(); assert(sends() == before);
     standin_picked(0, -1, HOST_FAILED_NOT_READY, "{}", 2);
-    assert(!state.active_poll && state.status[POLL_UPCOMING] == 429);
+    assert(!state.active_poll && state.status[POLL_UPCOMING] == HOST_FAILED_NOT_READY);
     fetch(); assert(sends() == before);
-    retry_after = 0;
 }
 
 static void clock_and_fairness(void)
@@ -191,15 +206,15 @@ static void clock_and_fairness(void)
     state.due[2] = time_now() + DAY;
     state.next_send = time_now() + REQUEST_GAP; save_state();
     int64_t before = time_now();
-    standin_clock(HOST_TIME_MIN); app_on_intent(HOST_INTENT_TIME_CHANGED);
-    assert(state.next_send == HOST_TIME_MIN + REQUEST_GAP);
-    assert(state.due[0] == HOST_TIME_MIN + 30 * MINUTE);
-    assert(state.due[1] == HOST_TIME_MIN + 3 * HOUR && state.due[2] == HOST_TIME_MIN + DAY);
-    save_state(); app_on_load(); assert(state.due[0] == HOST_TIME_MIN + 30 * MINUTE);
+    standin_clock(HOST_CLOCK_MIN); app_on_intent(HOST_INTENT_TIME_CHANGED);
+    assert(state.next_send == HOST_CLOCK_MIN + REQUEST_GAP);
+    assert(state.due[0] == HOST_CLOCK_MIN + 30 * MINUTE);
+    assert(state.due[1] == HOST_CLOCK_MIN + 3 * HOUR && state.due[2] == HOST_CLOCK_MIN + DAY);
+    save_state(); app_on_load(); assert(state.due[0] == HOST_CLOCK_MIN + 30 * MINUTE);
     /* Also detect a backward jump first observed after an unload. */
     standin_clock(before); fetch(); save_state();
-    standin_restart(); standin_clock(HOST_TIME_MIN); app_on_load();
-    assert(state.due[0] <= HOST_TIME_MIN + 30 * MINUTE);
+    standin_restart(); standin_clock(HOST_CLOCK_MIN); app_on_load();
+    assert(state.due[0] <= HOST_CLOCK_MIN + 30 * MINUTE);
 }
 
 static void page(int32_t offset, int32_t total, int32_t duplicate, int32_t moved)
@@ -297,7 +312,7 @@ static void freshness(void)
 }
 int main(void)
 {
-    records(); throttle(); install_then_start(); delayed_success(); recovery(); restarted_gate(); clock_and_fairness(); annual(); details(); freshness(); scheduler_alarm(); unknown_provider();
+    manual_polls(); records(); throttle(); install_then_start(); delayed_success(); paced_retry(); recovery(); restarted_binding(); clock_and_fairness(); annual(); details(); freshness(); scheduler_alarm(); unknown_provider();
     puts("space-launch: validation, serialization, cooldown, clocks, fairness, UUID paging and KV freshness passed");
     return 0;
 }

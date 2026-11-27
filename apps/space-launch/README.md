@@ -1,7 +1,8 @@
 # Space Launch
 
 Orbital and suborbital launches from [Launch Library 2](https://thespacedevs.com/llapi) by
-The Space Devs, and orbital launch counts since 1957. No account or key is needed.
+The Space Devs, and orbital launch counts since 1957. Requires Perinkpheral OS 0.2.0
+or later. No account or key is needed.
 
 ## Screens
 
@@ -45,18 +46,16 @@ fresh. Reminders are set again after a restart, a clock change and an update.
 
 ## Requests
 
-All requests go to `ll.thespacedevs.com`, version 2.3.0, through three picked manifest
-polls. One persisted binding is outstanding at a time, without an expiring clock lease.
-Required header templates keep every other poll closed, including automatic reconnects.
-The application closes the gate after a successful delivery and spaces new requests five
-minutes apart. Installation followed by `started` in the same boot retains its queued binding; a new boot
-clears it. The fetch alarm reschedules an outstanding poll under the same binding because a
+All requests go to `ll.thespacedevs.com`, version 2.3.0, through three manual picked
+manifest polls. Perinkpheral OS starts these only when the application calls `poll_run()`;
+startup, settings changes, periodic scheduling and reconnection never start idle polls.
+One persisted binding is outstanding at a time. New requests are spaced five minutes
+apart. Installation followed by `started` in the same boot retains the queued binding;
+a new boot clears it. The fetch alarm resubmits outstanding requested work because a
 background poll that cannot start may have no callback. Perinkpheral OS coalesces pending
-polls; any queued repeat reads the closed gate after success. Due endpoints take turns, and
-the scheduler waits an hour before requesting a failed endpoint again. Until another endpoint
-is chosen, the failed binding remains ready for a Perinkpheral OS retry: a complete answer is accepted
-immediately, including across an unload. A complete answer for the last binding is also
-accepted during cooldown, without shortening the wait or enabling a new request.
+work and defers it during server cooldowns. Due endpoints take turns, and a failed endpoint
+waits an hour before a new request. A complete delayed answer for the last binding is
+accepted immediately, including across an unload or during a server cooldown.
 
 | Request | Address | Interval |
 |---|---|---|
@@ -66,11 +65,12 @@ accepted during cooldown, without shortening the wait or enabling a new request.
 
 For a year with 271 launches this is about 84 requests a day, spread across the day. The free
 service permits 15 requests an hour from one address, shared by every device and program behind
-it. Every 429, including a late response for another binding, persists a global cooldown and
-closes every gate. `Retry-After` accepts delta seconds or an HTTP date; absence means an hour.
-A late refusal does not release another outstanding request. Clock corrections rebase every
-scheduler deadline and list freshness, including across restarts. Within one boot elapsed uptime
-also protects the cooldown against forward jumps. The header shows `Updated 19:20` once the
+it. Perinkpheral OS normalizes numeric and HTTP-date `Retry-After` and defers every
+manifest poll of the application by that delay. A 429 without a usable delay waits 60
+seconds. This wait follows uptime within the current boot and survives wall-clock changes;
+the application keeps no duplicate cooldown. A late refusal does not release another
+outstanding binding. Clock corrections rebase application cadence and list freshness,
+including across restarts. The header shows `Updated 19:20` once the
 upcoming list is 40 minutes old. The existing fetch alarm also updates the visible countdown
 and freshness caption, without a separate foreground timer.
 
@@ -112,16 +112,19 @@ A provider outside these lists counts under Others until the list is extended in
   annual statistics, the staged round and the preceding year. An inactive bank is written
   and read back before becoming current; a damaged bank leaves the last valid one intact.
 - Store: `state` (statuses, scheduling deadlines, boot/uptime anchors, request binding,
-  cooldown, a list revision/freshness pair and the last 16 reminded launch IDs), poll gates,
-  and annual URL parameters. Unchanged list payloads update freshness here without rewriting
-  cache files. A mismatched revision prevents freshness following a fallback to an older list.
+  a list revision/freshness pair and the last 16 reminded launch IDs), plus annual URL
+  parameters retained for requested-work retries. Unchanged list payloads update freshness
+  here without rewriting cache files. A mismatched revision prevents freshness following a fallback to an older list.
 - `told`: a complemented delivery receipt, used when posting succeeded but saving the reminded
   ID failed. A rejected post or failed preflight never consumes an ID. Normal unloads run
   handlers to completion. A power loss before either receipt becomes durable, or
   failed receipt writes through termination, can repeat a reminder because
   notification delivery and application storage are separate operations.
-- Cache and state formats are version 3. Incompatible stored data is discarded;
-  launch data is fetched again.
+- Cache format is version 3; state format is version 4. Incompatible stored data uses
+  defaults and launch data is fetched again. Failed reads preserve the durable record:
+  unreadable state or either cache bank blocks its replacement until a later successful
+  restore. An unreadable `told` receipt pauses reminders until restored. Historical-file
+  reads can be retried and partial data is never published.
 - `files/history.bin`: orbital launches per month and failures per year, 1957 to 2025: two
   `uint16` (first year, count of years), then per year twelve `uint16` monthly counts and a
   `uint16` count of failures, little-endian. The same numbers are in
@@ -143,19 +146,21 @@ GCAT's count.
 
 ## Tests
 
-`test/network.c` (validation, global cooldown, complete paging beyond 400 and year bindings),
-`test/persistence.c` (torn banks, write retries, rejected posts and delivery receipts), `test/reminders.c`
+`test/network.c` (manual dispatch, firmware cooldowns, complete paging beyond 400 and year bindings),
+`test/persistence.c` (torn banks, write retries, rejected posts and delivery receipts),
+`test/read_failures.c` (failed and partial state, bank, history and receipt reads), `test/reminders.c`
 and `test/screens.c` run with the unmodified SDK's `app-check apps`. The simulator
 scenarios `tests/space-launch-*` use the answers in
 [tests/fixtures/space-launch](../../tests/fixtures/space-launch).
 
-The SDK's generic network checks require a complete answer after any failure to show
-exactly what that answer alone would show. `test/network.c` also compares frames after
-transport failures, incomplete picked JSON, HTTP errors and 429, on screen and across
-an unload, without advancing time or manufacturing a new request binding. It verifies
-that accepting the answer does not bypass the scheduler or clear a global cooldown.
-Other regressions cover delayed responses, clock corrections, endpoint fairness,
-complete annual paging, global cooldown and unchanged payloads.
+The SDK's immediate network-recovery picture assertion is exempted in `test/check.json`:
+manual polls retain the application's one-hour endpoint backoff and five-minute request
+spacing, while generic consecutive rounds keep the clock fixed. Other network checks
+remain enabled. `test/network.c` delivers delayed complete replies after transport failures,
+incomplete picked JSON, HTTP errors and 429, on screen and across an unload, without
+advancing time or manufacturing a new binding. It also checks manual dispatch, firmware
+deferral using real response headers, clock corrections, endpoint fairness, the full
+one-hour retry deadline and unchanged payloads.
 `test/list_validation.c`, `test/rollover.c`, `test/offline.c` and `test/unknown_time.c`
 cover incomplete lists, year rollover, offline startup and unknown launch-time precision.
 The offline and rollover scenarios cover both languages and fonts, including unknown-time

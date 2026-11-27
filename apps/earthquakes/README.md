@@ -1,7 +1,7 @@
 # Earthquakes
 
 Recent U.S. Geological Survey reports, a regional coastline map, Worldwide history
-and optional post-event nearby notices. Requires Perinkpheral OS 0.1.95 or later.
+and optional post-event nearby notices. Requires Perinkpheral OS 0.2.0 or later.
 English/Russian and Departure/Jersey use the SDK's fonts and UI kit. Maps contain
 land, sea and coastlines; report place names remain as supplied by USGS.
 
@@ -53,14 +53,18 @@ damage or danger: M4/100 km, M5/300 km, M6/1000 km, M7+/2000 km.
 ## Requests and persistence
 
 The manifest defines two polls. Nearby runs at the selected
-interval, subject to the SDK's power-saving floor. Worldwide is gated by its
-offset parameter and fetched on demand; while its list is visible, it refreshes
+interval, subject to the SDK's power-saving floor. Worldwide is a manual poll
+requested by the application; while its list is visible, it refreshes
 no more often than every 15 minutes or the provider's longer max-age. Query
 parameters stay locked until a complete reply. A pending request can resume
-after an unload. The idle Worldwide descriptor causes no HTTP requests.
+after an unload. A separate pending marker retains that request binding; `end` and
+`offset` remain available for requested-work retries after a reply. Perinkpheral OS never
+starts idle Worldwide polls at startup, on settings changes, periodically or on reconnect.
 
-Both numeric and HTTP-date Retry-After are respected, with 5/15/60-minute error
-backoff. Cache-Control waits the full max-age, conservatively ignoring Age.
+Perinkpheral OS normalizes numeric and HTTP-date Retry-After and defers all manifest
+polls by that delay (60 seconds for a 429 without one), using uptime within the current
+boot. The application retains independent 5/15/60-minute error backoff. Cache-Control
+waits the full max-age, conservatively ignoring Age.
 An alarm and missing query keys cover provider pauses longer than one day.
 There are no cache-busting parameters. HTTP 204 is an empty success.
 
@@ -68,7 +72,10 @@ One versioned, checksummed file holds both pages, 32 notification cluster record
 31 fresh observed identities, freshness and delivery intent. An interrupted write
 can lose the cache; a bad checksum discards it and seeds the next response silently. There is no older
 bank whose notification ledger can be replayed. Intent is saved before posting;
-a crash or storage failure can lose a notice. Failed saves remain retryable.
+a crash or storage failure can lose a notice. Failed saves remain retryable. A storage
+read failure preserves the durable cache and identity history, blocks replacement writes
+and pauses notification delivery until a later restore succeeds. Partial failed reads
+are never treated as an empty cache or empty history.
 Unchanged snapshots are not written; both scopes checkpoint freshness hourly.
 Worldwide also saves its latest success at blur/termination, so reopening
 retains the full refresh deadline, including a reply delivered offscreen.
@@ -155,6 +162,10 @@ Regression tests cover the following cases:
 8. USGS shares the date row above the actions, with measured horizontal space
    (`source_clearance` in `test/presentation.c`, plus all four event pictures
    per language/font).
+
+`test/pacing.c` covers manual Worldwide dispatch and firmware cooldowns alongside
+Cache-Control and independent backoff. `test/read_failures.c` injects partial cache and
+history read failures and verifies preservation and subsequent restoration.
 
 Cache format version 4 is required. Incompatible snapshots are discarded, and
 the next Nearby reply seeds notifications silently.

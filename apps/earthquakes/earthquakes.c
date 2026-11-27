@@ -88,6 +88,7 @@ static cache_t cache;
 #define state (cache.control)
 static scene_t scene;
 static bool placed, notices_on, requesting, cache_unsaved;
+static bool cache_read_failed, history_read_failed;
 static char header_place[HOST_HEADER_TEXT_MAX + 1];
 static int32_t requested_page;
 static int32_t latitude, longitude, radius_km, minimum, refresh;
@@ -97,9 +98,9 @@ static int64_t success[2];
 _Static_assert(offsetof(event_t, aliases) == 32 && offsetof(identity_t, aliases) == 32, "identity prefix");
 _Static_assert(sizeof(cache_t) <= 8192, "cache must occupy two blocks");
 /* One checksummed snapshot holds data and notification intent. Seven settings
- * at their full byte limits plus the three query keys fit even if invalid
+ * at their full byte limits plus the four query keys fit even if invalid
  * numeric settings are supplied outside the linked Place picker. */
-_Static_assert(1344 + 3 * 96 <= HOST_KV_TOTAL_MAX, "KV budget");
+_Static_assert(1344 + 4 * 96 <= HOST_KV_TOTAL_MAX, "KV budget");
 APP_SESSION_FITS(scene_t);
 
 __attribute__((noinline)) static const char *word(int32_t id) { return app_string(id); }
@@ -140,6 +141,7 @@ static void cache_save_result(bool unsaved)
 }
 static bool save_cache(void)
 {
+    if (cache_read_failed || history_read_failed) { cache_save_result(true); return false; }
     uint32_t sum = checksum(&cache);
     if (sum == saved_checksum) { cache_save_result(false); return true; }
     cache.checksum = sum;
@@ -150,7 +152,10 @@ static bool save_cache(void)
 }
 static void load_cache(void)
 {
-    if (file_read("cache", 5, 0, &cache, sizeof cache) != sizeof cache ||
+    int32_t result = file_read("cache", 5, 0, &cache, sizeof cache);
+    cache_read_failed = result < 0 && result != HOST_ERR_NOT_FOUND;
+    history_read_failed = false;
+    if (result != sizeof cache ||
         cache.version != 4 || cache.checksum != checksum(&cache) ||
         cache.count[0] < 0 || cache.count[0] > BATCH ||
         cache.count[1] < 0 || cache.count[1] > BATCH) {
@@ -159,16 +164,16 @@ static void load_cache(void)
         cache.browse_end = HOST_TIME_MAX * 1000; cache.browse_offset = 1;
     }
     saved_checksum = cache.checksum;
-    cache_unsaved = false;
+    cache_unsaved = cache_read_failed;
     query_unsaved = 0;
 }
 
 /* Remember each failed query-key write until that key is saved successfully. */
 static void query_result(const char *key, int32_t result)
 {
-    static const char *const KEYS[] = { "lat", "lon", "near", "end", "offset" };
+    static const char *const KEYS[] = { "lat", "lon", "near", "end", "offset", "pending" };
     uint32_t before = query_unsaved;
-    for (int32_t index = 0; index < 5; index++) {
+    for (int32_t index = 0; index < 6; index++) {
         if (app_text_equal(key, KEYS[index])) {
             if (result == HOST_OK) { query_unsaved &= ~(1u << index); }
             else { query_unsaved |= 1u << index; }
@@ -179,7 +184,7 @@ static void query_result(const char *key, int32_t result)
 
 static int32_t save_query(const char *key, int32_t key_length, const void *value, int32_t length)
 {
-    int32_t result = kv_set(key, key_length, value, length);
+    int32_t result = cache_read_failed ? HOST_ERR_FAILED : kv_set(key, key_length, value, length);
     query_result(key, result);
     return result;
 }
@@ -318,7 +323,7 @@ static bool stale(int32_t scope)
 }
 static void cancel_browse(void)
 {
-    requesting = 0; save_query("offset", 6, NULL, 0);
+    requesting = false; save_query("pending", 7, NULL, 0);
 }
 static void reset_configuration(void)
 {
@@ -446,8 +451,7 @@ __attribute__((noinline)) static void fill(char *out, int32_t size, const char *
         { number, NULL, 0 }, { 0, a, a ? app_text_length(a) : 0 },
         { 0, b, b ? app_text_length(b) : 0 }
     };
-    int32_t n = text_fill(pattern, app_text_length(pattern), args, 3, out, size - 1);
-    out[n > 0 ? n : 0] = 0;
+    app_text_fill(pattern, args, 3, out, size);
 }
 #define FILL(out, pattern, n, a, b) fill(out, sizeof(out), pattern, n, a, b)
 static void magnitude(char out[8], const event_t *e)
@@ -557,38 +561,13 @@ static void observe(const event_t *e, bool seed)
     copy_bytes(&state.notice, e, sizeof *e); state.pending = 1;
 }
 
-/* Retry-After supports seconds and IMF-fixdate. Cache-Control max-age
- * controls cadence; no cache-busting or user refresh bypasses it. */
-static int32_t digits(const char *s, int32_t n)
-{
-    int32_t value = 0;
-    while (n-- > 0) { if (*s < '0' || *s > '9') { return -1; } value = value * 10 + *s++ - '0'; }
-    return value;
-}
-static int64_t retry_date(const char *s)
-{
-    if (app_text_length(s) != 29) { return 0; }
-    static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
-    int32_t month = 0;
-    for (int32_t i = 0; i < 12; i++) {
-        if (s[8] == months[i * 3] && s[9] == months[i * 3 + 1] && s[10] == months[i * 3 + 2]) { month = i + 1; }
-    }
-    int32_t year = digits(s + 12, 4), day = digits(s + 5, 2);
-    int32_t hour = digits(s + 17, 2), minute = digits(s + 20, 2), second = digits(s + 23, 2);
-    if ((hour | minute | second) < 0 || hour > 23 || minute > 59 || second > 59) { return 0; }
-    if (!month || (uint32_t)(day - 1) > 30) { return 0; }
-    return (int64_t)app_days_from_date(year, month, day) * 86400 + hour * 3600 + minute * 60 + second;
-}
+/* Cache-Control controls application cadence independently of firmware cooldowns. */
 static int64_t header_seconds(const char *name, const char *prefix)
 {
     char text[128];
     int32_t n = answer_header(name, app_text_length(name), 0, text, sizeof text - 1);
     if (n < 0) { return 0; }
     text[n] = 0;
-    if (!prefix[0]) {
-        int64_t seconds;
-        return decimal(text, 0, &seconds) ? seconds : retry_date(text) - time_now();
-    }
     for (int32_t i = 0; i < n; i++) { if (text[i] >= 'A' && text[i] <= 'Z') { text[i] += 'a' - 'A'; } }
     for (int32_t i = 0; i < n; i++) {
         if (!app_text_starts(text + i, prefix)) { continue; }
@@ -608,9 +587,8 @@ static void pace(int32_t request, bool ok)
     if (ok) { state.failures[request] = 0; }
     else if ((now >= state.not_before || !state.failures[request]) && state.failures[request] < 3) { state.failures[request]++; }
     int32_t delay = ok ? 0 : state.failures[request] == 1 ? 300 : state.failures[request] == 2 ? 900 : 3600;
-    int64_t retry = header_seconds("Retry-After", "");
-    if (state.not_before - now > retry) { retry = state.not_before - now; }
-    state.not_before = retry > delay ? now + retry : delay ? now + delay : 0;
+    if (ok) { state.not_before = 0; }
+    else if (now + delay > state.not_before) { state.not_before = now + delay; }
     if (state.not_before) { cancel_browse(); }
     /* Waiting the full max-age is conservative when an Age header is present. */
     int64_t ttl = header_seconds("Cache-Control", "max-age=");
@@ -621,10 +599,9 @@ static void pace(int32_t request, bool ok)
         if (ok) { state.cache_seconds = ttl > 900 ? ttl : 900; }
         ttl = state.near_seconds;
     } else { state.near_seconds = ttl; }
-    if (ttl > retry) { retry = ttl; }
-    if (retry > delay) { delay = retry > 86400 ? 86400 : (int32_t)retry; }
+    if (ttl > delay) { delay = ttl > 86400 ? 86400 : (int32_t)ttl; }
     poll_set_interval(0, delay > refresh ? delay : 0);
-    if (retry > 86400) { state.pause_until = now + retry; provider_pause(); }
+    if (ttl > 86400) { state.pause_until = now + ttl; provider_pause(); }
 }
 static int32_t shown_slot(void) { return scene.scope; }
 static event_t *shown_events(void) { return cache.events[shown_slot()]; }
@@ -647,7 +624,9 @@ __attribute__((noinline)) static int32_t stored_boundary_matches(const event_t *
     int32_t matches = 0;
     for (int32_t j = 0; j < cache.boundary_stored; j++) {
         boundary_record_t record;
-        if (file_read("history", 7, j * sizeof record, &record, sizeof record) != sizeof record ||
+        int32_t result = file_read("history", 7, j * sizeof record, &record, sizeof record);
+        if (result < 0 && result != HOST_ERR_NOT_FOUND) { history_read_failed = true; }
+        if (result != sizeof record ||
             record.id.until != cache.browse_end ||
             record.checksum != hash_bytes(&record.id, sizeof record.id)) { return -1; }
         for (int32_t i = 0; i < n; i++) {
@@ -658,6 +637,7 @@ __attribute__((noinline)) static int32_t stored_boundary_matches(const event_t *
 }
 __attribute__((noinline)) static bool store_boundary(void)
 {
+    if (cache_read_failed || history_read_failed || stored_boundary_matches(NULL, 0) < 0) { return false; }
     for (int32_t j = 0; j < cache.boundary_count; j++) {
         boundary_record_t record; zero(&record, sizeof record);
         copy_bytes(&record.id, &cache.boundary[j], sizeof cache.boundary[j]);
@@ -757,7 +737,8 @@ static void utc_text(char out[32], int64_t millis)
 static void browse(int32_t page)
 {
     if (requesting) { page = requested_page; }
-    if (!time_now() || page > 1000 || time_now() < state.not_before) { return; }
+    if (cache_read_failed || history_read_failed || !time_now() || page > 1000 ||
+        time_now() < state.not_before) { return; }
     char text[32];
     if (!requesting && page != cache.request_page) {
         if (page && cache.count[1]) {
@@ -782,6 +763,7 @@ static void browse(int32_t page)
     FILL(text, "{0}", cache.browse_offset, NULL, NULL);
     if (save_query("offset", 6, text, app_text_length(text)) < 0) { return; }
     if (cache.browse_page != page) { scene.list.selected = scene.list.first = 0; }
+    if (!requesting && save_query("pending", 7, "1", 1) != HOST_OK) { return; }
     scene.page = requested_page = cache.request_page = page; requesting = true;
     save_cache();
     if (poll_run(1) < 0) { cancel_browse(); pace(1, false); save_cache(); }
@@ -805,7 +787,9 @@ void app_on_load(void)
     scene.list.top = LIST_TOP; scene.list.height = LIST_BOTTOM - LIST_TOP;
     load_cache(); settings();
     int32_t offset = 0;
-    requesting = setting_number("offset", 0, &offset) && (uint32_t)(offset - 1) <= 8000;
+    requesting = app_setting_is("pending", "1") &&
+        setting_number("offset", 0, &offset) && (uint32_t)(offset - 1) <= 8000;
+    if (cache.boundary_stored) { stored_boundary_matches(NULL, 0); }
     requested_page = cache.request_page;
     for (int32_t i = 0; i < 2; i++) { success[i] = state.success[i]; }
     if (state.boot != time_boot_id()) {

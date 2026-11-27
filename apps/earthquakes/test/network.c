@@ -82,7 +82,7 @@ static void paging(void)
     scene.nav.screen=1;scene.scope=1;maybe_browse();
     char value[32];assert(app_setting_is("offset","1") && requesting);
     feed(1,"world",200);assert(!requesting && shown_count()==8);
-    assert(!app_setting("offset",value,sizeof value));
+    assert(app_setting_is("offset", "1") && !app_setting("pending", value, sizeof value));
     scene.list.selected=3;int files=standin()->file_writes;
     maybe_browse();assert(!requesting); /* reuse a fresh page without a write */
     assert(standin()->file_writes==files && scene.list.selected==3);

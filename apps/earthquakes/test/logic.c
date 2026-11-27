@@ -31,17 +31,12 @@ static void geography(void)
         assert(!relevant(&e));
     }
 }
-static void identity_and_dates(void)
+static void identities(void)
 {
     event_t a={.id="us-a",.aliases=",us-a,ci-b,"}, b={.id="ci-b",.aliases=",ci-b,"};
     assert(same_event(&a,&b)); strcpy(b.id,"new");strcpy(b.aliases,",ci-b,new,"); assert(same_event(&a,&b));
     strcpy(b.aliases,",ci-bb,new,"); assert(!same_event(&a,&b));
     assert(!token(",prefix-us-a,", "us-a"));
-    assert(retry_date("Mon, 23 Nov 2026 18:00:00 GMT")==1795456800);
-    assert(retry_date("malformed")==0);
-    assert(retry_date("Sun, 01 Mar 2026 00:00:00 GMT")==1772323200LL);
-    assert(retry_date("Fri, 01 Jan 2027 00:00:00 GMT")==1798761600LL);
-    assert(retry_date("Mon, 32 Nov 2026 18:00:00 GMT")==0);
 
 }
 static void utc_boundaries(void)
@@ -69,4 +64,4 @@ static void coordinates(void)
     app_on_load();assert(placed && latitude==-59940000 && longitude==180000000);
     assert(app_setting_is("lat","-59.940000") && app_setting_is("lon","180.000000"));
 }
-int main(void) { geography(); identity_and_dates(); utc_boundaries(); coordinates(); puts("earthquakes: sphere distances, relevance boundaries, aliases and UTC cursors"); return 0; }
+int main(void) { geography(); identities(); utc_boundaries(); coordinates(); puts("earthquakes: sphere distances, relevance boundaries, aliases and UTC cursors"); return 0; }

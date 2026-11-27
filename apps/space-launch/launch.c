@@ -9,8 +9,8 @@
  *   Countries  this year's launches by the provider's country, bars against the leader.
  *   Months     a year's launches by month; UP and DOWN choose the year.
  *   History    orbital launches a year since 1957; UP and DOWN choose the year.
- * Picked poll requests are gated by the application, with a persistent service-wide cooldown.
- * Gated picked polls refresh the lists every half hour / three hours and statistics daily.
+ * Manual picked polls refresh the lists every half hour / three hours and statistics daily.
+ * Perinkpheral OS defers manifest polls for the provider's Retry-After delay.
  * Past years come with the package (files/history.bin, from GCAT).
  * A 429 keeps what is there and waits the time the server names. A reminder can come some
  * time before a launch that is Go, as a notification.
@@ -54,7 +54,6 @@ enum { ST_GO = 1, ST_TBD, ST_SUCCESS, ST_FAILURE, ST_HOLD, ST_FLIGHT, ST_PARTIAL
 #define SLIP_SHOWN_S     DAY
 #define FRESH_S          (3 * HOUR)    /* reminders come only from a list this recent */
 #define LATE_S           (5 * MINUTE)  /* a reminder this late is not given */
-#define RETRY_DEFAULT_S  HOUR          /* a 429 without Retry-After */
 #define REMIND_ALARM     0
 #define FETCH_ALARM      1
 #define SAVE_ALARM       2
@@ -66,13 +65,11 @@ __attribute__((noinline)) static const char *word(int32_t id)
     return app_string(id);
 }
 
-/* One wrapper owns the host formatter's missing terminator. */
+/* Keep call sites compact while sharing the SDK's terminated formatter. */
 __attribute__((noinline)) static int32_t format_text(char *out, int32_t size, const char *pattern,
                                                     const host_text_argument_t *args, int32_t count)
 {
-    int32_t length = text_fill(pattern, app_text_length(pattern), args, count, out, size - 1);
-    out[length > 0 ? length : 0] = '\0';
-    return length;
+    return app_text_fill(pattern, args, count, out, size);
 }
 
 __attribute__((noinline)) static void fill_number(char *out, int32_t size, int32_t pattern, int32_t number)
@@ -152,21 +149,20 @@ typedef struct {
     cache_t data;
 } bank_t;
 static const char *const BANKS[] = { "cache-a", "cache-b" };
-static const char *const GATES[] = { "list_gate", "past_gate", "year_gate" };
 static bank_t bank_buffer;
 static uint32_t cache_generation;
 static int32_t cache_bank;
 
 #define STATE_KEY "state"
-#define STATE_VERSION 3
+#define STATE_VERSION 4
 typedef struct {
     int32_t version;
     int32_t status[POLLS];
     int32_t told_next;
     uint32_t told[TOLD_MAX];
     union {
-        struct { int64_t seen, cooldown, next_send, due[3]; };
-        int64_t deadlines[6];
+        struct { int64_t seen, next_send, due[3]; };
+        int64_t deadlines[5];
     };
     int64_t clock, uptime;
     uint32_t boot;
@@ -179,6 +175,7 @@ static cache_t cache;
 static state_t state;
 static int64_t seen_at;
 static bool cache_dirty, state_dirty;
+static bool state_read_failed, cache_read_failed, receipt_read_failed;
 
 
 /* Share record transfers instead of repeating field loads and stores at each call site. */
@@ -200,14 +197,10 @@ static bool is_same(const void *one, const void *other, uint32_t size)
 
 static bool save_state(void)
 {
+    if (state_read_failed) { return false; }
     state_dirty = kv_set(STATE_KEY, sizeof STATE_KEY - 1, &state, sizeof state) != HOST_OK;
     if (state_dirty) { alarm_set(SAVE_ALARM, MINUTE); }
     return !state_dirty;
-}
-
-static inline __attribute__((always_inline)) bool close_gate(int32_t poll)
-{
-    return set_text(GATES[poll], "");
 }
 
 static uint32_t checksum(const bank_t *bank)
@@ -228,6 +221,7 @@ static bool valid_bank(const bank_t *bank)
 
 static void save_cache(void)
 {
+    if (cache_read_failed) { return; }
     int32_t target = 1 - cache_bank;
     bank_buffer.generation = cache_generation + 1;
     copy_record(&bank_buffer.data, &cache, sizeof cache);
@@ -235,7 +229,9 @@ static void save_cache(void)
     cache_dirty = file_write(BANKS[target], 7, 0, &bank_buffer, sizeof bank_buffer) != HOST_OK;
     /* Read back before advancing the generation: never overwrite the last valid bank. */
     if (!cache_dirty) {
-        cache_dirty = file_read(BANKS[target], 7, 0, &bank_buffer, sizeof bank_buffer) != sizeof bank_buffer ||
+        int32_t length = file_read(BANKS[target], 7, 0, &bank_buffer, sizeof bank_buffer);
+        cache_read_failed = length < 0 && length != HOST_ERR_NOT_FOUND;
+        cache_dirty = length != sizeof bank_buffer ||
                       (!valid_bank(&bank_buffer) || bank_buffer.generation != cache_generation + 1);
     }
     if (cache_dirty) { alarm_set(SAVE_ALARM, MINUTE); }
@@ -277,7 +273,7 @@ static int32_t number_of(const char *text)
     return length > 0 && length < 10 ? digits(text, 0, length) : -1;
 }
 
-/* Shared validation of ISO NET and Retry-After clock components. */
+/* Validate the clock components of an ISO NET. */
 static int32_t clock_seconds(const char *text)
 {
     int32_t hour = digits(text, 0, 2), minute = digits(text, 3, 2), second = digits(text, 6, 2);
@@ -324,15 +320,17 @@ static void read_history(void)
 {
     if (history_count >= 0) { return; }
     uint16_t head[2] = { 0, 0 };
+    int32_t length = file_read(HISTORY_FILE, sizeof HISTORY_FILE - 1, 0, head, sizeof head);
+    if (length < 0 && length != HOST_ERR_NOT_FOUND) { return; }
     history_count = 0;
-    if (file_read(HISTORY_FILE, sizeof HISTORY_FILE - 1, 0, head, sizeof head) != sizeof head ||
+    if (length != sizeof head ||
         head[0] != FIRST_YEAR || head[1] > 128) {
         return;
     }
     int32_t bytes = head[1] * (int32_t)sizeof(year_t);
-    if (file_read(HISTORY_FILE, sizeof HISTORY_FILE - 1, sizeof head, history, bytes) == bytes) {
-        history_count = head[1];
-    }
+    length = file_read(HISTORY_FILE, sizeof HISTORY_FILE - 1, sizeof head, history, bytes);
+    if (length == bytes) { history_count = head[1]; }
+    else if (length < 0 && length != HOST_ERR_NOT_FOUND) { history_count = -1; }
 }
 
 
@@ -643,14 +641,15 @@ static void schedule_reminder(void)
 void app_on_alarm(int32_t id)
 {
     if (id == FETCH_ALARM) {
-        /* A background poll that cannot start may have no callback. Pending polls coalesce;
-         * a queued repeat reads the gate after the preceding answer has closed it. */
+        /* A background poll that cannot start may have no callback. Requeue the
+         * outstanding manual request; Perinkpheral OS coalesces and defers it. */
         int32_t pending = state.active_poll;
         fetch();
         if (pending) { poll_run(pending - 1); }
         update_header(); screen_redraw(HOST_REDRAW_NORMAL); return;
     }
     if (id == SAVE_ALARM) { persist(); fetch(); return; }
+    if (state_read_failed || cache_read_failed || receipt_read_failed) { return; }
     int64_t now = time_now();
     int32_t lead = lead_seconds();
     for (int32_t i = 0; i < cache.count[0]; i++) {
@@ -681,8 +680,7 @@ void app_on_alarm(int32_t id)
 /* ---- answers ---- */
 
 
-/* Rebase every scheduling deadline after a backward adjustment, even after a restart.
- * Within one boot cooldown also follows elapsed uptime, so a forward jump cannot waive it. */
+/* Rebase application cadence and freshness after clock adjustments, including restarts. */
 static void rebase_clock(void)
 {
     int64_t now = time_now(), uptime = time_uptime_ms();
@@ -692,24 +690,23 @@ static void rebase_clock(void)
     int64_t delta = state.clock ? now - state.clock - elapsed : 0;
     if (state.boot != boot && delta > 0) { delta = 0; }
     int64_t *deadlines = state.deadlines;
-    for (int32_t i = 0; i < 6; i++) { if (deadlines[i]) { deadlines[i] += delta; } }
+    for (int32_t i = 0; i < 5; i++) { if (deadlines[i]) { deadlines[i] += delta; } }
     seen_at = state.revision == cache.revision ? state.seen : 0;
     if (delta || state.boot != boot) { state_dirty = true; }
     state.clock = now; state.uptime = uptime; state.boot = boot;
 }
 
-/* One enabled poll at a time. Queued work has no clock lease; the callback closes
- * its required header gate before another endpoint is enabled. Disabled polls fail
- * template expansion locally, including automatic reconnect and settings polls. */
+/* Keep one manual request binding until its answer, with an independent fetch cadence. */
 static void fetch(void)
 {
+    if (state_read_failed || cache_read_failed) { return; }
     rebase_clock();
     follow_year();
     persist();
-    int64_t now = time_now(), wait = state.cooldown > state.next_send ? state.cooldown : state.next_send;
+    int64_t now = time_now();
     if (state.active_poll) { return; }
     if (!now) { return; }
-    if (wait > now) { return; }
+    if (state.next_send > now) { return; }
     if (cache_dirty || state_dirty) { return; }
     int32_t kind = -1;
     for (int32_t i = 0; i < 3; i++) {
@@ -717,7 +714,6 @@ static void fetch(void)
         if (state.due[candidate] <= now) { kind = candidate; break; }
     }
     if (kind < 0) { return; }
-    for (int32_t i = 0; i < POLLS; i++) { if (!close_gate(i)) { return; } }
     if (kind == POLL_YEAR && !cache.staging.year) {
         clear_record(&cache.staging, sizeof cache.staging);
         cache.staging.year = cache.year;
@@ -736,41 +732,10 @@ static void fetch(void)
         const char *offset = number_text(state.item);
         ready = set_text("offset", offset) && ready;
     }
-    const char *gate = GATES[state.active_poll - 1];
-    if (!ready || !set_text(gate, "1") || poll_run(state.active_poll - 1) != HOST_OK) {
-        close_gate(kind);
+    if (!ready || poll_run(kind) != HOST_OK) {
         state.active_poll = 0; state.due[kind] = now + HOUR; save_state();
     }
 
-}
-
-/* Retry-After permits either delta seconds or an RFC 7231 GMT date. */
-static int64_t retry_deadline(void)
-{
-    int64_t now = time_now();
-    int32_t info[3] = { 0 }; /* status, length, Retry-After: only this metadata prefix is needed */
-    answer_info((host_answer_info_t *)info, sizeof info);
-    if (info[2] > 0) { return now + info[2]; }
-    char header[64] = { 0 };
-    int32_t size = answer_header("Retry-After", 11, 0, header, sizeof header - 1);
-    if (size > 0) {
-        int32_t seconds = number_of(header);
-        if (seconds >= 0) { return now + seconds; }
-        if (size == 29 && is_same(header + 25, " GMT", 4)) {
-            static const char MONTHS[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
-            for (int32_t month = 1; month <= 12; month++) {
-                if (!is_same(header + 8, MONTHS + 3 * (month - 1), 3)) { continue; }
-                char iso[] = "0000-00-00T00:00:00Z";
-                copy_record(iso, header + 12, 4);
-                iso[5] = '0' + month / 10; iso[6] = '0' + month % 10;
-                copy_record(iso + 8, header + 5, 2);
-                copy_record(iso + 11, header + 17, 8);
-                int64_t at = parse_moment(iso);
-                if (at) { return at > now ? at : now; }
-            }
-        }
-    }
-    return now + RETRY_DEFAULT_S;
 }
 
 static void finish_answer(int32_t status)
@@ -779,13 +744,11 @@ static void finish_answer(int32_t status)
     int32_t kind = state.request;
     state.next_send = now + REQUEST_GAP;
     if (status == HTTP_OK && !(kind == POLL_YEAR ? take_page() : take_launches(kind))) { status = HOST_FAILED_NO_ANSWER; }
-    /* A closed private gate is not a setting the user must fix. */
-    if (status != HOST_FAILED_NOT_READY) { state.status[kind] = status; }
+    state.status[kind] = status;
     if (status != HTTP_OK) {
         state.due[kind] = now + HOUR;
         if (kind == POLL_YEAR) { clear_record(&cache.staging, sizeof cache.staging); cache_dirty = true; }
     } else {
-        close_gate(kind);
         if (kind < POLL_YEAR) {
             state.due[kind] = now + (kind == POLL_UPCOMING ? 30 * MINUTE : 3 * HOUR);
             if (kind == POLL_UPCOMING) { state.seen = seen_at = now; state.revision = cache.revision; }
@@ -807,10 +770,7 @@ void app_on_picked(int32_t poll, int32_t status)
     rebase_clock();
     follow_year();
     if (status == HTTP_TOO_MANY) {
-        int64_t until = retry_deadline();
-        if (until > state.cooldown) { state.cooldown = until; }
         for (int32_t i = 0; i < POLLS; i++) { state.status[i] = status; }
-        for (int32_t i = 0; i < POLLS; i++) { close_gate(i); }
         state_dirty = true;
         persist();
         if (poll + 1 != state.active_poll) { screen_redraw(HOST_REDRAW_NORMAL); return; }
@@ -823,14 +783,18 @@ void app_on_picked(int32_t poll, int32_t status)
 void app_on_load(void)
 {
     cache_dirty = state_dirty = false;
-    if (!app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION)) {
+    int32_t result = app_state_load(STATE_KEY, &state, sizeof state, STATE_VERSION);
+    state_read_failed = result != HOST_OK && result != HOST_ERR_NOT_FOUND;
+    if (result != HOST_OK) {
         clear_record(&state, sizeof state);
         state.version = STATE_VERSION;
     }
     if (state.boot != time_boot_id()) { state.active_poll = 0; state_dirty = true; }
     /* Separate delivery receipt survives KV failure after a successful post. */
     uint32_t receipt[2];
-    if (file_read("told", 4, 0, receipt, sizeof receipt) == sizeof receipt && receipt[0] && receipt[1] == ~receipt[0] && !was_told(receipt[0])) {
+    int32_t length = file_read("told", 4, 0, receipt, sizeof receipt);
+    receipt_read_failed = length < 0 && length != HOST_ERR_NOT_FOUND;
+    if (length == sizeof receipt && receipt[0] && receipt[1] == ~receipt[0] && !was_told(receipt[0])) {
         state.told[state.told_next] = receipt[0];
         state.told_next = (state.told_next + 1) % TOLD_MAX;
         state_dirty = true;
@@ -840,8 +804,12 @@ void app_on_load(void)
     cache_generation = 0;
     cache_bank = 1;
     bool have = false;
+    cache_read_failed = false;
+    history_count = -1;
     for (int32_t i = 0; i < 2; i++) {
-        if (file_read(BANKS[i], 7, 0, &bank_buffer, sizeof bank_buffer) == sizeof bank_buffer && valid_bank(&bank_buffer) &&
+        length = file_read(BANKS[i], 7, 0, &bank_buffer, sizeof bank_buffer);
+        if (length < 0 && length != HOST_ERR_NOT_FOUND) { cache_read_failed = true; }
+        if (length == sizeof bank_buffer && valid_bank(&bank_buffer) &&
             (!have || (int32_t)(bank_buffer.generation - cache_generation) > 0)) {
             copy_record(&cache, &bank_buffer.data, sizeof cache);
             cache_generation = bank_buffer.generation;
@@ -865,7 +833,7 @@ void app_on_load(void)
 
 void app_on_intent(int32_t intent)
 {
-    (void)intent;
+    if (intent != HOST_INTENT_STARTED && intent != HOST_INTENT_TIME_CHANGED && intent != HOST_INTENT_NETWORK_UP) { return; }
     fetch();
     schedule_reminder();
 }
@@ -1054,7 +1022,7 @@ static void say_day(const launch_t *launch, int32_t style, char *out, int32_t si
         return;
     }
     if (time_local_at(launch->net, &then) != HOST_OK) { return; }
-    if (style == HOST_TIME_NEAR_DAY && time_local_at(time_now(), &today) == HOST_OK &&
+    if (style == HOST_TIME_NEAR_DAY && time_local(&today) == HOST_OK &&
         then.year == today.year && then.month == today.month && then.day == today.day) {
         style = HOST_TIME_CLOCK;
     }

@@ -9,23 +9,24 @@
 
 int main(void)
 {
+    standin_handlers = (standin_handlers_t){ .on_load = app_on_load, .on_focus = app_on_focus,
+        .on_blur = app_on_blur, .on_terminate = app_on_terminate };
     standin_reset();
-    standin()->is_session_writable = true;
-    app_on_load(); app_on_focus();
+    standin_load(); standin_focus();
     app_on_button(BTN_DOWN_LONG_PRESSED);
     place_t before = place;
-    app_on_blur();
-    app_on_load(); app_on_focus();
+    standin_leave();
+    standin_load(); standin_focus();
     assert(!memcmp(&place, &before, sizeof place));
     uint64_t diagnostics = standin()->diagnostics;
     standin_refuse_session(HOST_ERR_NO_SPACE);
     app_on_blur();
     assert(standin_refused_sessions() == 0);
     assert(standin()->diagnostics == diagnostics);
-    app_on_load(); app_on_focus();
+    standin_leave(); standin_load(); standin_focus();
     assert(!memcmp(&place, &before, sizeof place));
-    standin_forget_session();
-    app_on_load(); app_on_focus();
+    standin_leave(); standin_forget_session();
+    standin_load(); standin_focus();
     diagnostics = standin()->diagnostics;
     standin_refuse_session(HOST_ERR_NO_SPACE);
     app_on_blur();

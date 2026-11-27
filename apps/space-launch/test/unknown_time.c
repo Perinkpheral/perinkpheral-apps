@@ -35,6 +35,13 @@ int main(void)
     }
     cache.lists[0][0].precision = PRECISION_HOUR; mentions = 0;
     standin_draw(); assert(mentions == 0);
+    /* Epoch zero is a valid conversion argument, but never a known current date. */
+    standin_clock(0);
+    launch_t historical = { .precision = 1, .net = 3600 };
+    char date[32], expected[32];
+    say_day(&historical, HOST_TIME_NEAR_DAY, date, sizeof date);
+    app_time_text(historical.net, HOST_TIME_NEAR_DAY, expected, sizeof expected);
+    assert(!strcmp(date, expected));
     puts("space-launch: unknown time appears once in the detail caption");
     return 0;
 }
