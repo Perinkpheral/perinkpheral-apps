@@ -389,8 +389,8 @@ static bool extract(event_t *events, int32_t *count)
     char text[64];
     if (!element(V_TYPE, 0, text, sizeof text) || !app_text_equal(text, "FeatureCollection")) { return false; }
     int32_t n = answer_count(V_ID);
-    /* metadata.count is absent from answers to a query with a limit; when
-     * it is there it is the number of features. */
+    /* Queries with a limit omit metadata.count. An extracted scalar count
+     * must match the number of features. */
     int32_t declared;
     if ((uint32_t)n > BATCH || (answer_count(V_LENGTH) && (!app_value_number(V_LENGTH, 0, &declared) || declared != n))) { return false; }
     for (int32_t k = V_ID; k < V_COUNT; k++) { if (answer_count(k) != n) { return false; } }
@@ -995,7 +995,13 @@ static void draw_main(void)
         FILL(line, "{1}, {2}", 0, a, b);
     } else { copy_text(line, sizeof line, word(scope_status(0))); }
     draw_text(16, 231, HOST_UI_TEXT, line, 368);
-    if ((e && state.status[0] != 200) || (success[0] && stale(0))) { draw_text(16, 16, HOST_UI_CAPTION, word(state.status[0] != 200 ? scope_status(0) : STR_STALE), 180); }
+    if ((e && state.status[0] != 200) || (success[0] && stale(0))) {
+        const char *caption = word(state.status[0] != 200 ? scope_status(0) : STR_STALE);
+        int32_t width = ui_text_width(HOST_UI_CAPTION, caption, app_text_length(caption));
+        if (width > 180) { width = 180; }
+        paper_rect(14, 14, width + 4, ui_text_height(HOST_UI_CAPTION) + 4);
+        draw_text(16, 16, HOST_UI_CAPTION, caption, 180);
+    }
 }
 /* USGS generated distance/direction prefixes are not part of a proper name. */
 static const char *place_name(const event_t *e, char localized[128])

@@ -84,9 +84,11 @@ six decimals before use in requests.
 
 Complete, equally sized picked arrays are validated before accepting a page.
 Unequal picked array lengths, ambiguous/truncated identity strings and duplicate
-identities within one collection leave good data intact. A present `metadata.count`
-must be readable and match the number of events. Without a declared count, a
-whole missing record cannot be distinguished from legitimately fewer events.
+identities within one collection leave good data intact. A scalar `metadata.count`
+extracted by the picker must be readable and match the number of events. The picker
+skips object and array counts, which are indistinguishable from an absent count.
+Without an extracted count, a whole missing record cannot be distinguished from
+legitimately fewer events.
 Exact IDs and complete aliases merge across cached scopes; the highest revision wins. Only bounded plain
 decimal numbers are accepted; null magnitude/depth remains unknown.
 

@@ -6,24 +6,39 @@
 static int32_t spy_text(int32_t,int32_t,int32_t,const char *,int32_t,int32_t);
 static int32_t map_draw(const host_map_t *);
 static int32_t spy_icon(int32_t,int32_t,int32_t,int32_t);
+static int32_t spy_color(int32_t);
+static int32_t spy_rect(int32_t,int32_t,int32_t,int32_t,int32_t);
 __attribute__((unused)) static int32_t spy_line(int32_t,int32_t,int32_t,int32_t);
 __attribute__((unused)) static int32_t spy_ring(const host_map_t *,int32_t,int32_t,int32_t);
 #define ui_draw_text spy_text
 #define gfx_draw_map map_draw
 #define gfx_draw_icon spy_icon
+#define gfx_set_color spy_color
+#define gfx_draw_rect spy_rect
 #define gfx_draw_line spy_line
 #define gfx_draw_map_radius spy_ring
 #include "../earthquakes.c"
 #undef ui_draw_text
 #undef gfx_draw_map
 #undef gfx_draw_icon
+#undef gfx_set_color
+#undef gfx_draw_rect
 #undef gfx_draw_line
 #undef gfx_draw_map_radius
 #include "standin.h"
 static bool offline, loading, unavailable, no_data, no_events, expired, you;
 static int home_icons, dashes, solid_rings, map_top, source_bottom;
+static int32_t color, paper_x, paper_y, paper_width, paper_height;
+static int caption_backings;
 static int32_t spy_text(int32_t x,int32_t y,int32_t style,const char *s,int32_t n,int32_t width)
 {
+    if(x==16 && y==16 && style==HOST_UI_CAPTION) {
+        int32_t text_width=ui_text_width(style,s,n);
+        if(text_width>width)text_width=width;
+        assert(color==HOST_INK && paper_x<=x && paper_y<=y);
+        assert(paper_x+paper_width>=x+text_width && paper_y+paper_height>=y+ui_text_height(style));
+        caption_backings++;
+    }
     if(n==(int)strlen(word(STR_OFFLINE)) && !strncmp(s,word(STR_OFFLINE),(size_t)n))offline=true;
     if(n==(int)strlen(word(STR_WAIT)) && !strncmp(s,word(STR_WAIT),(size_t)n))loading=true;
     if(n==(int)strlen(word(STR_NO_EVENTS)) && !strncmp(s,word(STR_NO_EVENTS),(size_t)n))no_events=true;
@@ -38,6 +53,12 @@ static int32_t spy_text(int32_t x,int32_t y,int32_t style,const char *s,int32_t 
 static int32_t map_draw(const host_map_t *m) { map_top=m->y;return gfx_draw_map(m); }
 static int32_t spy_icon(int32_t x,int32_t y,int32_t id,int32_t cell)
 { if(id==HOST_ICON_HOME)home_icons++;return gfx_draw_icon(x,y,id,cell); }
+static int32_t spy_color(int32_t value) { color=value;return gfx_set_color(value); }
+static int32_t spy_rect(int32_t x,int32_t y,int32_t w,int32_t h,int32_t fill)
+{
+    if(color==HOST_PAPER && fill==HOST_RECT_FILLED) { paper_x=x;paper_y=y;paper_width=w;paper_height=h; }
+    return gfx_draw_rect(x,y,w,h,fill);
+}
 __attribute__((unused)) static int32_t spy_line(int32_t x,int32_t y,int32_t xx,int32_t yy)
 { dashes++;return gfx_draw_line(x,y,xx,yy); }
 __attribute__((unused)) static int32_t spy_ring(const host_map_t *m,int32_t lat,int32_t lon,int32_t r)
@@ -95,7 +116,8 @@ static void stale_empty(void)
     standin_pass(2701000);
     for(int screen=0;screen<2;screen++)for(int scope=0;scope<2;scope++) {
         scene.nav.screen=screen;scene.scope=scope;
-        expired=no_events=false;standin_draw();assert(no_events && expired);
+        expired=no_events=false;caption_backings=0;standin_draw();assert(no_events && expired);
+        assert(caption_backings==(screen==0 ? 1 : 0));
     }
 }
 static void map_markers(void)
