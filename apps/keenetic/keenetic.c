@@ -465,7 +465,7 @@ static void start(bool explicit_retry)
  * make no requests. Scrolling applies the same visible-data check. */
 static void refill_visible(void)
 {
-    if (scene.pending || control.blocked) return;
+    if (scene.pending || control.blocked || !configured()) return;
     bool missing = scene.page == 3 && !hosts.count && !detail_status;
     if (scene.page == 3) {
         for (int i = device_first; i < hosts.count && i < device_first + shown_rows; i++)

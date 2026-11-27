@@ -1561,10 +1561,24 @@ static void cooldown_and_sessions(void)
     puts("keenetic: login and poll cooldowns survive settings, clock changes and unload; session failures are diagnosed");
 }
 
+static void unconfigured_scrolling(void)
+{
+    logged_in(true); setting("every", "15 min"); scene.page = 3;
+    poll_fixture(BATCH, "v9-batch-1.json");
+    poll_fixture(HOSTS, "router/hotspot.json");
+    for (int row = shown_rows; row < hosts.count; row++) hosts.rows[row].ip[0] = 0;
+    assert(!scene.pending);
+    setting("password", "");
+    int requests = cooldown_requests();
+    for (int press = 0; press < 8; press++) app_on_button(BTN_DOWN_PRESSED);
+    assert(cooldown_requests() == requests && !scene.pending);
+    puts("keenetic: scrolling Devices into missing rows asks nothing while a required setting is empty");
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
-    resumed_refresh(); resumed_details(); refresh_during_details(); resumed_system_radios(); stationary_resumes();
+    resumed_refresh(); resumed_details(); refresh_during_details(); resumed_system_radios(); stationary_resumes(); unconfigured_scrolling();
     offscreen_settings_interval(); blocked_navigation();
     cooldown_and_sessions(); timeout_scene();
     chart_neighbours(); refresh_phase(); optional_rates();
