@@ -2,8 +2,7 @@
 
 A four-screen dashboard for Keenetic 5.01: Traffic, System, Network and Devices.
 English and Russian work with Departure Mono and Jersey fonts.
-Version 0.4.13 requires Perinkpheral OS 0.1.95 or later. Failure and offline
-scenarios can exhaust the interpreter arena on earlier firmware.
+Requires Perinkpheral OS 0.2.0 or later.
 
 Set Router address, Username, Password, Refresh and WAN interface (default
 `PPPoE0`). WAN port and radios accepts one to three interface names: the WAN

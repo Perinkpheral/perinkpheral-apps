@@ -26,8 +26,8 @@ Notifications default to Off and require an explicit choice of On.
 - A system notice uses the standard OK/BACK dismissal.
 
 Worldwide keeps only its current eight-report page, with a 120-day display
-window and a 1,000-page request cap. The query starts at the platform's earliest
-supported date, 2026-01-01; the client stops at the 120-day boundary. Pages
+window and a 1,000-page request cap. The Worldwide query uses a fixed lower bound
+of 2026-01-01; the client applies the 120-day display window. Pages
 continue from the oldest displayed origin timestamp, so insertions or removals
 earlier in the live feed do not shift the next page. Inclusive boundary queries
 remove already displayed identities, including when the boundary report itself
@@ -91,9 +91,9 @@ retains its poll interval/deadline. Worldwide replies preserve that full interva
 so identical headers cause neither snapshot writes nor interval changes.
 Packaged data and the two-block cache fit the 32 KB file allowance; the boundary
 identity file uses the remaining room and refuses advancement if it fills. Seven
-settings, even with maximum-length numeric values, plus the three query keys
-remain below the 2 KB KV allowance. Valid long coordinates are normalized to
-six decimals before use in requests.
+settings, even with maximum-length numeric values, plus the four internal keys
+(`near`, `end`, `offset` and `pending`) remain below the 2 KB KV allowance.
+Valid long coordinates are normalized to six decimals before use in requests.
 
 Complete, equally sized picked arrays are validated before accepting a page.
 Unequal picked array lengths, ambiguous/truncated identity strings and duplicate
@@ -180,11 +180,11 @@ and clock changes, requested-work retries and required-field nulls in both scope
 data becomes fresh, without adding cache writes, and recovery after refused
 Worldwide parameter saves.
 
-The proposed SDK correction in `test/sdk-checker.patch` prepares the `Do`
-request trigger once for a fresh scene. Replaying it after session restoration
-or between response rounds toggles the scope before comparing pictures, which
-contradicts the checker's reload and response invariants. Response rounds replay
-previously requested manual work; cooldown checks use the scheduler.
+The SDK checker in
+[`sdk/check/checks.c`](https://github.com/Perinkpheral/perinkpheral-os/blob/main/sdk/check/checks.c)
+prepares the `Do` request trigger once for a fresh scene and skips it after
+session restoration. Ordinary comparison rounds replay previously requested
+manual work without repeating the button trigger. Cooldown checks use the scheduler.
 
 Cache format version 4 is required. Incompatible snapshots are discarded, and
 the next Nearby reply seeds notifications silently.

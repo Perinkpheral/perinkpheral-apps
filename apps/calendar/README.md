@@ -39,8 +39,11 @@ The parser supports timed and all-day events, UTC, floating times and time zones
 defined in the feed, including daylight-saving rules. Recurrence supports daily,
 weekly, monthly and yearly intervals, counts, end dates, weekdays, ordinal weekdays
 such as the second Tuesday, exclusions, and moved or cancelled occurrences.
-Responses are parsed incrementally. Floating dates from 1900 through 2100
-use Perinkpheral OS's zone rules for that date, including historical daylight saving.
+Responses are parsed incrementally. Floating times use Perinkpheral OS's recurring
+POSIX zone rules, including daylight saving, without historical time-zone data.
+Explicit conversions accept UTC moments from `1970-01-01 00:00:00` through
+`2100-01-01 00:00:00`, inclusive. If conversion fails, including for earlier
+floating dates, Calendar uses the current UTC offset.
 
 If the saved event cache cannot be read, Calendar shows Storage error and preserves
 all sources on disk. It waits for a successful restore before replacing snapshots

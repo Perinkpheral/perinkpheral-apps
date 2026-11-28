@@ -2,8 +2,9 @@
 
 Shows the latest published prices and a month of history for Gold, Silver,
 Platinum and Palladium. UP and DOWN switch metals; OK refreshes. Background
-updates run every six hours. Raw requests retain their Retry-After cooldown,
-including HTTP dates normalized by Perinkpheral OS.
+updates run every six hours. On HTTP 429, the application retains the raw request's
+Retry-After cooldown, including HTTP dates normalized by Perinkpheral OS.
+The delay defaults to 60 seconds without a usable Retry-After value.
 
 A failed month or request-state restore preserves its saved value. Downloads
 may still be displayed when the month is unreadable, but cannot replace it
