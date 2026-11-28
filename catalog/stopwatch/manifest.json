@@ -1,6 +1,6 @@
 {
   "name": "stopwatch",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "title": "Stopwatch",
   "author": "Perinkpheral",
   "description": "Stopwatch",
@@ -23,5 +23,5 @@
     "..#.....#..",
     "...#####..."
   ],
-  "firmware": "0.1.30"
+  "firmware": "0.2.0"
 }

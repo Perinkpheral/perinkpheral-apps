@@ -3,7 +3,7 @@
   "title": "Space Launch",
   "author": "Perinkpheral",
   "description": "Space launches, upcoming and past",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "abi": 3,
   "format": "json",
   "writes_files": true,
@@ -44,11 +44,9 @@
   "polls": [
     {
       "url": "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?format=json&mode=normal&limit=10&ordering=net&hide_recent_previous=false",
-      "every": 86400,
       "headers": {
         "Accept": "application/json",
-        "User-Agent": "perinkpheral-space-launch",
-        "X-App-Gate": "{{list_gate}}"
+        "User-Agent": "perinkpheral-space-launch"
       },
       "pick": [
         "results[*].id",
@@ -59,15 +57,14 @@
         "results[*].launch_service_provider.name",
         "results[*].pad.location.name",
         "count"
-      ]
+      ],
+      "manual": true
     },
     {
       "url": "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=-net&hide_recent_previous=false",
-      "every": 86400,
       "headers": {
         "Accept": "application/json",
-        "User-Agent": "perinkpheral-space-launch",
-        "X-App-Gate": "{{past_gate}}"
+        "User-Agent": "perinkpheral-space-launch"
       },
       "pick": [
         "results[*].id",
@@ -78,15 +75,14 @@
         "results[*].launch_service_provider.name",
         "results[*].pad.location.name",
         "count"
-      ]
+      ],
+      "manual": true
     },
     {
       "url": "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&mode=normal&limit=10&ordering=id&offset={{offset}}&year={{yr}}&status__ids=3,4,7&include_suborbital=false",
-      "every": 86400,
       "headers": {
         "Accept": "application/json",
-        "User-Agent": "perinkpheral-space-launch",
-        "X-App-Gate": "{{year_gate}}"
+        "User-Agent": "perinkpheral-space-launch"
       },
       "pick": [
         "results[*].id",
@@ -98,8 +94,9 @@
         "unused_site",
         "count",
         "results[*].launch_service_provider.id"
-      ]
+      ],
+      "manual": true
     }
   ],
-  "firmware": "0.1.95"
+  "firmware": "0.2.0"
 }

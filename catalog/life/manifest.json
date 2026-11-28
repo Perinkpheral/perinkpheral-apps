@@ -3,8 +3,7 @@
   "title": "Life",
   "author": "Perinkpheral",
   "description": "Conway's Game of Life",
-  "version": "0.1.8",
-  "firmware": "0.1.61",
+  "version": "0.1.9",
   "abi": 3,
   "format": "raw",
   "fullscreen": true,
@@ -49,5 +48,6 @@
     "...........",
     "...........",
     "..........."
-  ]
+  ],
+  "firmware": "0.2.0"
 }

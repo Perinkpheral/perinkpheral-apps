@@ -1,7 +1,6 @@
 {
   "name": "kit",
-  "version": "0.1.21",
-  "firmware": "0.1.61",
+  "version": "0.1.22",
   "title": "UI Kit",
   "author": "Perinkpheral",
   "description": "Interface elements for app developers",
@@ -19,5 +18,6 @@
     "#......##.#",
     "#.........#",
     "###########"
-  ]
+  ],
+  "firmware": "0.2.0"
 }

@@ -4,13 +4,13 @@
     {
       "name": "air",
       "title": "Air quality",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 8525,
-          "sha256": "3042d40838a8afc5c6df085213710a9c3c4ae6b90c17b0ff4efe29bb10710ead"
+          "size": 7225,
+          "sha256": "e2b1365541a0179de376688875182d08ee7f3b16548b6e017678bb28b30ea8bf"
         },
         {
           "name": "manifest.ru",
@@ -24,12 +24,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 2199,
-          "sha256": "34e715d0694c5edf1f738f210c94aed676982c87d1ad523b10d74ecaaa243b24"
+          "size": 2198,
+          "sha256": "2e19f9ba17e118e95a4df1289b58ee81bf7c308db24b4f7937f6da86f190bc50"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "icon": [
         "...........",
         "......##...",
@@ -54,13 +54,13 @@
     {
       "name": "calendar",
       "title": "Calendar",
-      "version": "0.6.2",
+      "version": "0.6.3",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 17494,
-          "sha256": "c135be6e44ae68bf13051ea89ad7c52875c5e1d836e45d0e71c440cb815ee7d1"
+          "size": 17720,
+          "sha256": "a4a844cdfed1c802eaa18aa979308788599d5fd3f52bf943de164caeec43e411"
         },
         {
           "name": "manifest.ru",
@@ -74,12 +74,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 1906,
-          "sha256": "7f3dff1cb3134c4075a24daf246a34e63c86674ac311184efed884ff0765f686"
+          "size": 1905,
+          "sha256": "0f921804450d120e4359aca0fd82a3819a3c1b83c6753c98c77d76e3fc9a714e"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.95",
+      "firmware": "0.2.0",
       "writes_files": true,
       "icon": [
         "..#.....#..",
@@ -105,7 +105,7 @@
     {
       "name": "clock",
       "title": "Clock",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "abi": 3,
       "files": [
         {
@@ -125,12 +125,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 480,
-          "sha256": "b9c53ff8571f21b7cd559db6f783aaca6c2cf854b10401c50292776497466a8f"
+          "size": 479,
+          "sha256": "41153518394a4558ed406c3cc8744385a5d1d311536f134bc67d0f24f424f235"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "icon": [
         "...#####...",
         "..#.....#..",
@@ -155,13 +155,13 @@
     {
       "name": "donut",
       "title": "donut.c",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6250,
-          "sha256": "71035e7c26e9c20f7c6acfcbe9770d886d4406dd7922dd07f8efd377a75f5c54"
+          "size": 6248,
+          "sha256": "4d259479c9642072ff44f3693cf5550b0db68c7a44c57a5330f9f57834d6c591"
         },
         {
           "name": "manifest.ru",
@@ -175,12 +175,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 703,
-          "sha256": "5b0b3e4ad08a3675170fc7c676d39465499fa507a664dfbb02cd1f6e3b8e1ae4"
+          "size": 702,
+          "sha256": "895a6b57d48c39a6fd431e63322b18403bda446ecb266c498bbffc7859496208"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "icon": [
         "...........",
         "...#####...",
@@ -205,13 +205,13 @@
     {
       "name": "earthquakes",
       "title": "Earthquakes",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 19424,
-          "sha256": "80f60187d0c4f06aaae7ea76e5133d7eccdb2b8829de852a94a9f037856133b1"
+          "size": 19469,
+          "sha256": "356d58dbaa7153f0f47d98d5edcc2783b36e850dd39ffccc8bef7ae7843c83d8"
         },
         {
           "name": "manifest.ru",
@@ -225,12 +225,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 3166,
-          "sha256": "2df62dd31debfd0889ca46fb4aabd8135b9340885b675779a2a5469c89023396"
+          "size": 3165,
+          "sha256": "b1cc2a3b9a87e5e6b05e60fb94f285f38ae0854f74e52e95ef139cece121d67a"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.95",
+      "firmware": "0.2.0",
       "writes_files": true,
       "icon": [
         "...........",
@@ -256,13 +256,13 @@
     {
       "name": "ha",
       "title": "HA Companion",
-      "version": "0.4.12",
+      "version": "0.4.13",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 10893,
-          "sha256": "385cd26ce3e537d014e0951d1fead81f3d72900bccc6da04dddccc7ebcd9148c"
+          "size": 10472,
+          "sha256": "d5408a50bad190a36cd2149a7e6cd2000322868e19d6251539e75671aa117e41"
         },
         {
           "name": "manifest.ru",
@@ -276,12 +276,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 1247,
-          "sha256": "93574b6ae85895e1d0e0fd4fb0515ffa001b57b5ea626c24b940ec4fa550e137"
+          "size": 1246,
+          "sha256": "56e9cb4f524d8c60431f7677500d837d1c53aaa7c34f2a16463483207332da3c"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.84",
+      "firmware": "0.2.0",
       "icon": [
         ".....#.....",
         "....###....",
@@ -305,13 +305,13 @@
     {
       "name": "iss",
       "title": "ISS",
-      "version": "0.1.19",
+      "version": "0.1.20",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7706,
-          "sha256": "c9cdf9b6f207d93ee08f29fb22f179e5fe29b79c701adb7d7fd5c50c3bb13a4e"
+          "size": 7098,
+          "sha256": "3825fcbc22213aa853a32deaa1fe50c465cd0c07e78a5050204b686849dd62a8"
         },
         {
           "name": "manifest.ru",
@@ -325,12 +325,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 738,
-          "sha256": "b3006bcaffb40e1bffcc4eca871cec8fc8cd3b0ecf007077115a70f185877005"
+          "size": 737,
+          "sha256": "9ca1d75d7af78f5fac0c984727c18e0bcfbafc9040acd74d836575422ffa3c60"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.94",
+      "firmware": "0.2.0",
       "icon": [
         "...........",
         "##.......##",
@@ -355,13 +355,13 @@
     {
       "name": "keenetic",
       "title": "Keenetic",
-      "version": "0.4.13",
+      "version": "0.4.14",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 19961,
-          "sha256": "9d1f631a97b079bd61e01a87a885fbf52f2d332f457e0ae1eba4c81c7a835211"
+          "size": 19984,
+          "sha256": "45cfb898167999c4618178454a115976aeaa4eb194181dd0e417c31c0582bc99"
         },
         {
           "name": "manifest.ru",
@@ -375,12 +375,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 3073,
-          "sha256": "3915c86591eab94649109772c6e2701f969fc1af3e53235f2c34902db25fa129"
+          "size": 3072,
+          "sha256": "0a8187e5b08bd6d67567c5e31ac422e36dddd23c08311d2fab1e7a3aa4744632"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.95",
+      "firmware": "0.2.0",
       "icon": [
         ".#.......#.",
         ".#.......#.",
@@ -405,13 +405,13 @@
     {
       "name": "kit",
       "title": "UI Kit",
-      "version": "0.1.21",
+      "version": "0.1.22",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 8364,
-          "sha256": "00e514e09ca705d862ebb93bf3f3975f713e16d9096f44c206fe52fae88fd5ab"
+          "size": 8365,
+          "sha256": "94d5d012a8158cc4a94b5660db61ea10db9030c3c8df33849258d087609d4c3b"
         },
         {
           "name": "manifest.ru",
@@ -425,12 +425,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 430,
-          "sha256": "e02be59b2d10a1f2a1924309a50b8830ac23646bfa3dce7a0ce2ddbb26ba89fe"
+          "size": 429,
+          "sha256": "946bfc9f44c24ca563221d6c6cc4c3ac896e57699bb9fd85acd4c9deacfe4a35"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.61",
+      "firmware": "0.2.0",
       "icon": [
         "###########",
         "#.........#",
@@ -455,13 +455,13 @@
     {
       "name": "life",
       "title": "Life",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 6075,
-          "sha256": "c9dcd8b4c590cfcf48e49b0ed0e5ad9ec861225589cf8223ea297cdf2765b561"
+          "size": 6084,
+          "sha256": "fd952bb5b36c6452753979599a476713b470c58f20f310865bfd6f0c1a3dcf0b"
         },
         {
           "name": "manifest.ru",
@@ -475,12 +475,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 902,
-          "sha256": "c7c585a5bbe2707d4b865850d62943e51ce34f7ee1d32a45912beb1094c5026f"
+          "size": 901,
+          "sha256": "9fa466baabf4a1f989429764f676cd260debfb334838ffbbb5e6e5068ea7eb25"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.61",
+      "firmware": "0.2.0",
       "icon": [
         "...........",
         "....##.....",
@@ -505,13 +505,13 @@
     {
       "name": "metals",
       "title": "Bank of Russia metals",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 10957,
-          "sha256": "d66ad1f6fc5370c9189548ea2e89d5cdec12df8200e76e300ebdd4904b26f1a3"
+          "size": 11105,
+          "sha256": "90efe4982fb5c1ade5551a24aae30c55e628614035bdfabce10029b431d69e02"
         },
         {
           "name": "manifest.ru",
@@ -530,12 +530,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 838,
-          "sha256": "86a27113e48d99576713ed64edc918714c74dcf9762197fb56e006e783beec51"
+          "size": 837,
+          "sha256": "59b888af874c1ba9aad630ae6a42f9fdfa99f105bd5eb2579b5e39e5250a45ad"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.61",
+      "firmware": "0.2.0",
       "trusts": [
         "Russian Trusted Root CA"
       ],
@@ -563,13 +563,13 @@
     {
       "name": "pomodoro",
       "title": "Pomodoro",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7024,
-          "sha256": "65ec7d8d9a499dc00ed49d9fc2418cdef7e24aa80bd4200ec879983c87c04ab5"
+          "size": 7543,
+          "sha256": "860be2d9d851f6b855e99426239829c9c4418ec21fc128a32b79334db7f59478"
         },
         {
           "name": "manifest.ru",
@@ -583,12 +583,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 1219,
-          "sha256": "c2a96c55bdf48b58fd536282ae1185290119c1be9bee3115c2fc918a7c3cc80b"
+          "size": 1218,
+          "sha256": "2eec8774cde92e2e4a52f7516d24d72c36d729ae2b597e56bb65ec6bc90f9b71"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "icon": [
         ".....#.....",
         "..#..#..#..",
@@ -613,13 +613,13 @@
     {
       "name": "rates",
       "title": "Exchange rates",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 16269,
-          "sha256": "e3acad01bb339dde5d3cda645eec5a31ff16a467b111864c3e3b916ff41d7463"
+          "size": 18002,
+          "sha256": "7d72460ab3789079f097574ca0ce156d60e0e22f84af02422b7b7345d75c56d8"
         },
         {
           "name": "manifest.ru",
@@ -638,12 +638,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 1383,
-          "sha256": "97f3db3211e0db3eca76d40b8063f277acbb5db464c4e83b6f1ad7513caf70ef"
+          "size": 1382,
+          "sha256": "05e1f1e9c60ae557bf19878668f655eefadec10ddc6aed0d35778ed3614d0a90"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.95",
+      "firmware": "0.2.0",
       "writes_files": true,
       "trusts": [
         "Russian Trusted Root CA"
@@ -672,13 +672,13 @@
     {
       "name": "space-launch",
       "title": "Space Launch",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 19042,
-          "sha256": "d162b2c8b656b65bb43112b3998a51b0e8caa318d7801fcb5fdcb0b0d6e6e637"
+          "size": 18498,
+          "sha256": "147e2d8139a62ee5a0440506affdb733cff92067cd5b386457e0aed9941aafab"
         },
         {
           "name": "history.bin",
@@ -697,12 +697,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 2664,
-          "sha256": "b30bb80db2010b35c42344504e63388f6f5ce5d675c8f94f7abf66c7cc1819f4"
+          "size": 2546,
+          "sha256": "cef761426c56737c3c298747550ef984c03ed13d3b341a1475b8201f445dcf90"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.95",
+      "firmware": "0.2.0",
       "writes_files": true,
       "icon": [
         ".....#.....",
@@ -728,13 +728,13 @@
     {
       "name": "stocks",
       "title": "Stocks",
-      "version": "0.2.21",
+      "version": "0.2.22",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 10009,
-          "sha256": "4fda34e7629b50812aaed44eed1b8ff92cb69cab06d116d67b3b8cdda60fd33b"
+          "size": 11296,
+          "sha256": "41ef2718a0a1d326c43cc5efff1417dc9d2bcaf6f141fcd9e4e4012636e97f4f"
         },
         {
           "name": "manifest.ru",
@@ -753,12 +753,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 2870,
-          "sha256": "a2a554e8309b7db4ecc2214686e71a2006b48452cef20b103fbcfc129c566633"
+          "size": 2869,
+          "sha256": "708fed1a5b9a06b819825a54359edcb1fbd89d64e7866bac509c09294d34adf7"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.97",
+      "firmware": "0.2.0",
       "writes_files": true,
       "trusts": [
         "Russian Trusted Root CA"
@@ -787,13 +787,13 @@
     {
       "name": "stopwatch",
       "title": "Stopwatch",
-      "version": "0.1.19",
+      "version": "0.1.20",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 3825,
-          "sha256": "7ae3177ce70e4583879ae9a2b60d02c830f13ca744fa119518bd5956e42f2595"
+          "size": 4087,
+          "sha256": "60b22038e22ac693756d07f6b10d1de2342c2046c2fad13c984a3c3a56ee5281"
         },
         {
           "name": "manifest.ru",
@@ -807,12 +807,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 465,
-          "sha256": "0a414bac146ef55b5b434896dc6af4668b4505c82b7c73f7551db38b89be8078"
+          "size": 464,
+          "sha256": "c5b1dcaaf94b5d980cc37dbd8e052535a02a89e64cc42bf051af49525b527bd0"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "icon": [
         "....###....",
         ".....#.....",
@@ -837,13 +837,13 @@
     {
       "name": "sun",
       "title": "Sun and Moon",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7845,
-          "sha256": "ae12e6b7894748fc39ed1f48b537ea59dc97ae4c73c7a8acd122ed3ba3b72e9d"
+          "size": 7855,
+          "sha256": "140435dd6016bd7a231e4e444333933c2be561fd3552152e00d39319034e405f"
         },
         {
           "name": "manifest.ru",
@@ -857,12 +857,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 1467,
-          "sha256": "d3e5cc9ab2d2f05886defe9714dfd8a0794650eebfa7237e832dd5a9c409867e"
+          "size": 1466,
+          "sha256": "06234760d312100827ab382d3c410c8c5f882255e377d6f115a6a5d2b7925690"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "writes_files": true,
       "icon": [
         "...........",
@@ -888,13 +888,13 @@
     {
       "name": "timer",
       "title": "Timer",
-      "version": "0.3.20",
+      "version": "0.3.21",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 4355,
-          "sha256": "f841f03666a08bd2ce48a867f1285ff4965bd31fd7f62eb822b69ad0357a04fe"
+          "size": 4681,
+          "sha256": "d01d07949470efd35e3ad2a09f38737fb178b3b33292df2e685928832ef7afc7"
         },
         {
           "name": "manifest.ru",
@@ -908,12 +908,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 403,
-          "sha256": "6f378b0db261bf0b562414bb3a29e908fa92a6b37b52deaa6c6e9c78a0890ba3"
+          "size": 402,
+          "sha256": "e5dcaade0c92648452f75718b18e13f4fe85dc97b66ebca62114d61f9a545ddd"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "icon": [
         ".#########.",
         ".#########.",
@@ -938,13 +938,13 @@
     {
       "name": "weather",
       "title": "Weather",
-      "version": "0.2.24",
+      "version": "0.2.25",
       "abi": 3,
       "files": [
         {
           "name": "app.wasm",
-          "size": 7643,
-          "sha256": "52db58e27712116bb2080fe8def3bc738b81c5a0b701ebae22ca08fb005e71f7"
+          "size": 7006,
+          "sha256": "fc4a328590e4b07aee61e9f17d1d41c1abeb62b27502085d681392de4ef3c3dd"
         },
         {
           "name": "manifest.ru",
@@ -958,12 +958,12 @@
         },
         {
           "name": "manifest.json",
-          "size": 2060,
-          "sha256": "9b59d0a59d4dc3cbc7735b1605d6a8a856f3a3f8af3b27f89ad6c432a2d037f5"
+          "size": 2059,
+          "sha256": "878368122312d2f71ca204c7c0877ca4349a993f4acffc39d4a31adbda62af3d"
         }
       ],
       "author": "Perinkpheral",
-      "firmware": "0.1.30",
+      "firmware": "0.2.0",
       "icon": [
         "...#.......",
         ".#...#.....",

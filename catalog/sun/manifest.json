@@ -3,7 +3,7 @@
   "title": "Sun and Moon",
   "author": "Perinkpheral",
   "description": "Sunrise, sunset and the moon's phase",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "abi": 3,
   "format": "raw",
   "writes_files": true,
@@ -77,5 +77,5 @@
     "started",
     "time_changed"
   ],
-  "firmware": "0.1.30"
+  "firmware": "0.2.0"
 }

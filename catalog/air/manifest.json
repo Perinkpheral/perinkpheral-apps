@@ -3,7 +3,7 @@
   "title": "Air quality",
   "author": "Perinkpheral",
   "description": "Harmful particles, UV and the strongest irritants",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "abi": 3,
   "format": "json",
   "fullscreen": false,
@@ -93,5 +93,5 @@
     "....##.....",
     "..........."
   ],
-  "firmware": "0.1.30"
+  "firmware": "0.2.0"
 }

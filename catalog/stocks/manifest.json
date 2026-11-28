@@ -3,9 +3,8 @@
   "title": "Stocks",
   "author": "Perinkpheral",
   "description": "Stock prices",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "abi": 3,
-  "firmware": "0.1.97",
   "format": "json",
   "writes_files": true,
   "fullscreen": false,
@@ -109,5 +108,6 @@
     "#........#.",
     "##########.",
     "..........."
-  ]
+  ],
+  "firmware": "0.2.0"
 }

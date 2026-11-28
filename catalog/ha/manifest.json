@@ -1,11 +1,10 @@
 {
   "name": "ha",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "title": "HA Companion",
   "author": "Perinkpheral",
   "description": "Home Assistant dashboard",
   "abi": 3,
-  "firmware": "0.1.84",
   "format": "raw",
   "settings": [
     {
@@ -67,5 +66,6 @@
     ".##.###.##.",
     ".##.###.##.",
     ".#########."
-  ]
+  ],
+  "firmware": "0.2.0"
 }
